@@ -3,7 +3,7 @@ import { usePersonalList, useDeletePersonal } from '../hooks/usePersonal';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { PersonalForm } from '../components/personal/PersonalForm';
 import { PersonalDetailModal } from '../components/personal/PersonalDetailModal';
-import { Search, Plus, Trash2, Eye, User, Phone, Mail, CheckCircle, XCircle } from 'lucide-react';
+import { Search, Plus, Trash2, Eye, User, Mail, CheckCircle, XCircle } from 'lucide-react';
 import { Personal } from '../types';
 
 // Estados de actividad (para UI, no relacionados con backend)

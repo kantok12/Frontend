@@ -50,8 +50,7 @@ export const ExtendedRegisterPage: React.FC = () => {
     register,
     handleSubmit,
     formState: { errors },
-    trigger,
-    watch
+    trigger
   } = useForm<ExtendedRegisterForm>({
     resolver: zodResolver(extendedRegisterSchema),
     defaultValues: {

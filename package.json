@@ -1,7 +1,25 @@
 {
   "name": "sistema-gestion-personal-frontend",
-  "version": "1.0.0",
-  "description": "Frontend para Sistema de Gestión de Personal",
+  "version": "1.2.0",
+  "description": "Frontend para Sistema de Gestión de Personal - Aplicación web moderna con React + TypeScript",
+  "author": "Equipo de Desarrollo",
+  "license": "MIT",
+  "keywords": [
+    "react",
+    "typescript",
+    "tailwind",
+    "personal-management",
+    "hr-system",
+    "frontend"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tu-usuario/sistema-gestion-personal-frontend.git"
+  },
+  "bugs": {
+    "url": "https://github.com/tu-usuario/sistema-gestion-personal-frontend/issues"
+  },
+
   "proxy": "http://localhost:3000",
   "private": true,
   "dependencies": {
@@ -27,10 +45,21 @@
   },
   "scripts": {
     "start": "react-scripts start",
+    "dev": "react-scripts start",
     "start-network": "set HOST=0.0.0.0 && set DANGEROUSLY_DISABLE_HOST_CHECK=true && react-scripts start",
     "start-local": "react-scripts start",
     "build": "react-scripts build",
+    "build:analyze": "npm run build && npx serve -s build",
     "test": "react-scripts test",
+    "test:coverage": "react-scripts test --coverage --watchAll=false",
+    "test:ci": "react-scripts test --coverage --watchAll=false --ci",
+    "lint": "eslint src/**/*.{ts,tsx} --max-warnings=0",
+    "lint:fix": "eslint src/**/*.{ts,tsx} --fix",
+    "format": "prettier --write src/**/*.{ts,tsx,js,jsx,css,md}",
+    "format:check": "prettier --check src/**/*.{ts,tsx,js,jsx,css,md}",
+    "type-check": "tsc --noEmit",
+    "clean": "if exist build rmdir /s /q build && if exist node_modules rmdir /s /q node_modules && if exist package-lock.json del package-lock.json && npm install",
+    "prepare": "husky install",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {
