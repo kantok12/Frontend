@@ -7,7 +7,8 @@ import {
   Settings, 
   LogOut,
   Menu,
-  X
+  X,
+  Layers,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -18,9 +19,9 @@ interface SidebarProps {
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: Home },
-  { name: 'Calendario', href: '/calendario', icon: Calendar },
   { name: 'Personal', href: '/personal', icon: Users },
   { name: 'Servicios', href: '/servicios', icon: Settings },
+  { name: 'Programación', href: '/calendario', icon: Calendar },
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {
@@ -38,17 +39,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {
       )}
 
       {/* Sidebar */}
-      <div
-        className={`fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 ${
-          isOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
+        <div
+    className={`fixed inset-y-0 left-0 z-50 w-48 bg-[#ABABAB] shadow-lg transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 ${
+            isOpen ? 'translate-x-0' : '-translate-x-full'
+          }`}
       >
         <div className="flex flex-col h-full">
           {/* Header */}
           <div className="flex items-center justify-between p-4 border-b border-gray-200">
-            <h1 className="text-xl font-bold text-primary-600">
-              Gestión Personal
-            </h1>
+          <div className="flex justify-center items-center w-full">
+              <img src={require('../../assets/logo.png')} alt="Logo" className="object-contain w-full h-full" style={{ maxWidth: '100%', maxHeight: '100%' }} />
+          </div>
             <button
               onClick={onToggle}
               className="lg:hidden text-gray-500 hover:text-gray-700"
@@ -65,8 +66,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {
                 <Link
                   key={item.name}
                   to={item.href}
-                  className={`sidebar-item hover-grow transition-all duration-200 stagger-item ${
-                    isActive ? 'sidebar-item-active scale-105 shadow-md' : 'sidebar-item-inactive hover:scale-105'
+                  className={`sidebar-item text-black hover-grow transition-all duration-200 stagger-item ${
+                    isActive ? 'sidebar-item-active scale-105 shadow-md text-[#262626]' : 'sidebar-item-inactive hover:scale-105'
                   }`}
                   style={{ animationDelay: `${index * 100}ms` }}
                   onClick={() => {
@@ -85,9 +86,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {
 
           {/* Footer */}
           <div className="p-4 border-t border-gray-200">
+            {/* Botón de cerrar sesión desactivado */}
             <button
-              onClick={logout}
-              className="sidebar-item sidebar-item-inactive w-full justify-start hover-grow transition-all duration-200 hover:bg-red-50 hover:text-red-600"
+              // onClick={logout}
+              onClick={(e) => e.preventDefault()}
+              className="sidebar-item sidebar-item-inactive w-full justify-start cursor-not-allowed opacity-50"
+              disabled
             >
               <LogOut size={20} className="mr-3 transition-transform duration-200" />
               Cerrar Sesión

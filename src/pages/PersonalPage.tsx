@@ -264,20 +264,20 @@ export const PersonalPage: React.FC = () => {
                     </div>
 
                     {/* Información de Nacimiento */}
-                    <div className="mb-3">
+                    {/* <div className="mb-3">
                       <h4 className="text-sm font-medium text-gray-700 mb-1">Fecha de Nacimiento</h4>
                       <p className="text-sm text-gray-900 bg-gray-50 p-3 rounded-lg">
                         {formatDate(persona.fecha_nacimiento)}
                       </p>
-                    </div>
+                    </div> */}
 
                     {/* Información de Registro */}
-                    <div className="mb-4">
+                    {/* <div className="mb-4">
                       <h4 className="text-sm font-medium text-gray-700 mb-1">Zona Geográfica</h4>
                       <p className="text-sm text-gray-600 italic">
                         {persona.zona_geografica}
                       </p>
-                    </div>
+                    </div> */}
 
                     {/* Información Adicional */}
                     <div className="border-t pt-3">
@@ -299,7 +299,7 @@ export const PersonalPage: React.FC = () => {
 
             {/* Paginación */}
             {totalPages > 1 && (
-              <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
+              <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6 mt-8">
                 <div className="flex-1 flex justify-between sm:hidden">
                   <button
                     onClick={() => handlePageChange(page - 1)}
