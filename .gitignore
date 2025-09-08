@@ -134,3 +134,38 @@ $RECYCLE.BIN/
 .directory
 .Trash-*
 .nfs*
+
+# Archivos específicos del proyecto
+package-lock.json.backup
+*.log
+.env.backup
+
+# Archivos de instalación temporal
+install.log
+setup.log
+
+# Archivos de configuración local
+.npmrc.local
+.vscode/settings.json
+.vscode/launch.json
+
+# Archivos de caché específicos
+.npm/_cacache/
+.yarn/cache/
+.pnpm-store/
+
+# Archivos de build específicos
+dist/
+build/
+out/
+
+# Archivos de testing
+coverage/
+.nyc_output/
+test-results/
+playwright-report/
+
+# Archivos de desarrollo
+*.local
+*.dev
+*.test
