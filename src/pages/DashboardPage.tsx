@@ -168,7 +168,7 @@ export const DashboardPage: React.FC = () => {
             </div>
 
       {/* System Status */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">
             Estado del Sistema
@@ -214,7 +214,7 @@ export const DashboardPage: React.FC = () => {
             </div>
           </div>
         </div>
-      </div>
+      </div> */}
     </div>
   );
 };

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   Users, 
@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { useDashboardStats } from '../../hooks/useDashboard';
 import { LoadingSpinner } from '../common/LoadingSpinner';
+import { PersonalInfoModal } from './PersonalInfoModal';
 
 // Importar datos mock reales de las páginas
 // Datos mock del personal (copiados de PersonalPage.tsx)
@@ -151,12 +152,16 @@ const StatCard: React.FC<{
 
 export const DashboardStats: React.FC = () => {
   const { data: stats, isLoading, error } = useDashboardStats();
+  const [showPersonalModal, setShowPersonalModal] = useState(false);
 
   // Calcular estadísticas reales de las tablas existentes
   const totalPersonal = mockPersonal.length;
   const personalActivo = mockPersonal.filter(p => p.activo).length;
   const personalTrabajando = mockPersonal.filter(p => 
     p.activo && p.estadoActividad.label === 'Trabajando'
+  ).length;
+  const personalAcreditacion = mockPersonal.filter(p => 
+    p.activo && p.estadoActividad.label === 'En Acreditación'
   ).length;
   
   const totalServicios = mockServicios.length;
@@ -194,42 +199,61 @@ export const DashboardStats: React.FC = () => {
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-      <div className="stagger-item animate-delay-100">
-        <StatCard
-          title="Total Personal"
-          value={dashboardStats.total_personal}
-          icon={<Users className="h-6 w-6 text-white" />}
-          color="bg-primary-500"
-          href="/personal"
-        />
+    <>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="stagger-item animate-delay-100">
+          <div 
+            className="p-6 rounded-lg border border-gray-200 bg-white hover:shadow-md transition-shadow cursor-pointer"
+            onClick={() => setShowPersonalModal(true)}
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Total Personal</p>
+                <p className="text-3xl font-bold text-gray-900 mt-2">{dashboardStats.total_personal}</p>
+              </div>
+              <div className="p-3 rounded-lg bg-primary-500">
+                <Users className="h-6 w-6 text-white" />
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="stagger-item animate-delay-200">
+          <StatCard
+            title="Personal Trabajando"
+            value={dashboardStats.personal_trabajando}
+            icon={<Activity className="h-6 w-6 text-white" />}
+            color="bg-green-500"
+          />
+        </div>
+        <div className="stagger-item animate-delay-300">
+          <StatCard
+            title="Eventos (15 días)"
+            value={dashboardStats.total_eventos}
+            icon={<Calendar className="h-6 w-6 text-white" />}
+            color="bg-blue-500"
+            href="/calendario"
+          />
+        </div>
+        <div className="stagger-item animate-delay-400">
+          <StatCard
+            title="Total Servicios"
+            value={dashboardStats.total_servicios}
+            icon={<Settings className="h-6 w-6 text-white" />}
+            color="bg-orange-500"
+            href="/servicios"
+          />
+        </div>
       </div>
-      <div className="stagger-item animate-delay-200">
-        <StatCard
-          title="Personal Trabajando"
-          value={dashboardStats.personal_trabajando}
-          icon={<Activity className="h-6 w-6 text-white" />}
-          color="bg-green-500"
-        />
-      </div>
-      <div className="stagger-item animate-delay-300">
-        <StatCard
-          title="Eventos (15 días)"
-          value={dashboardStats.total_eventos}
-          icon={<Calendar className="h-6 w-6 text-white" />}
-          color="bg-blue-500"
-          href="/calendario"
-        />
-      </div>
-      <div className="stagger-item animate-delay-400">
-        <StatCard
-          title="Total Servicios"
-          value={dashboardStats.total_servicios}
-          icon={<Settings className="h-6 w-6 text-white" />}
-          color="bg-orange-500"
-          href="/servicios"
-        />
-      </div>
-    </div>
+
+      {/* Modal de información del personal */}
+      <PersonalInfoModal
+        isOpen={showPersonalModal}
+        onClose={() => setShowPersonalModal(false)}
+        totalPersonal={dashboardStats.total_personal}
+        personalActivo={dashboardStats.personal_activo}
+        personalTrabajando={dashboardStats.personal_trabajando}
+        personalAcreditacion={personalAcreditacion}
+      />
+    </>
   );
 };

@@ -40,7 +40,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {
 
       {/* Sidebar */}
         <div
-    className={`fixed inset-y-0 left-0 z-50 w-48 bg-[#ABABAB] shadow-lg transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 ${
+    className={`fixed inset-y-0 left-0 z-50 w-48 bg-gradient-to-b from-[#D8D5EB] to-[#ABABAB] shadow-lg transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 ${
             isOpen ? 'translate-x-0' : '-translate-x-full'
           }`}
       >
