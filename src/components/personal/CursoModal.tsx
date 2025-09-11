@@ -92,7 +92,7 @@ export const CursoModal: React.FC<CursoModalProps> = ({
       onSuccess();
       onClose();
     } catch (error) {
-      console.error('Error al guardar curso:', error);
+      // Error al guardar curso
       setErrors(['Error al guardar el curso. Por favor, intente nuevamente.']);
     }
   };
@@ -101,7 +101,7 @@ export const CursoModal: React.FC<CursoModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto scrollbar-hide">
         {/* Header */}
         <div className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white p-6 rounded-t-xl">
           <div className="flex justify-between items-start">
@@ -132,8 +132,8 @@ export const CursoModal: React.FC<CursoModalProps> = ({
           {errors.length > 0 && (
             <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
               <ul className="list-disc list-inside space-y-1">
-                {errors.map((error, index) => (
-                  <li key={index} className="text-sm">{error}</li>
+                {errors.map((error) => (
+                  <li key={error} className="text-sm">{error}</li>
                 ))}
               </ul>
             </div>

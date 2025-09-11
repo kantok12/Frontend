@@ -45,6 +45,16 @@
     @apply text-gray-600 hover:bg-gray-100 hover:text-gray-900;
   }
 
+  /* Scrollbar personalizado para modales */
+  .scrollbar-hide {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;  /* Chrome, Safari and Opera */
+  }
+
   /* Animaciones personalizadas */
   .fade-in {
     animation: fadeIn 0.6s ease-out forwards;

@@ -28,7 +28,7 @@ export const PersonalInfoModal: React.FC<PersonalInfoModalProps> = ({
 
   return createPortal(
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[99999] p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto scrollbar-hide">
         {/* Header */}
         <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6 rounded-t-xl">
           <div className="flex justify-between items-center">
@@ -79,19 +79,6 @@ export const PersonalInfoModal: React.FC<PersonalInfoModalProps> = ({
               </div>
             </div>
 
-            {/* Personal Trabajando */}
-            <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-orange-900">Personal Trabajando</p>
-                  <p className="text-2xl font-bold text-orange-600 mt-1">{personalTrabajando}</p>
-                </div>
-                <div className="p-2 rounded-lg bg-orange-100">
-                  <div className="h-6 w-6 rounded-full bg-orange-500"></div>
-                </div>
-              </div>
-            </div>
-
             {/* Proceso de Acreditación */}
             <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
               <div className="flex items-center justify-between">
@@ -104,6 +91,21 @@ export const PersonalInfoModal: React.FC<PersonalInfoModalProps> = ({
                 </div>
               </div>
             </div>
+
+            {/* Personal en Servicio */}
+            <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-orange-900">Personal en Servicio</p>
+                  <p className="text-2xl font-bold text-orange-600 mt-1">{personalTrabajando}</p>
+                </div>
+                <div className="p-2 rounded-lg bg-orange-100">
+                  <div className="h-6 w-6 rounded-full bg-orange-500"></div>
+                </div>
+              </div>
+            </div>
+
+            
           </div>
 
           {/* Distribución por Estado */}
@@ -160,8 +162,8 @@ export const PersonalInfoModal: React.FC<PersonalInfoModalProps> = ({
           <div className="bg-blue-50 rounded-lg p-4 border border-blue-200 mt-4">
             <h4 className="text-lg font-semibold text-blue-900 mb-3">Resumen Detallado</h4>
             <div className="text-sm text-blue-800 space-y-2">
-              <p>• <span className="font-semibold">{personalTrabajando}</span> personas están actualmente trabajando</p>
-              <p>• <span className="font-semibold">{personalActivo - personalTrabajando}</span> personas activas no trabajando</p>
+              <p>• <span className="font-semibold">{personalTrabajando}</span> personas están actualmente en servicio</p>
+              <p>• <span className="font-semibold">{personalActivo - personalTrabajando}</span> personas activas no en servicio</p>
               <p>• <span className="font-semibold">{personalAcreditacion}</span> personas en proceso de acreditación</p>
               <p>• <span className="font-semibold">{personalInactivo}</span> personas inactivas en el sistema</p>
             </div>

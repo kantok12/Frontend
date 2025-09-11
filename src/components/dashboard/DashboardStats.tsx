@@ -9,6 +9,8 @@ import {
 import { useDashboardStats } from '../../hooks/useDashboard';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { PersonalInfoModal } from './PersonalInfoModal';
+import { PersonalTrabajandoModal } from './PersonalTrabajandoModal';
+import { EventosModal } from './EventosModal';
 
 // Importar datos mock reales de las páginas
 // Datos mock del personal (copiados de PersonalPage.tsx)
@@ -20,7 +22,13 @@ const mockPersonal = [
     cargo: 'Ingeniero IMC',
     ubicacion: 'Santiago',
     activo: true,
-    estadoActividad: { label: 'Trabajando' }
+    estadoActividad: { label: 'Trabajando' },
+    servicioAsignado: {
+      id: '1',
+      nombre: 'Mantenimiento Industrial',
+      categoria: 'Mantenimiento',
+      zonaGestion: 'Minería'
+    }
   },
   {
     id: '2',
@@ -29,7 +37,13 @@ const mockPersonal = [
     cargo: 'Ingeniero de Aplicaciones',
     ubicacion: 'Valparaíso',
     activo: true,
-    estadoActividad: { label: 'En Reunión' }
+    estadoActividad: { label: 'En Reunión' },
+    servicioAsignado: {
+      id: '2',
+      nombre: 'Servicio Spot',
+      categoria: 'Servicio Spot',
+      zonaGestion: 'Minería'
+    }
   },
   {
     id: '3',
@@ -38,7 +52,13 @@ const mockPersonal = [
     cargo: 'Ingeniero en Servicio',
     ubicacion: 'Concepción',
     activo: true,
-    estadoActividad: { label: 'Trabajando' }
+    estadoActividad: { label: 'Trabajando' },
+    servicioAsignado: {
+      id: '3',
+      nombre: 'Servicio Integral',
+      categoria: 'Servicio Integral',
+      zonaGestion: 'Industria'
+    }
   },
   {
     id: '4',
@@ -47,7 +67,13 @@ const mockPersonal = [
     cargo: 'Técnico Nivel 3',
     ubicacion: 'La Serena',
     activo: false,
-    estadoActividad: { label: 'Licencia Médica' }
+    estadoActividad: { label: 'Licencia Médica' },
+    servicioAsignado: {
+      id: '4',
+      nombre: 'Programa de Lubricación',
+      categoria: 'Programa de Lubricación',
+      zonaGestion: 'Industria'
+    }
   },
   {
     id: '5',
@@ -56,7 +82,13 @@ const mockPersonal = [
     cargo: 'Capataz',
     ubicacion: 'Santiago',
     activo: true,
-    estadoActividad: { label: 'En Descanso' }
+    estadoActividad: { label: 'En Descanso' },
+    servicioAsignado: {
+      id: '5',
+      nombre: 'Levantamientos',
+      categoria: 'Levantamientos',
+      zonaGestion: 'Industria'
+    }
   },
   {
     id: '6',
@@ -65,7 +97,13 @@ const mockPersonal = [
     cargo: 'Técnico Nivel 2',
     ubicacion: 'Valparaíso',
     activo: true,
-    estadoActividad: { label: 'Capacitación' }
+    estadoActividad: { label: 'Capacitación' },
+    servicioAsignado: {
+      id: '6',
+      nombre: 'Instalaciones',
+      categoria: 'Instalaciones',
+      zonaGestion: 'Industria'
+    }
   },
   {
     id: '7',
@@ -74,7 +112,13 @@ const mockPersonal = [
     cargo: 'Técnico Nivel 1',
     ubicacion: 'Concepción',
     activo: true,
-    estadoActividad: { label: 'Trabajando' }
+    estadoActividad: { label: 'Trabajando' },
+    servicioAsignado: {
+      id: '1',
+      nombre: 'Mantenimiento Industrial',
+      categoria: 'Mantenimiento',
+      zonaGestion: 'Minería'
+    }
   },
   {
     id: '8',
@@ -83,7 +127,13 @@ const mockPersonal = [
     cargo: 'Ingeniero IMC',
     ubicacion: 'La Serena',
     activo: true,
-    estadoActividad: { label: 'Trabajando' }
+    estadoActividad: { label: 'Trabajando' },
+    servicioAsignado: {
+      id: '3',
+      nombre: 'Servicio Integral',
+      categoria: 'Servicio Integral',
+      zonaGestion: 'Industria'
+    }
   }
 ];
 
@@ -111,15 +161,143 @@ const getProximosDias = () => {
 
 const proximosDias = getProximosDias();
 const mockEventos = [
-  { id: '1', fecha: proximosDias[0], estado: 'en_progreso' },
-  { id: '2', fecha: proximosDias[1], estado: 'programado' },
-  { id: '3', fecha: proximosDias[2], estado: 'programado' },
-  { id: '4', fecha: proximosDias[4], estado: 'programado' },
-  { id: '5', fecha: proximosDias[6], estado: 'programado' },
-  { id: '6', fecha: proximosDias[8], estado: 'programado' },
-  { id: '7', fecha: proximosDias[10], estado: 'programado' },
-  { id: '8', fecha: proximosDias[12], estado: 'programado' },
-  { id: '9', fecha: proximosDias[14], estado: 'programado' }
+  { 
+    id: '1', 
+    fecha: proximosDias[0], 
+    estado: 'en_progreso',
+    tipo: 'Mantenimiento Industrial',
+    ubicacion: 'Planta Minera Norte',
+    horaInicio: '08:00',
+    horaFin: '16:00',
+    descripcion: 'Mantenimiento preventivo de equipos críticos',
+    prioridad: 'alta',
+    personasAsignadas: [
+      { id: '1', nombre: 'Juan Carlos Pérez' },
+      { id: '3', nombre: 'Carlos Alberto Martínez' }
+    ]
+  },
+  { 
+    id: '2', 
+    fecha: proximosDias[1], 
+    estado: 'programado',
+    tipo: 'Servicio Spot',
+    ubicacion: 'Zona Industrial Sur',
+    horaInicio: '09:00',
+    horaFin: '13:00',
+    descripcion: 'Inspección de equipos de lubricación',
+    prioridad: 'media',
+    personasAsignadas: [
+      { id: '2', nombre: 'María Elena Rodríguez' }
+    ]
+  },
+  { 
+    id: '3', 
+    fecha: proximosDias[2], 
+    estado: 'programado',
+    tipo: 'Servicio Integral',
+    ubicacion: 'Planta de Procesamiento',
+    horaInicio: '07:30',
+    horaFin: '15:30',
+    descripcion: 'Servicio completo de mantenimiento',
+    prioridad: 'alta',
+    personasAsignadas: [
+      { id: '3', nombre: 'Carlos Alberto Martínez' },
+      { id: '8', nombre: 'Carmen López Torres' },
+      { id: '7', nombre: 'Roberto Silva Mendoza' }
+    ]
+  },
+  { 
+    id: '4', 
+    fecha: proximosDias[4], 
+    estado: 'programado',
+    tipo: 'Programa de Lubricación',
+    ubicacion: 'Área de Maquinaria',
+    horaInicio: '10:00',
+    horaFin: '14:00',
+    descripcion: 'Aplicación de programa de lubricación preventiva',
+    prioridad: 'media',
+    personasAsignadas: [
+      { id: '6', nombre: 'Patricia Vargas Castro' },
+      { id: '5', nombre: 'Luis Fernando Ramírez' }
+    ]
+  },
+  { 
+    id: '5', 
+    fecha: proximosDias[6], 
+    estado: 'programado',
+    tipo: 'Levantamientos',
+    ubicacion: 'Sector de Transporte',
+    horaInicio: '08:30',
+    horaFin: '12:30',
+    descripcion: 'Levantamiento de equipos pesados',
+    prioridad: 'baja',
+    personasAsignadas: [
+      { id: '5', nombre: 'Luis Fernando Ramírez' }
+    ]
+  },
+  { 
+    id: '6', 
+    fecha: proximosDias[8], 
+    estado: 'programado',
+    tipo: 'Instalaciones',
+    ubicacion: 'Nueva Línea de Producción',
+    horaInicio: '09:00',
+    horaFin: '17:00',
+    descripcion: 'Instalación de nuevos equipos',
+    prioridad: 'alta',
+    personasAsignadas: [
+      { id: '1', nombre: 'Juan Carlos Pérez' },
+      { id: '3', nombre: 'Carlos Alberto Martínez' },
+      { id: '7', nombre: 'Roberto Silva Mendoza' },
+      { id: '8', nombre: 'Carmen López Torres' }
+    ]
+  },
+  { 
+    id: '7', 
+    fecha: proximosDias[10], 
+    estado: 'programado',
+    tipo: 'Mantenimiento Industrial',
+    ubicacion: 'Planta Minera Sur',
+    horaInicio: '08:00',
+    horaFin: '16:00',
+    descripcion: 'Mantenimiento de sistemas hidráulicos',
+    prioridad: 'media',
+    personasAsignadas: [
+      { id: '1', nombre: 'Juan Carlos Pérez' },
+      { id: '6', nombre: 'Patricia Vargas Castro' }
+    ]
+  },
+  { 
+    id: '8', 
+    fecha: proximosDias[12], 
+    estado: 'programado',
+    tipo: 'Servicio Spot',
+    ubicacion: 'Área de Almacenamiento',
+    horaInicio: '11:00',
+    horaFin: '15:00',
+    descripcion: 'Revisión de equipos de almacenamiento',
+    prioridad: 'baja',
+    personasAsignadas: [
+      { id: '2', nombre: 'María Elena Rodríguez' },
+      { id: '7', nombre: 'Roberto Silva Mendoza' }
+    ]
+  },
+  { 
+    id: '9', 
+    fecha: proximosDias[14], 
+    estado: 'programado',
+    tipo: 'Servicio Integral',
+    ubicacion: 'Planta Principal',
+    horaInicio: '07:00',
+    horaFin: '15:00',
+    descripcion: 'Servicio completo de mantenimiento general',
+    prioridad: 'alta',
+    personasAsignadas: [
+      { id: '3', nombre: 'Carlos Alberto Martínez' },
+      { id: '8', nombre: 'Carmen López Torres' },
+      { id: '5', nombre: 'Luis Fernando Ramírez' }
+    ]
+  }
 ];
 
 const StatCard: React.FC<{
@@ -151,8 +329,10 @@ const StatCard: React.FC<{
 };
 
 export const DashboardStats: React.FC = () => {
-  const { data: stats, isLoading, error } = useDashboardStats();
+  const { isLoading } = useDashboardStats();
   const [showPersonalModal, setShowPersonalModal] = useState(false);
+  const [showPersonalTrabajandoModal, setShowPersonalTrabajandoModal] = useState(false);
+  const [showEventosModal, setShowEventosModal] = useState(false);
 
   // Calcular estadísticas reales de las tablas existentes
   const totalPersonal = mockPersonal.length;
@@ -164,8 +344,6 @@ export const DashboardStats: React.FC = () => {
     p.activo && p.estadoActividad.label === 'En Acreditación'
   ).length;
   
-  const totalServicios = mockServicios.length;
-  const serviciosActivos = mockServicios.filter(s => s.activo).length;
   
   const totalEventos = mockEventos.length;
   const eventosHoy = mockEventos.filter(e => {
@@ -178,8 +356,8 @@ export const DashboardStats: React.FC = () => {
     total_personal: totalPersonal,
     personal_activo: personalActivo,
     personal_trabajando: personalTrabajando,
-    total_servicios: totalServicios,
-    servicios_activos: serviciosActivos,
+    total_servicios: mockServicios.length,
+    servicios_activos: mockServicios.filter(s => s.activo).length,
     total_eventos: totalEventos,
     eventos_hoy: eventosHoy,
   };
@@ -187,8 +365,8 @@ export const DashboardStats: React.FC = () => {
   if (isLoading) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {Array.from({ length: 4 }).map((_, index) => (
-          <div key={index} className="p-6 rounded-lg border border-gray-200 bg-white">
+        {Array.from({ length: 4 }, (_, index) => (
+          <div key={`loading-card-${index}`} className="p-6 rounded-lg border border-gray-200 bg-white">
             <div className="flex items-center justify-center h-24">
               <LoadingSpinner size="md" />
             </div>
@@ -218,21 +396,36 @@ export const DashboardStats: React.FC = () => {
           </div>
         </div>
         <div className="stagger-item animate-delay-200">
-          <StatCard
-            title="Personal Trabajando"
-            value={dashboardStats.personal_trabajando}
-            icon={<Activity className="h-6 w-6 text-white" />}
-            color="bg-green-500"
-          />
+          <div 
+            className="p-6 rounded-lg border border-gray-200 bg-white hover:shadow-md transition-shadow cursor-pointer"
+            onClick={() => setShowPersonalTrabajandoModal(true)}
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Personal en Servicio</p>
+                <p className="text-3xl font-bold text-gray-900 mt-2">{dashboardStats.personal_trabajando}</p>
+              </div>
+              <div className="p-3 rounded-lg bg-green-500">
+                <Activity className="h-6 w-6 text-white" />
+              </div>
+            </div>
+          </div>
         </div>
         <div className="stagger-item animate-delay-300">
-          <StatCard
-            title="Eventos (15 días)"
-            value={dashboardStats.total_eventos}
-            icon={<Calendar className="h-6 w-6 text-white" />}
-            color="bg-blue-500"
-            href="/calendario"
-          />
+          <div 
+            className="p-6 rounded-lg border border-gray-200 bg-white hover:shadow-md transition-shadow cursor-pointer"
+            onClick={() => setShowEventosModal(true)}
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Eventos (15 días)</p>
+                <p className="text-3xl font-bold text-gray-900 mt-2">{dashboardStats.total_eventos}</p>
+              </div>
+              <div className="p-3 rounded-lg bg-blue-500">
+                <Calendar className="h-6 w-6 text-white" />
+              </div>
+            </div>
+          </div>
         </div>
         <div className="stagger-item animate-delay-400">
           <StatCard
@@ -253,6 +446,22 @@ export const DashboardStats: React.FC = () => {
         personalActivo={dashboardStats.personal_activo}
         personalTrabajando={dashboardStats.personal_trabajando}
         personalAcreditacion={personalAcreditacion}
+      />
+
+      {/* Modal de personal en servicio */}
+      <PersonalTrabajandoModal
+        isOpen={showPersonalTrabajandoModal}
+        onClose={() => setShowPersonalTrabajandoModal(false)}
+        personalTrabajando={mockPersonal.filter(p => 
+          p.activo && p.estadoActividad.label === 'Trabajando'
+        )}
+      />
+
+      {/* Modal de eventos */}
+      <EventosModal
+        isOpen={showEventosModal}
+        onClose={() => setShowEventosModal(false)}
+        eventos={mockEventos}
       />
     </>
   );

@@ -1,7 +1,7 @@
 // Configuración de la API
 export const API_CONFIG = {
-  BASE_URL: process.env.REACT_APP_API_URL || '/api', // Usar proxy en desarrollo
-  TIMEOUT: 10000,
+  BASE_URL: process.env.REACT_APP_API_URL || 'http://localhost:3000/api', // URL directa al backend
+  TIMEOUT: 30000, // Aumentar timeout a 30 segundos
   RETRY_ATTEMPTS: 3,
   DEMO_MODE: process.env.REACT_APP_DEMO_MODE === 'true' || false, // Modo demo
 };
