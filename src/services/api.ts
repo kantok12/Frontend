@@ -2,14 +2,11 @@ import axios, { AxiosInstance, AxiosResponse } from 'axios';
 import { 
   User, 
   Personal, 
-  Empresa, 
-  Servicio, 
   LoginForm, 
   RegisterForm,
   ApiResponse,
   PaginatedResponse,
   DashboardStats,
-  ServicioStats,
   PersonalDisponible,
   CreatePersonalDisponibleData,
   ExtendedRegisterForm
@@ -162,14 +159,10 @@ class ApiService {
   }
 
   async getPersonalById(id: string): Promise<ApiResponse<Personal>> {
-    const response: AxiosResponse<ApiResponse<Personal>> = await this.api.get(`/personal/${id}`);
+    const response: AxiosResponse<ApiResponse<Personal>> = await this.api.get(`/personal-disponible/${id}`);
     return response.data;
   }
 
-  async createPersonal(personalData: Partial<Personal>): Promise<ApiResponse<Personal>> {
-    const response: AxiosResponse<ApiResponse<Personal>> = await this.api.post('/personal', personalData);
-    return response.data;
-  }
 
   async updatePersonal(id: string, personalData: Partial<Personal>): Promise<ApiResponse<Personal>> {
     const response: AxiosResponse<ApiResponse<Personal>> = await this.api.put(`/personal-disponible/${id}`, personalData);
@@ -182,45 +175,45 @@ class ApiService {
   }
 
   async deletePersonal(id: string): Promise<ApiResponse<void>> {
-    const response: AxiosResponse<ApiResponse<void>> = await this.api.delete(`/personal/${id}`);
+    const response: AxiosResponse<ApiResponse<void>> = await this.api.delete(`/personal-disponible/${id}`);
     return response.data;
   }
 
-  // ==================== MÉTODOS PARA TABLA NOMBRES ====================
+  // ==================== MÉTODOS PARA PERSONAL DISPONIBLE (CORREGIDOS) ====================
   
-  // Obtener nombre por RUT
-  async getNombreByRut(rut: string): Promise<ApiResponse<any>> {
-    const response: AxiosResponse<ApiResponse<any>> = await this.api.get(`/nombres/${rut}`);
+  // Obtener personal por RUT (usando el endpoint correcto)
+  async getPersonalByRut(rut: string): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.get(`/personal-disponible/${rut}`);
     return response.data;
   }
 
-  // Buscar nombres
-  async searchNombres(searchTerm: string): Promise<ApiResponse<any[]>> {
-    const response: AxiosResponse<ApiResponse<any[]>> = await this.api.get(`/nombres/search?q=${encodeURIComponent(searchTerm)}`);
+  // Buscar personal (usando el endpoint correcto con filtros)
+  async searchPersonal(searchTerm: string): Promise<ApiResponse<any[]>> {
+    const response: AxiosResponse<ApiResponse<any[]>> = await this.api.get(`/personal-disponible?search=${encodeURIComponent(searchTerm)}`);
     return response.data;
   }
 
-  // Obtener estadísticas de nombres
-  async getNombresStats(): Promise<ApiResponse<any>> {
-    const response: AxiosResponse<ApiResponse<any>> = await this.api.get('/nombres/stats');
+  // Obtener estadísticas de personal (usando el endpoint correcto)
+  async getPersonalStats(): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.get('/personal-disponible/stats/cargos');
     return response.data;
   }
 
-  // Crear nombre
-  async createNombre(nombreData: any): Promise<ApiResponse<any>> {
-    const response: AxiosResponse<ApiResponse<any>> = await this.api.post('/nombres', nombreData);
+  // Crear personal (usando el endpoint correcto)
+  async createPersonal(nombreData: any): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.post('/personal-disponible', nombreData);
     return response.data;
   }
 
-  // Actualizar nombre
-  async updateNombre(rut: string, nombreData: any): Promise<ApiResponse<any>> {
-    const response: AxiosResponse<ApiResponse<any>> = await this.api.put(`/nombres/${rut}`, nombreData);
+  // Actualizar personal (usando el endpoint correcto)
+  async updatePersonalData(rut: string, nombreData: any): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.put(`/personal-disponible/${rut}`, nombreData);
     return response.data;
   }
 
-  // Eliminar nombre
-  async deleteNombre(rut: string): Promise<ApiResponse<any>> {
-    const response: AxiosResponse<ApiResponse<any>> = await this.api.delete(`/nombres/${rut}`);
+  // Eliminar personal (usando el endpoint correcto)
+  async deletePersonalData(rut: string): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.delete(`/personal-disponible/${rut}`);
     return response.data;
   }
 
@@ -248,7 +241,7 @@ class ApiService {
 
   // Obtener cursos de una persona específica
   async getCursosByRut(rut: string): Promise<ApiResponse<any[]>> {
-    const response: AxiosResponse<ApiResponse<any[]>> = await this.api.get(`/cursos/persona/${rut}`);
+    const response: AxiosResponse<ApiResponse<any[]>> = await this.api.get(`/cursos?rut=${rut}`);
     return response.data;
   }
 
@@ -258,11 +251,6 @@ class ApiService {
     return response.data;
   }
 
-  // Obtener estadísticas de cursos
-  async getCursosStats(): Promise<ApiResponse<any>> {
-    const response: AxiosResponse<ApiResponse<any>> = await this.api.get('/cursos/stats');
-    return response.data;
-  }
 
   // Crear nuevo curso/certificación
   async createCurso(cursoData: any): Promise<ApiResponse<any>> {
@@ -283,85 +271,15 @@ class ApiService {
   }
 
   async getPersonalDisponibilidad(id: string): Promise<ApiResponse<any>> {
-    const response: AxiosResponse<ApiResponse<any>> = await this.api.get(`/personal/${id}/disponibilidad`);
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.get(`/personal-disponible/${id}/disponibilidad`);
     return response.data;
   }
 
   async updatePersonalDisponibilidad(id: string, disponibilidad: any): Promise<ApiResponse<any>> {
-    const response: AxiosResponse<ApiResponse<any>> = await this.api.put(`/personal/${id}/disponibilidad`, disponibilidad);
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.put(`/personal-disponible/${id}/disponibilidad`, disponibilidad);
     return response.data;
   }
 
-  // Métodos de Empresas
-  async getEmpresas(page = 1, limit = 10, search = '', filters = ''): Promise<PaginatedResponse<Empresa>> {
-    const response: AxiosResponse<PaginatedResponse<Empresa>> = await this.api.get(
-      `/empresas?page=${page}&limit=${limit}&search=${search}&filters=${filters}`
-    );
-    return response.data;
-  }
-
-  async getEmpresaById(id: string): Promise<ApiResponse<Empresa>> {
-    const response: AxiosResponse<ApiResponse<Empresa>> = await this.api.get(`/empresas/${id}`);
-    return response.data;
-  }
-
-  async createEmpresa(empresaData: Partial<Empresa>): Promise<ApiResponse<Empresa>> {
-    const response: AxiosResponse<ApiResponse<Empresa>> = await this.api.post('/empresas', empresaData);
-    return response.data;
-  }
-
-  async updateEmpresa(id: string, empresaData: Partial<Empresa>): Promise<ApiResponse<Empresa>> {
-    const response: AxiosResponse<ApiResponse<Empresa>> = await this.api.put(`/empresas/${id}`, empresaData);
-    return response.data;
-  }
-
-  async deleteEmpresa(id: string): Promise<ApiResponse<void>> {
-    const response: AxiosResponse<ApiResponse<void>> = await this.api.delete(`/empresas/${id}`);
-    return response.data;
-  }
-
-  async getEmpresaPersonal(id: string): Promise<ApiResponse<Personal[]>> {
-    const response: AxiosResponse<ApiResponse<Personal[]>> = await this.api.get(`/empresas/${id}/personal`);
-    return response.data;
-  }
-
-  // Métodos de Servicios
-  async getServicios(page = 1, limit = 10, search = '', filters = ''): Promise<PaginatedResponse<Servicio>> {
-    const response: AxiosResponse<PaginatedResponse<Servicio>> = await this.api.get(
-      `/servicios?page=${page}&limit=${limit}&search=${search}&filters=${filters}`
-    );
-    return response.data;
-  }
-
-  async getServicioById(id: string): Promise<ApiResponse<Servicio>> {
-    const response: AxiosResponse<ApiResponse<Servicio>> = await this.api.get(`/servicios/${id}`);
-    return response.data;
-  }
-
-  async createServicio(servicioData: Partial<Servicio>): Promise<ApiResponse<Servicio>> {
-    const response: AxiosResponse<ApiResponse<Servicio>> = await this.api.post('/servicios', servicioData);
-    return response.data;
-  }
-
-  async updateServicio(id: string, servicioData: Partial<Servicio>): Promise<ApiResponse<Servicio>> {
-    const response: AxiosResponse<ApiResponse<Servicio>> = await this.api.put(`/servicios/${id}`, servicioData);
-    return response.data;
-  }
-
-  async deleteServicio(id: string): Promise<ApiResponse<void>> {
-    const response: AxiosResponse<ApiResponse<void>> = await this.api.delete(`/servicios/${id}`);
-    return response.data;
-  }
-
-  async getServicioPersonal(id: string): Promise<ApiResponse<Personal[]>> {
-    const response: AxiosResponse<ApiResponse<Personal[]>> = await this.api.get(`/servicios/${id}/personal`);
-    return response.data;
-  }
-
-  async getServiciosStats(): Promise<ApiResponse<ServicioStats[]>> {
-    const response: AxiosResponse<ApiResponse<ServicioStats[]>> = await this.api.get('/servicios/stats/estadisticas');
-    return response.data;
-  }
 
   // Métodos de utilidades
   async healthCheck(): Promise<ApiResponse<any>> {

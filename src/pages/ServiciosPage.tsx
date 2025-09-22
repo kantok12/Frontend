@@ -1,7 +1,11 @@
 import React, { useState } from 'react';
-import { useServiciosList } from '../hooks/useServicios';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
+import { Tooltip } from '../components/common/Tooltip';
 import { Search, Plus, Edit, Trash2, Eye, Clock, Settings, MapPin, Calendar, Users } from 'lucide-react';
+import { ServicioModal } from '../components/servicios/ServicioModal';
+import { ServicioViewModal } from '../components/servicios/ServicioViewModal';
+import { ServicioEditModal } from '../components/servicios/ServicioEditModal';
+import { ServicioDeleteModal } from '../components/servicios/ServicioDeleteModal';
 
 // Empresas chilenas para la cartera
 const empresasChilenas = [
@@ -51,6 +55,7 @@ const mockServicios = [
       { dia: 'Viernes', actividad: 'Limpieza de boquillas en equipos de perforación' }
     ],
     personalRequerido: 3,
+    personalSeleccionado: ['1', '2', '3'],
     activo: true,
     created_at: '2024-01-15T10:00:00Z',
     updated_at: '2024-01-15T10:00:00Z'
@@ -70,6 +75,7 @@ const mockServicios = [
       { dia: 'Mismo día', actividad: 'Aplicación de lubricación y verificación operativa' }
     ],
     personalRequerido: 2,
+    personalSeleccionado: ['4', '5'],
     activo: true,
     created_at: '2024-01-16T10:00:00Z',
     updated_at: '2024-01-16T10:00:00Z'
@@ -90,6 +96,7 @@ const mockServicios = [
       { dia: 'Semana 2', actividad: 'Implementación de mejoras y optimización' }
     ],
     personalRequerido: 4,
+    personalSeleccionado: ['6', '7', '8', '9'],
     activo: true,
     created_at: '2024-01-17T10:00:00Z',
     updated_at: '2024-01-17T10:00Z'
@@ -111,6 +118,7 @@ const mockServicios = [
       { dia: 'Semana 4', actividad: 'Reporte y análisis de resultados' }
     ],
     personalRequerido: 3,
+    personalSeleccionado: ['10', '1', '2'],
     activo: true,
     created_at: '2024-01-18T10:00:00Z',
     updated_at: '2024-01-18T10:00:00Z'
@@ -131,6 +139,7 @@ const mockServicios = [
       { dia: 'Día 5', actividad: 'Generación de informe de levantamiento' }
     ],
     personalRequerido: 2,
+    personalSeleccionado: ['3', '4'],
     activo: true,
     created_at: '2024-01-19T10:00:00Z',
     updated_at: '2024-01-19T10:00:00Z'
@@ -152,9 +161,30 @@ const mockServicios = [
       { dia: 'Semana 4', actividad: 'Puesta en marcha y capacitación' }
     ],
     personalRequerido: 5,
+    personalSeleccionado: ['5', '6', '7', '8', '9'],
     activo: true,
     created_at: '2024-01-20T10:00:00Z',
     updated_at: '2024-01-20T10:00:00Z'
+  },
+  {
+    id: '7',
+    nombre: 'Servicio de Mantenimiento Preventivo',
+    descripcion: 'Servicio de mantenimiento preventivo para equipos industriales',
+    zonaGestion: 'Industria',
+    categoria: 'Servicio Integral',
+    cartera: 'Empresa Demo',
+    lugar: 'Santiago',
+    duracion_horas: 8,
+    tiempoPlanificacion: '1 semana',
+    diasActividad: [
+      { dia: 'Día 1', actividad: 'Inspección general de equipos' },
+      { dia: 'Día 2', actividad: 'Lubricación y ajustes' }
+    ],
+    personalRequerido: 2,
+    personalSeleccionado: [], // Sin personal asignado
+    activo: true,
+    created_at: '2024-01-21T10:00:00Z',
+    updated_at: '2024-01-21T10:00:00Z'
   }
 ];
 
@@ -164,9 +194,17 @@ export const ServiciosPage: React.FC = () => {
   const [zonaFilter, setZonaFilter] = useState('Todas');
   const [limit] = useState(10);
   const [isLoading, setIsLoading] = useState(false);
+  const [showServicioModal, setShowServicioModal] = useState(false);
+  const [servicios, setServicios] = useState(mockServicios);
+  
+  // Estados para los modales
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [selectedServicio, setSelectedServicio] = useState<any>(null);
 
-  // Filtrar datos mock basado en la búsqueda y zona de gestión
-  const filteredServicios = mockServicios.filter(servicio => {
+  // Filtrar datos basado en la búsqueda y zona de gestión
+  const filteredServicios = servicios.filter(servicio => {
     const matchesSearch = 
       servicio.nombre.toLowerCase().includes(search.toLowerCase()) ||
       servicio.descripcion.toLowerCase().includes(search.toLowerCase()) ||
@@ -193,8 +231,107 @@ export const ServiciosPage: React.FC = () => {
     setPage(1); // Reset to first page when searching
   };
 
+  // Reset page when search or filter changes
+  React.useEffect(() => {
+    setPage(1);
+  }, [search, zonaFilter]);
+
   const handlePageChange = (newPage: number) => {
     setPage(newPage);
+  };
+
+  const handleServicioSuccess = (nuevoServicio: any) => {
+    // Agregar el nuevo servicio al listado
+    const servicioConId = {
+      ...nuevoServicio,
+      id: (servicios.length + 1).toString(),
+      activo: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      diasActividad: [
+        { dia: 'Día 1', actividad: 'Actividad inicial del servicio' },
+        { dia: 'Día 2', actividad: 'Seguimiento y control' }
+      ]
+    };
+    
+    setServicios(prev => [servicioConId, ...prev]);
+    // eslint-disable-next-line no-console
+    console.log('Servicio creado exitosamente:', servicioConId);
+  };
+
+  // Funciones para manejar los modales
+  const handleViewServicio = (servicio: any) => {
+    setSelectedServicio(servicio);
+    setShowViewModal(true);
+  };
+
+  const handleEditServicio = (servicio: any) => {
+    setSelectedServicio(servicio);
+    setShowEditModal(true);
+  };
+
+  const handleDeleteServicio = (servicio: any) => {
+    setSelectedServicio(servicio);
+    setShowDeleteModal(true);
+  };
+
+  const handleEditSuccess = (servicioActualizado: any) => {
+    setServicios(prev => 
+      prev.map(servicio => 
+        servicio.id === servicioActualizado.id ? servicioActualizado : servicio
+      )
+    );
+    // eslint-disable-next-line no-console
+    console.log('Servicio actualizado exitosamente:', servicioActualizado);
+  };
+
+  const handleDeleteConfirm = () => {
+    if (selectedServicio) {
+      setServicios(prev => prev.filter(servicio => servicio.id !== selectedServicio.id));
+      // eslint-disable-next-line no-console
+      console.log('Servicio eliminado exitosamente:', selectedServicio);
+    }
+  };
+
+  // Función para obtener los nombres del personal asignado
+  const getPersonalAsignadoInfo = (servicio: any) => {
+    // Verificar que el servicio y personalSeleccionado existan
+    if (!servicio || !servicio.personalSeleccionado || !Array.isArray(servicio.personalSeleccionado) || servicio.personalSeleccionado.length === 0) {
+      return 'No hay personal asignado';
+    }
+    
+    // Mock data para nombres de personal (en una implementación real, esto vendría de una API)
+    const nombresPersonal: { [key: string]: string } = {
+      '1': 'Juan Pérez',
+      '2': 'María González',
+      '3': 'Carlos Rodríguez',
+      '4': 'Ana Martínez',
+      '5': 'Luis Fernández',
+      '6': 'Carmen López',
+      '7': 'Pedro Sánchez',
+      '8': 'Laura García',
+      '9': 'Miguel Torres',
+      '10': 'Isabel Ruiz',
+      '11': 'Roberto Silva',
+      '12': 'Patricia Morales',
+      '13': 'Diego Herrera',
+      '14': 'Valentina Castro',
+      '15': 'Andrés Jiménez'
+    };
+
+    // Mapear IDs a nombres
+    const nombres: string[] = [];
+    for (const id of servicio.personalSeleccionado) {
+      const idStr = String(id);
+      const nombre = nombresPersonal[idStr];
+      if (nombre) {
+        nombres.push(nombre);
+      } else {
+        nombres.push(`Personal ${idStr}`);
+      }
+    }
+    
+    return nombres.join(', ');
   };
 
   if (isLoading) {
@@ -209,27 +346,27 @@ export const ServiciosPage: React.FC = () => {
     <div className="container mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-6 fade-in">
         <h1 className="text-3xl font-bold text-gray-900">Gestión de Servicios</h1>
-        <button className="btn-primary hover-grow">
+        <button 
+          onClick={() => setShowServicioModal(true)}
+          className="btn-primary hover-grow"
+        >
           <Plus className="h-4 w-4" />
           Nuevo Servicio
         </button>
       </div>
 
       {/* Filtros y búsqueda */}
-      <div className="card hover-lift slide-up animate-delay-200 mb-6">
-        <div className="flex flex-col lg:flex-row gap-4">
+      <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
+        <form onSubmit={handleSearch} className="flex gap-3 items-center">
           {/* Filtro por Zona de Gestión */}
-          <div className="lg:w-1/4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Zona de Gestión
-            </label>
+          <div className="w-48">
             <select
               value={zonaFilter}
               onChange={(e) => {
                 setZonaFilter(e.target.value);
                 setPage(1);
               }}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white text-gray-900"
             >
               <option value="Todas">Todas las Zonas</option>
               <option value="Minería">Minería</option>
@@ -238,27 +375,36 @@ export const ServiciosPage: React.FC = () => {
           </div>
           
           {/* Barra de búsqueda */}
-          <div className="flex-1">
-            <form onSubmit={handleSearch} className="flex gap-4">
-              <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                                 <input
-                   type="text"
-                   placeholder="Buscar por nombre, descripción, lugar, zona, categoría o cartera..."
-                   value={search}
-                   onChange={(e) => setSearch(e.target.value)}
-                   className="input-field"
-                 />
-              </div>
-              <button
-                type="submit"
-                className="btn-primary"
-              >
-                Buscar
-              </button>
-            </form>
+          <div className="flex-1 relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4 z-10" />
+            <input
+              type="text"
+              placeholder="Buscar por nombre, descripción, lugar, zona, categoría o cartera..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white text-gray-900 placeholder-gray-500 text-sm"
+            />
           </div>
-        </div>
+          <button
+            type="submit"
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
+          >
+            Buscar
+          </button>
+          {(search || zonaFilter !== 'Todas') && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearch('');
+                setZonaFilter('Todas');
+                setPage(1);
+              }}
+              className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
+            >
+              Limpiar
+            </button>
+          )}
+        </form>
       </div>
 
       {/* Resumen de Zonas de Gestión */}
@@ -275,19 +421,19 @@ export const ServiciosPage: React.FC = () => {
             <div className="flex justify-between items-center">
               <span className="text-sm text-gray-600">Total Servicios:</span>
               <span className="font-semibold text-orange-600">
-                {mockServicios.filter(s => s.zonaGestion === 'Minería').length}
+                {servicios.filter(s => s.zonaGestion === 'Minería').length}
               </span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm text-gray-600">Mantenimiento:</span>
               <span className="text-sm font-medium text-gray-900">
-                {mockServicios.filter(s => s.zonaGestion === 'Minería' && s.categoria === 'Mantenimiento').length}
+                {servicios.filter(s => s.zonaGestion === 'Minería' && s.categoria === 'Mantenimiento').length}
               </span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm text-gray-600">Servicio Spot:</span>
               <span className="text-sm font-medium text-gray-900">
-                {mockServicios.filter(s => s.zonaGestion === 'Minería' && s.categoria === 'Servicio Spot').length}
+                {servicios.filter(s => s.zonaGestion === 'Minería' && s.categoria === 'Servicio Spot').length}
               </span>
             </div>
           </div>
@@ -305,31 +451,31 @@ export const ServiciosPage: React.FC = () => {
             <div className="flex justify-between items-center">
               <span className="text-sm text-gray-600">Total Servicios:</span>
               <span className="font-semibold text-blue-600">
-                {mockServicios.filter(s => s.zonaGestion === 'Industria').length}
+                {servicios.filter(s => s.zonaGestion === 'Industria').length}
               </span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm text-gray-600">Servicio Integral:</span>
               <span className="text-sm font-medium text-gray-900">
-                {mockServicios.filter(s => s.zonaGestion === 'Industria' && s.categoria === 'Servicio Integral').length}
+                {servicios.filter(s => s.zonaGestion === 'Industria' && s.categoria === 'Servicio Integral').length}
               </span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm text-gray-600">Programa de Lubricación:</span>
               <span className="text-sm font-medium text-gray-900">
-                {mockServicios.filter(s => s.zonaGestion === 'Industria' && s.categoria === 'Programa de Lubricación').length}
+                {servicios.filter(s => s.zonaGestion === 'Industria' && s.categoria === 'Programa de Lubricación').length}
               </span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm text-gray-600">Levantamientos:</span>
               <span className="text-sm font-medium text-gray-900">
-                {mockServicios.filter(s => s.zonaGestion === 'Industria' && s.categoria === 'Levantamientos').length}
+                {servicios.filter(s => s.zonaGestion === 'Industria' && s.categoria === 'Levantamientos').length}
               </span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm text-gray-600">Instalaciones:</span>
               <span className="text-sm font-medium text-gray-900">
-                {mockServicios.filter(s => s.zonaGestion === 'Industria' && s.categoria === 'Instalaciones').length}
+                {servicios.filter(s => s.zonaGestion === 'Industria' && s.categoria === 'Instalaciones').length}
               </span>
             </div>
           </div>
@@ -346,7 +492,10 @@ export const ServiciosPage: React.FC = () => {
 
         {paginatedServicios.length === 0 ? (
           <div className="text-center py-8 text-gray-500">
-            No se encontraron servicios
+            {search || zonaFilter !== 'Todas' ? 
+              'No se encontraron servicios con los criterios de búsqueda' : 
+              'No hay servicios registrados'
+            }
           </div>
         ) : (
           <>
@@ -455,10 +604,15 @@ export const ServiciosPage: React.FC = () => {
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center text-sm text-gray-900">
-                            <Users className="h-4 w-4 mr-1 text-green-500" />
-                            {servicio.personalRequerido} personas
-                          </div>
+                          <Tooltip 
+                            content={getPersonalAsignadoInfo(servicio)}
+                            position="top"
+                          >
+                            <div className="flex items-center text-sm text-gray-900 cursor-help">
+                              <Users className="h-4 w-4 mr-1 text-green-500" />
+                              {servicio.personalRequerido} personas
+                            </div>
+                          </Tooltip>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
@@ -473,21 +627,21 @@ export const ServiciosPage: React.FC = () => {
                           <div className="flex space-x-2">
                             <button 
                               className="text-primary-600 hover:text-primary-900 p-1 rounded hover:bg-primary-50"
-                              onClick={() => alert(`Ver detalles de ${servicio.nombre}`)}
+                              onClick={() => handleViewServicio(servicio)}
                               title="Ver detalles"
                             >
                               <Eye className="h-4 w-4" />
                             </button>
                             <button 
                               className="text-blue-600 hover:text-blue-900 p-1 rounded hover:bg-blue-50"
-                              onClick={() => alert(`Editar ${servicio.nombre}`)}
+                              onClick={() => handleEditServicio(servicio)}
                               title="Editar"
                             >
                               <Edit className="h-4 w-4" />
                             </button>
                             <button 
                               className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50"
-                              onClick={() => alert(`Eliminar ${servicio.nombre}`)}
+                              onClick={() => handleDeleteServicio(servicio)}
                               title="Eliminar"
                             >
                               <Trash2 className="h-4 w-4" />
@@ -567,6 +721,36 @@ export const ServiciosPage: React.FC = () => {
           </>
         )}
       </div>
+
+      {/* Modal de Nuevo Servicio */}
+      <ServicioModal
+        isOpen={showServicioModal}
+        onClose={() => setShowServicioModal(false)}
+        onSuccess={(servicio) => handleServicioSuccess(servicio)}
+      />
+
+      {/* Modal de Ver Servicio */}
+      <ServicioViewModal
+        isOpen={showViewModal}
+        onClose={() => setShowViewModal(false)}
+        servicio={selectedServicio}
+      />
+
+      {/* Modal de Editar Servicio */}
+      <ServicioEditModal
+        isOpen={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        onSuccess={handleEditSuccess}
+        servicio={selectedServicio}
+      />
+
+      {/* Modal de Eliminar Servicio */}
+      <ServicioDeleteModal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={handleDeleteConfirm}
+        servicio={selectedServicio}
+      />
     </div>
   );
 };

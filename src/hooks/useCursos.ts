@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '../services/api';
-import { Curso, CreateCursoData, UpdateCursoData, CursoStats } from '../types';
+import { Curso, CreateCursoData, UpdateCursoData } from '../types';
 
 // Hook para obtener todos los cursos con filtros
 export const useCursos = (filters?: { rut?: string; curso?: string; limit?: number; offset?: number }) => {
@@ -34,15 +34,6 @@ export const useCursoById = (id: number) => {
   });
 };
 
-// Hook para obtener estadísticas de cursos
-export const useCursosStats = () => {
-  return useQuery({
-    queryKey: ['cursos', 'stats'],
-    queryFn: () => apiService.getCursosStats(),
-    staleTime: 10 * 60 * 1000, // 10 minutos
-    retry: 2,
-  });
-};
 
 // Hook para crear curso
 export const useCreateCurso = () => {

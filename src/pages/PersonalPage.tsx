@@ -17,15 +17,15 @@ const getEstadoActividad = (activo: boolean) => {
   return activo ? estadosActividad[0] : estadosActividad[1];
 };
 
-// Función para formatear fecha
-const formatDate = (dateString: string) => {
-  const date = new Date(dateString);
-  return date.toLocaleDateString('es-CL', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  });
-};
+// Función para formatear fecha (comentada porque no se usa actualmente)
+// const formatDate = (dateString: string) => {
+//   const date = new Date(dateString);
+//   return date.toLocaleDateString('es-CL', {
+//     year: 'numeric',
+//     month: 'long',
+//     day: 'numeric'
+//   });
+// };
 
 // Función para formatear hora de actualización
 const formatUpdateTime = (dateString: string) => {
@@ -162,24 +162,36 @@ export const PersonalPage: React.FC = () => {
       </div>
 
       {/* Barra de búsqueda */}
-      <div className="card hover-lift slide-up animate-delay-200 mb-6">
-        <form onSubmit={handleSearch} className="flex gap-4">
+      <div className="card hover-lift slide-up animate-delay-200 mb-4">
+        <form onSubmit={handleSearch} className="flex gap-3 items-center">
           <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4 z-10" />
             <input
               type="text"
               placeholder="Buscar por nombre, RUT, cargo, zona geográfica..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="input-field"
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white text-gray-900 placeholder-gray-500 text-sm"
             />
           </div>
           <button
             type="submit"
-            className="btn-primary"
+            className="btn-primary whitespace-nowrap py-2 px-4 text-sm"
           >
             Buscar
           </button>
+          {search && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearch('');
+                setPage(1);
+              }}
+              className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
+            >
+              Limpiar
+            </button>
+          )}
         </form>
       </div>
 
