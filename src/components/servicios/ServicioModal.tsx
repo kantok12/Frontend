@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { X, Settings, Users, MapPin, Clock, Calendar, Save, AlertCircle } from 'lucide-react';
 import { LoadingSpinner } from '../common/LoadingSpinner';
+import { useCarteras } from '../../hooks/useCarteras';
+import { useClientesByCartera } from '../../hooks/useCarteras';
 
 interface Personal {
   id: string;
@@ -8,6 +10,18 @@ interface Personal {
   nombre: string;
   apellido: string;
   estado: string;
+}
+
+interface Cliente {
+  id: string;
+  nombre: string;
+  rut: string;
+  email: string;
+  telefono: string;
+  direccion: string;
+  tipo: 'Empresa' | 'Persona';
+  ubicacion?: string;
+  seccion?: string;
 }
 
 interface ServicioModalProps {
@@ -27,6 +41,7 @@ export const ServicioModal: React.FC<ServicioModalProps> = ({
     zonaGestion: '',
     categoria: '',
     cartera: '',
+    cliente: '',
     lugar: '',
     duracion_horas: '',
     tiempoPlanificacion: '',
@@ -37,6 +52,23 @@ export const ServicioModal: React.FC<ServicioModalProps> = ({
   const [errors, setErrors] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [personalActivo, setPersonalActivo] = useState<Personal[]>([]);
+  const [clientes, setClientes] = useState<Cliente[]>([]);
+
+  // Obtener carteras del backend
+  const { data: carterasResponse } = useCarteras({ limit: 100 });
+  const carteras = carterasResponse?.data || [];
+
+  // Obtener clientes de la cartera seleccionada
+  const { data: clientesResponse, isLoading: isLoadingClientes } = useClientesByCartera(formData.cartera);
+
+  // Actualizar clientes cuando cambie la respuesta del backend
+  useEffect(() => {
+    if (clientesResponse?.success && clientesResponse.data) {
+      setClientes(clientesResponse.data);
+    } else {
+      setClientes([]);
+    }
+  }, [clientesResponse]);
 
   // Categorías por zona de gestión
   const categoriasPorZona = {
@@ -44,29 +76,6 @@ export const ServicioModal: React.FC<ServicioModalProps> = ({
     'Industria': ['Servicio Integral', 'Programa de Lubricación', 'Levantamientos', 'Instalaciones']
   };
 
-  // Empresas chilenas para la cartera
-  const empresasChilenas = [
-    'CODELCO',
-    'Antofagasta Minerals',
-    'Anglo American Sur',
-    'BHP Billiton',
-    'Colbún S.A.',
-    'ENAP',
-    'Arauco',
-    'CAP S.A.',
-    'SQM',
-    'Escondida',
-    'Cencosud',
-    'Falabella',
-    'LAN Airlines',
-    'Banco de Chile',
-    'Copec',
-    'CCU',
-    'Molibdenos y Metales',
-    'Celulosa Arauco',
-    'Viña Concha y Toro',
-    'Agrosuper'
-  ];
 
   // Cargar personal activo al abrir el modal
   useEffect(() => {
@@ -95,6 +104,7 @@ export const ServicioModal: React.FC<ServicioModalProps> = ({
         zonaGestion: '',
         categoria: '',
         cartera: '',
+        cliente: '',
         lugar: '',
         duracion_horas: '',
         tiempoPlanificacion: '',
@@ -122,6 +132,15 @@ export const ServicioModal: React.FC<ServicioModalProps> = ({
         categoria: ''
       }));
     }
+    
+    // Si cambia la cartera, resetear cliente
+    if (field === 'cartera') {
+      setFormData(prev => ({
+        ...prev,
+        cartera: value,
+        cliente: ''
+      }));
+    }
   };
 
   const handlePersonalChange = (personalId: string, checked: boolean) => {
@@ -141,6 +160,7 @@ export const ServicioModal: React.FC<ServicioModalProps> = ({
     if (!formData.zonaGestion) newErrors.push('La zona de gestión es requerida');
     if (!formData.categoria) newErrors.push('La categoría es requerida');
     if (!formData.cartera) newErrors.push('La cartera es requerida');
+    if (!formData.cliente) newErrors.push('El cliente es requerido');
     if (!formData.lugar.trim()) newErrors.push('El lugar es requerido');
     if (!formData.duracion_horas || parseInt(formData.duracion_horas) <= 0) {
       newErrors.push('La duración en horas debe ser mayor a 0');
@@ -182,6 +202,7 @@ export const ServicioModal: React.FC<ServicioModalProps> = ({
         zonaGestion: formData.zonaGestion,
         categoria: formData.categoria,
         cartera: formData.cartera,
+        cliente: formData.cliente,
         lugar: formData.lugar,
         duracion_horas: parseInt(formData.duracion_horas),
         tiempoPlanificacion: formData.tiempoPlanificacion,
@@ -268,9 +289,11 @@ export const ServicioModal: React.FC<ServicioModalProps> = ({
                 onChange={(e) => handleInputChange('cartera', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
-                <option value="">Seleccionar empresa</option>
-                {empresasChilenas.map((empresa) => (
-                  <option key={empresa} value={empresa}>{empresa}</option>
+                <option value="">Seleccionar cartera</option>
+                {carteras.map((cartera) => (
+                  <option key={cartera.id} value={cartera.id}>
+                    {cartera.name?.replace('_', ' ').toUpperCase() || cartera.id}
+                  </option>
                 ))}
               </select>
             </div>
@@ -287,6 +310,38 @@ export const ServicioModal: React.FC<ServicioModalProps> = ({
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="Descripción detallada del servicio"
             />
+          </div>
+
+          {/* Cliente */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Cliente *
+            </label>
+            <select
+              value={formData.cliente}
+              onChange={(e) => handleInputChange('cliente', e.target.value)}
+              disabled={!formData.cartera || isLoadingClientes}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+            >
+              <option value="">
+                {!formData.cartera 
+                  ? 'Primero seleccione una cartera' 
+                  : isLoadingClientes 
+                    ? 'Cargando clientes...' 
+                    : 'Seleccionar cliente'
+                }
+              </option>
+              {clientes.map((cliente) => (
+                <option key={cliente.id} value={cliente.id}>
+                  {cliente.nombre} ({cliente.tipo})
+                </option>
+              ))}
+            </select>
+            {formData.cartera && clientes.length === 0 && !isLoadingClientes && (
+              <p className="text-sm text-gray-500 mt-1">
+                No hay clientes disponibles en esta cartera
+              </p>
+            )}
           </div>
 
           {/* Zona de gestión y categoría */}

@@ -1,196 +1,137 @@
 import React, { useState } from 'react';
-import { Calendar, Clock, MapPin, Users, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, Plus, Download } from 'lucide-react';
+import { PlanificacionSemanalModal } from '../components/servicios/PlanificacionSemanalModal';
+import { exportarPlanificacionPDF } from '../utils/pdfExporter';
+import { LoadingSpinner } from '../components/common/LoadingSpinner';
 
-// Función para generar fechas dentro de los próximos 15 días
-const getProximosDias = () => {
-  const dias = [];
-  const hoy = new Date();
-  
-  for (let i = 0; i < 15; i++) {
-    const fecha = new Date(hoy);
-    fecha.setDate(hoy.getDate() + i);
-    dias.push(fecha.toISOString().split('T')[0]);
-  }
-  
-  return dias;
-};
-
-const proximosDias = getProximosDias();
-
-// Datos mock para eventos del calendario (próximos 15 días)
-const mockEventos = [
-  {
-    id: '1',
-    titulo: 'Mantenimiento Sistema Minero - Planta Norte',
-    fecha: proximosDias[0], // Hoy
-    hora: '08:00',
-    duracion: '8 horas',
-    ubicacion: 'Planta Minera',
-    zonaGestion: 'Minería',
-    categoria: 'Mantenimiento',
-    personal: ['Juan Carlos Pérez', 'Roberto Silva'],
-    estado: 'en_progreso'
-  },
-  {
-    id: '2',
-    titulo: 'Servicio Spot - Emergencia Excavadora',
-    fecha: proximosDias[1], // Mañana
-    hora: '14:30',
-    duracion: '4 horas',
-    ubicacion: 'Sitio Minero',
-    zonaGestion: 'Minería',
-    categoria: 'Servicio Spot',
-    personal: ['Patricia Vargas'],
-    estado: 'programado'
-  },
-  {
-    id: '3',
-    titulo: 'Servicio Integral Industrial',
-    fecha: proximosDias[2], // Día 3
-    hora: '09:00',
-    duracion: '12 horas',
-    ubicacion: 'Planta Industrial',
-    zonaGestion: 'Industria',
-    categoria: 'Servicio Integral',
-    personal: ['María Elena Rodríguez', 'Carlos Alberto Martínez'],
-    estado: 'programado'
-  },
-  {
-    id: '4',
-    titulo: 'Levantamiento Sistemas Existentes',
-    fecha: proximosDias[4], // Día 5
-    hora: '10:00',
-    duracion: '10 horas',
-    ubicacion: 'Centro Industrial',
-    zonaGestion: 'Industria',
-    categoria: 'Levantamientos',
-    personal: ['Ana Sofía García', 'Luis Fernando Ramírez'],
-    estado: 'programado'
-  },
-  {
-    id: '5',
-    titulo: 'Instalación Sistema Automático',
-    fecha: proximosDias[6], // Día 7
-    hora: '07:00',
-    duracion: '16 horas',
-    ubicacion: 'Planta Industrial',
-    zonaGestion: 'Industria',
-    categoria: 'Instalaciones',
-    personal: ['Carmen López', 'Roberto Silva', 'Patricia Vargas'],
-    estado: 'programado'
-  },
-  {
-    id: '6',
-    titulo: 'Programa Lubricación Mensual',
-    fecha: proximosDias[8], // Día 9
-    hora: '06:00',
-    duracion: '6 horas',
-    ubicacion: 'Centro Industrial',
-    zonaGestion: 'Industria',
-    categoria: 'Programa de Lubricación',
-    personal: ['Carlos Alberto Martínez', 'Ana Sofía García'],
-    estado: 'programado'
-  },
-  {
-    id: '7',
-    titulo: 'Mantenimiento Preventivo Equipos Mineros',
-    fecha: proximosDias[10], // Día 11
-    hora: '08:30',
-    duracion: '8 horas',
-    ubicacion: 'Planta Minera',
-    zonaGestion: 'Minería',
-    categoria: 'Mantenimiento',
-    personal: ['Luis Fernando Ramírez', 'Roberto Silva'],
-    estado: 'programado'
-  },
-  {
-    id: '8',
-    titulo: 'Levantamiento Técnico Final',
-    fecha: proximosDias[12], // Día 13
-    hora: '09:30',
-    duracion: '10 horas',
-    ubicacion: 'Laboratorio Técnico',
-    zonaGestion: 'Industria',
-    categoria: 'Levantamientos',
-    personal: ['Patricia Vargas', 'Carmen López'],
-    estado: 'programado'
-  },
-  {
-    id: '9',
-    titulo: 'Servicio Spot - Mantenimiento Urgente',
-    fecha: proximosDias[14], // Día 15
-    hora: '15:00',
-    duracion: '4 horas',
-    ubicacion: 'Sitio Minero',
-    zonaGestion: 'Minería',
-    categoria: 'Servicio Spot',
-    personal: ['Juan Carlos Pérez'],
-    estado: 'programado'
-  }
-];
 
 export const CalendarioPage: React.FC = () => {
-  const [fechaSeleccionada, setFechaSeleccionada] = useState(new Date());
-  const [vistaCalendario, setVistaCalendario] = useState<'15dias' | 'semana' | 'dia'>('15dias');
-
-  // Función para formatear fecha legible
-  const formatearFecha = (fechaStr: string) => {
-    const fecha = new Date(fechaStr);
+  const [vistaCalendario, setVistaCalendario] = useState<'planificacion' | 'semana' | 'dia'>('planificacion');
+  
+  // Estados para la planificación semanal
+  const [fechaInicioSemana, setFechaInicioSemana] = useState(() => {
     const hoy = new Date();
-    const manana = new Date(hoy);
-    manana.setDate(hoy.getDate() + 1);
+    const lunes = new Date(hoy);
+    lunes.setDate(hoy.getDate() - hoy.getDay() + 1); // Lunes de esta semana
+    return lunes;
+  });
+  const [asignaciones, setAsignaciones] = useState<any[]>([
+    // Asignaciones de ejemplo para probar el sistema
+    {
+      id: 'asignacion_1',
+      personalId: '1',
+      servicioId: '1',
+      dia: 'LUN',
+      horaInicio: '08:00',
+      horaFin: '12:00',
+      cliente: 'Minera Norte S.A.',
+      lugar: 'Antofagasta',
+      servicioNombre: 'Mantenimiento Sistema Lubricación',
+      personalNombre: 'Juan Pérez'
+    },
+    {
+      id: 'asignacion_2',
+      personalId: '1',
+      servicioId: '2',
+      dia: 'LUN',
+      horaInicio: '13:00',
+      horaFin: '17:00',
+      cliente: 'Minera Sur S.A.',
+      lugar: 'Calama',
+      servicioNombre: 'Inspección Equipos Mineros',
+      personalNombre: 'Juan Pérez'
+    },
+    {
+      id: 'asignacion_3',
+      personalId: '2',
+      servicioId: '1',
+      dia: 'LUN',
+      horaInicio: '08:00',
+      horaFin: '12:00',
+      cliente: 'Minera Norte S.A.',
+      lugar: 'Antofagasta',
+      servicioNombre: 'Mantenimiento Sistema Lubricación',
+      personalNombre: 'María González'
+    },
+    {
+      id: 'asignacion_4',
+      personalId: '3',
+      servicioId: '3',
+      dia: 'MAR',
+      horaInicio: '09:00',
+      horaFin: '17:00',
+      cliente: 'Industrias del Sur',
+      lugar: 'Concepción',
+      servicioNombre: 'Servicio Integral Industrial',
+      personalNombre: 'Carlos López'
+    },
+    {
+      id: 'asignacion_5',
+      personalId: '4',
+      servicioId: '2',
+      dia: 'MIE',
+      horaInicio: '07:00',
+      horaFin: '13:00',
+      cliente: 'Minera Sur S.A.',
+      lugar: 'Calama',
+      servicioNombre: 'Inspección Equipos Mineros',
+      personalNombre: 'Ana Martínez'
+    },
+    {
+      id: 'asignacion_6',
+      personalId: '5',
+      servicioId: '1',
+      dia: 'JUE',
+      horaInicio: '10:00',
+      horaFin: '14:00',
+      cliente: 'Minera Norte S.A.',
+      lugar: 'Antofagasta',
+      servicioNombre: 'Mantenimiento Sistema Lubricación',
+      personalNombre: 'Luis Rodríguez'
+    }
+  ]);
+  const [showPlanificacionModal, setShowPlanificacionModal] = useState(false);
+  
 
-    // Verificar si es hoy o mañana
-    if (fecha.toDateString() === hoy.toDateString()) {
-      return 'Hoy';
-    } else if (fecha.toDateString() === manana.toDateString()) {
-      return 'Mañana';
+  // Funciones para la planificación semanal
+  const handlePlanificacionSuccess = (nuevasAsignaciones: any[]) => {
+    setAsignaciones(nuevasAsignaciones);
+    setShowPlanificacionModal(false);
+  };
+
+  const handleExportarPDF = () => {
+    exportarPlanificacionPDF(fechaInicioSemana, asignaciones);
+  };
+
+  const handleCambiarSemana = (direccion: 'anterior' | 'siguiente') => {
+    const nuevaFecha = new Date(fechaInicioSemana);
+    if (direccion === 'anterior') {
+      nuevaFecha.setDate(nuevaFecha.getDate() - 7);
     } else {
-      return fecha.toLocaleDateString('es-ES', { 
-        weekday: 'short', 
-        day: 'numeric', 
-        month: 'short' 
-      });
+      nuevaFecha.setDate(nuevaFecha.getDate() + 7);
     }
+    setFechaInicioSemana(nuevaFecha);
   };
 
-  // Función para obtener el rango de fechas actual
-  const getRangoFechas = () => {
-    const hoy = new Date();
-    const fechaFinal = new Date(hoy);
-    fechaFinal.setDate(hoy.getDate() + 14);
-    
-    return `${hoy.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} - ${fechaFinal.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}`;
-  };
-
-  const getEstadoColor = (estado: string) => {
-    switch (estado) {
-      case 'programado':
-        return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'en_progreso':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'completado':
-        return 'bg-green-100 text-green-800 border-green-200';
-      case 'cancelado':
-        return 'bg-red-100 text-red-800 border-red-200';
-      default:
-        return 'bg-gray-100 text-gray-800 border-gray-200';
-    }
-  };
-
-  const getZonaColor = (zona: string) => {
-    return zona === 'Minería' 
-      ? 'bg-orange-100 text-orange-800 border-orange-200'
-      : 'bg-blue-100 text-blue-800 border-blue-200';
-  };
 
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-6 fade-in">
-        <h1 className="text-3xl font-bold text-gray-900">Calendario de Servicios</h1>
-        <button className="btn-primary hover-grow">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Planificación Semanal</h1>
+          <p className="text-gray-600 mt-1">Gestiona las asignaciones de personal a servicios por semana</p>
+          <div className="mt-2">
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+              📊 Modo Demostración - Datos de ejemplo
+            </span>
+          </div>
+        </div>
+        <button 
+          onClick={() => setShowPlanificacionModal(true)}
+          className="btn-primary hover-grow"
+        >
           <Plus className="h-4 w-4" />
-          Nuevo Evento
+          Planificar Semana
         </button>
       </div>
 
@@ -202,7 +143,7 @@ export const CalendarioPage: React.FC = () => {
               <ChevronLeft className="h-5 w-5 text-gray-600" />
             </button>
             <h2 className="text-xl font-semibold text-gray-900">
-              {getRangoFechas()}
+              Planificación Semanal
             </h2>
             <button className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
               <ChevronRight className="h-5 w-5 text-gray-600" />
@@ -210,128 +151,157 @@ export const CalendarioPage: React.FC = () => {
           </div>
           
           <div className="flex space-x-2">
-            {['15dias', 'semana', 'dia'].map((vista) => (
+            {['planificacion', 'semana', 'dia'].map((vista) => (
               <button
                 key={vista}
-                onClick={() => setVistaCalendario(vista as '15dias' | 'semana' | 'dia')}
+                onClick={() => setVistaCalendario(vista as 'planificacion' | 'semana' | 'dia')}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                   vistaCalendario === vista
                     ? 'bg-primary-500 text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
-                {vista === '15dias' ? '15 Días' : vista.charAt(0).toUpperCase() + vista.slice(1)}
+                {vista === 'planificacion' ? 'Planificación Semanal' : 
+                 vista === 'semana' ? 'Vista Semana' : 
+                 'Vista Día'}
               </button>
             ))}
           </div>
         </div>
       </div>
 
-      {/* Resumen por zona */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 slide-up animate-delay-300">
-        {/* Eventos Minería */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Eventos Minería</h3>
-            <div className="h-8 w-8 rounded-full bg-orange-100 flex items-center justify-center">
-              <Calendar className="h-4 w-4 text-orange-600" />
+
+
+      {/* Vista de Planificación Semanal */}
+      {vistaCalendario === 'planificacion' && (
+        <div className="space-y-6">
+          {/* Controles de navegación de semana */}
+          <div className="bg-white rounded-lg border border-gray-200 p-4">
+            <div className="flex justify-between items-center">
+              <div className="flex items-center space-x-4">
+                <button
+                  onClick={() => handleCambiarSemana('anterior')}
+                  className="flex items-center px-3 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  <ChevronLeft className="h-4 w-4 mr-1" />
+                  Semana Anterior
+                </button>
+                <div className="text-center">
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    {fechaInicioSemana.toLocaleDateString('es-ES', { 
+                      day: '2-digit', 
+                      month: 'long', 
+                      year: 'numeric' 
+                    })} - {new Date(fechaInicioSemana.getTime() + 6 * 24 * 60 * 60 * 1000).toLocaleDateString('es-ES', { 
+                      day: '2-digit', 
+                      month: 'long', 
+                      year: 'numeric' 
+                    })}
+                  </h3>
+                  <p className="text-sm text-gray-600">Semana de planificación</p>
+                </div>
+                <button
+                  onClick={() => handleCambiarSemana('siguiente')}
+                  className="flex items-center px-3 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  Semana Siguiente
+                  <ChevronRight className="h-4 w-4 ml-1" />
+                </button>
             </div>
+              <div className="flex items-center space-x-3">
+                <div className="text-right">
+                  <div className="text-sm text-gray-600">Total Asignaciones</div>
+                  <div className="text-2xl font-bold text-blue-600">{asignaciones.length}</div>
           </div>
-          <div className="text-2xl font-bold text-orange-600 mb-2">
-            {mockEventos.filter(e => e.zonaGestion === 'Minería').length}
+                <div className="text-right">
+                  <div className="text-sm text-gray-600">Personal Asignado</div>
+                  <div className="text-2xl font-bold text-green-600">
+                    {new Set(asignaciones.map(a => a.personalId)).size}
           </div>
-          <div className="text-sm text-gray-600">
-            Eventos próximos 15 días
           </div>
         </div>
-
-        {/* Eventos Industria */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Eventos Industria</h3>
-            <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center">
-              <Calendar className="h-4 w-4 text-blue-600" />
             </div>
           </div>
-          <div className="text-2xl font-bold text-blue-600 mb-2">
-            {mockEventos.filter(e => e.zonaGestion === 'Industria').length}
+
+          {/* Controles de planificación */}
+          <div className="bg-white rounded-lg border border-gray-200 p-6">
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">Planificación Semanal</h2>
+                <p className="text-gray-600">Gestiona las asignaciones de personal para toda la semana</p>
           </div>
-          <div className="text-sm text-gray-600">
-            Eventos próximos 15 días
-          </div>
+              <div className="flex space-x-3">
+                <button
+                  onClick={handleExportarPDF}
+                  disabled={asignaciones.length === 0}
+                  className="flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white rounded-lg text-sm font-medium transition-colors"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Exportar PDF
+                </button>
+                <button
+                  onClick={() => setShowPlanificacionModal(true)}
+                  className="flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Planificar Semana
+                </button>
         </div>
       </div>
 
-      {/* Lista de eventos */}
-      <div className="slide-up animate-delay-400">
-        <div className="mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">
-            Próximos Eventos ({mockEventos.length} programados)
-          </h2>
+            {/* Resumen de asignaciones */}
+            {asignaciones.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-blue-50 rounded-lg p-4">
+                  <div className="text-2xl font-bold text-blue-600">{asignaciones.length}</div>
+                  <div className="text-sm text-blue-800">Total Asignaciones</div>
         </div>
-
-        <div className="space-y-4">
-          {mockEventos.map((evento, index) => (
-            <div key={evento.id} className={`bg-white rounded-lg border border-gray-200 p-6 hover:shadow-lg transition-all duration-200 stagger-item animate-delay-${(index + 1) * 100}`}>
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex-1">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                    {evento.titulo}
-                  </h3>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-                    <div className="flex items-center text-sm text-gray-600">
-                      <Calendar className="h-4 w-4 mr-2 text-blue-500" />
-                      {formatearFecha(evento.fecha)}
-                    </div>
-                    <div className="flex items-center text-sm text-gray-600">
-                      <Clock className="h-4 w-4 mr-2 text-purple-500" />
-                      {evento.hora} ({evento.duracion})
-                    </div>
-                    <div className="flex items-center text-sm text-gray-600">
-                      <MapPin className="h-4 w-4 mr-2 text-green-500" />
-                      {evento.ubicacion}
-                    </div>
-                    <div className="flex items-center text-sm text-gray-600">
-                      <Users className="h-4 w-4 mr-2 text-orange-500" />
-                      {evento.personal.length} personas
-                    </div>
+                <div className="bg-green-50 rounded-lg p-4">
+                  <div className="text-2xl font-bold text-green-600">
+                    {new Set(asignaciones.map(a => a.personalId)).size}
                   </div>
-
-                  <div className="flex flex-wrap gap-2 mb-3">
-                    <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full ${getZonaColor(evento.zonaGestion)}`}>
-                      {evento.zonaGestion}
-                    </span>
-                    <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full ${
-                      evento.zonaGestion === 'Minería' 
-                        ? 'bg-orange-50 text-orange-700 border border-orange-300' 
-                        : 'bg-blue-50 text-blue-700 border border-blue-300'
-                    }`}>
-                      {evento.categoria}
-                    </span>
-                    <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full border ${getEstadoColor(evento.estado)}`}>
-                      {evento.estado === 'programado' ? 'Programado' : 
-                       evento.estado === 'en_progreso' ? 'En Progreso' : 
-                       evento.estado === 'completado' ? 'Completado' : 'Cancelado'}
-                    </span>
+                  <div className="text-sm text-green-800">Personal Asignado</div>
+                </div>
+                <div className="bg-purple-50 rounded-lg p-4">
+                  <div className="text-2xl font-bold text-purple-600">
+                    {new Set(asignaciones.map(a => a.servicioId)).size}
                   </div>
-
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-700 mb-1">Personal Asignado</h4>
-                    <div className="flex flex-wrap gap-1">
-                      {evento.personal.map((persona, idx) => (
-                        <span key={idx} className="inline-flex px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded">
-                          {persona}
-                        </span>
-                      ))}
+                  <div className="text-sm text-purple-800">Servicios Únicos</div>
                     </div>
+                <div className="bg-orange-50 rounded-lg p-4">
+                  <div className="text-2xl font-bold text-orange-600">
+                    {new Set(asignaciones.map(a => a.cliente)).size}
                   </div>
+                  <div className="text-sm text-orange-800">Clientes Atendidos</div>
                 </div>
               </div>
+            ) : (
+              <div className="text-center py-12">
+                <Calendar className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No hay planificación</h3>
+                <p className="text-gray-600 mb-6">Comienza planificando la semana completa</p>
+                <button
+                  onClick={() => setShowPlanificacionModal(true)}
+                  className="flex items-center px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors mx-auto"
+                >
+                  <Plus className="h-5 w-5 mr-2" />
+                  Planificar Semana Completa
+                </button>
+              </div>
+            )}
             </div>
-          ))}
         </div>
-      </div>
+      )}
+
+      {/* Modal de Planificación Semanal */}
+      <PlanificacionSemanalModal
+        isOpen={showPlanificacionModal}
+        onClose={() => setShowPlanificacionModal(false)}
+        onSuccess={handlePlanificacionSuccess}
+        fechaInicio={fechaInicioSemana}
+        asignacionesExistentes={asignaciones}
+      />
+
     </div>
   );
 };

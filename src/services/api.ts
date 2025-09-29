@@ -287,6 +287,215 @@ class ApiService {
     return response.data;
   }
 
+  // ==================== MÉTODOS PARA SERVICIOS/CARTERAS ====================
+  
+  // Obtener todas las carteras con filtros
+  async getCarteras(filters?: { 
+    limit?: number; 
+    offset?: number; 
+    search?: string 
+  }): Promise<ApiResponse<any[]>> {
+    const params = new URLSearchParams();
+    if (filters?.limit) params.append('limit', filters.limit.toString());
+    if (filters?.offset) params.append('offset', filters.offset.toString());
+    if (filters?.search) params.append('search', filters.search);
+    
+    const response: AxiosResponse<ApiResponse<any[]>> = await this.api.get(`/servicio/carteras${params.toString() ? '?' + params.toString() : ''}`);
+    return response.data;
+  }
+
+  // Obtener cartera específica con sus clientes
+  async getCarteraById(id: string): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.get(`/servicio/carteras/${id}`);
+    return response.data;
+  }
+
+  // Obtener todos los clientes de una cartera específica
+  async getClientesByCartera(carteraId: string): Promise<ApiResponse<any[]>> {
+    const carteraResponse = await this.getCarteraById(carteraId);
+    if (carteraResponse.success && carteraResponse.data?.clientes) {
+      return {
+        success: true,
+        data: carteraResponse.data.clientes
+      };
+    }
+    return {
+      success: false,
+      data: [],
+      message: 'No se pudieron obtener los clientes'
+    };
+  }
+
+  // ==================== MÉTODOS PARA DOCUMENTOS ====================
+  
+  // Obtener todos los documentos con filtros
+  async getDocumentos(filters?: { 
+    rut_persona?: string;
+    tipo_documento?: string;
+    nombre_documento?: string;
+    limit?: number; 
+    offset?: number; 
+    search?: string 
+  }): Promise<ApiResponse<any[]>> {
+    const params = new URLSearchParams();
+    if (filters?.rut_persona) params.append('rut_persona', filters.rut_persona);
+    if (filters?.tipo_documento) params.append('tipo_documento', filters.tipo_documento);
+    if (filters?.nombre_documento) params.append('nombre_documento', filters.nombre_documento);
+    if (filters?.limit) params.append('limit', filters.limit.toString());
+    if (filters?.offset) params.append('offset', filters.offset.toString());
+    if (filters?.search) params.append('search', filters.search);
+    
+    const response: AxiosResponse<ApiResponse<any[]>> = await this.api.get(`/documentos${params.toString() ? '?' + params.toString() : ''}`);
+    return response.data;
+  }
+
+  // Subir documentos
+  async uploadDocumentos(documentosData: FormData): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.post('/documentos', documentosData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  }
+
+  // Obtener documento por ID
+  async getDocumentoById(id: string): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.get(`/documentos/${id}`);
+    return response.data;
+  }
+
+  // Obtener documentos por persona
+  async getDocumentosByPersona(rut: string): Promise<ApiResponse<any[]>> {
+    const response: AxiosResponse<ApiResponse<any[]>> = await this.api.get(`/documentos/persona/${rut}`);
+    return response.data;
+  }
+
+  // Descargar documento
+  async downloadDocumento(id: string): Promise<Blob> {
+    const response = await this.api.get(`/documentos/${id}/descargar`, {
+      responseType: 'blob'
+    });
+    return response.data;
+  }
+
+  // Eliminar documento
+  async deleteDocumento(id: string): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.delete(`/documentos/${id}`);
+    return response.data;
+  }
+
+  // Obtener tipos de documentos disponibles
+  async getTiposDocumentos(): Promise<ApiResponse<any[]>> {
+    const response: AxiosResponse<ApiResponse<any[]>> = await this.api.get('/documentos/tipos');
+    return response.data;
+  }
+
+  // ==================== MÉTODOS PARA ÁREA DE SERVICIO ====================
+  
+  // Obtener personal del área de servicio
+  async getAreaServicioPersonal(filters?: { 
+    cargo?: string;
+    zona?: string;
+    limit?: number; 
+    offset?: number; 
+    search?: string 
+  }): Promise<ApiResponse<any[]>> {
+    const params = new URLSearchParams();
+    if (filters?.cargo) params.append('cargo', filters.cargo);
+    if (filters?.zona) params.append('zona', filters.zona);
+    if (filters?.limit) params.append('limit', filters.limit.toString());
+    if (filters?.offset) params.append('offset', filters.offset.toString());
+    if (filters?.search) params.append('search', filters.search);
+    
+    const response: AxiosResponse<ApiResponse<any[]>> = await this.api.get(`/area-servicio${params.toString() ? '?' + params.toString() : ''}`);
+    return response.data;
+  }
+
+  // Obtener estadísticas del área de servicio
+  async getAreaServicioStats(): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.get('/area-servicio/stats');
+    return response.data;
+  }
+
+  // Obtener cargos disponibles
+  async getCargosDisponibles(): Promise<ApiResponse<any[]>> {
+    const response: AxiosResponse<ApiResponse<any[]>> = await this.api.get('/area-servicio/cargos');
+    return response.data;
+  }
+
+  // Obtener zonas geográficas
+  async getZonasGeograficas(): Promise<ApiResponse<any[]>> {
+    const response: AxiosResponse<ApiResponse<any[]>> = await this.api.get('/area-servicio/zonas');
+    return response.data;
+  }
+
+  // Obtener personal por cargo
+  async getPersonalByCargo(cargo: string): Promise<ApiResponse<any[]>> {
+    const response: AxiosResponse<ApiResponse<any[]>> = await this.api.get(`/area-servicio/cargo/${cargo}`);
+    return response.data;
+  }
+
+  // Obtener personal por zona
+  async getPersonalByZona(zona: string): Promise<ApiResponse<any[]>> {
+    const response: AxiosResponse<ApiResponse<any[]>> = await this.api.get(`/area-servicio/zona/${zona}`);
+    return response.data;
+  }
+
+  // Obtener personal disponible para servicio
+  async getPersonalDisponibleServicio(): Promise<ApiResponse<any[]>> {
+    const response: AxiosResponse<ApiResponse<any[]>> = await this.api.get('/area-servicio/disponibles');
+    return response.data;
+  }
+
+  // ==================== MÉTODOS PARA MIGRACIÓN ====================
+  
+  // Verificar estado de migración
+  async getMigrationStatus(): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.get('/migration/status');
+    return response.data;
+  }
+
+  // Ejecutar migración
+  async runMigration(): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.post('/migration/run');
+    return response.data;
+  }
+
+  // ==================== MÉTODOS PARA BACKUP ====================
+  
+  // Obtener lista de backups
+  async getBackups(): Promise<ApiResponse<any[]>> {
+    const response: AxiosResponse<ApiResponse<any[]>> = await this.api.get('/backup');
+    return response.data;
+  }
+
+  // Crear nuevo backup
+  async createBackup(): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.post('/backup');
+    return response.data;
+  }
+
+  // Descargar backup específico
+  async downloadBackup(filename: string): Promise<Blob> {
+    const response = await this.api.get(`/backup/${filename}`, {
+      responseType: 'blob'
+    });
+    return response.data;
+  }
+
+  // Eliminar backup específico
+  async deleteBackup(filename: string): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.delete(`/backup/${filename}`);
+    return response.data;
+  }
+
+  // Obtener información del sistema de backups
+  async getBackupInfo(): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.get('/backup/info');
+    return response.data;
+  }
+
   // Método para obtener estadísticas del dashboard
   async getDashboardStats(): Promise<ApiResponse<DashboardStats>> {
     try {
@@ -316,6 +525,121 @@ class ApiService {
           personal_activo: 45,
           servicios_activos: 12
         }
+      };
+    }
+  }
+
+  // ==================== MÉTODOS PARA PROGRAMACIÓN/EVENTOS ====================
+  
+  async getEventos(queryParams?: string): Promise<PaginatedResponse<any[]>> {
+    try {
+      const response = await this.api.get(`/programacion/eventos${queryParams ? `?${queryParams}` : ''}`);
+      return {
+        success: true,
+        data: response.data.data || response.data,
+        pagination: response.data.pagination
+      };
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('Error al obtener eventos:', error);
+      return {
+        success: false,
+        data: [],
+        message: 'Error al obtener eventos',
+        pagination: { total: 0, offset: 0, limit: 10 }
+      };
+    }
+  }
+
+  async getEventoById(eventoId: string): Promise<ApiResponse<any>> {
+    try {
+      const response = await this.api.get(`/programacion/eventos/${eventoId}`);
+      return {
+        success: true,
+        data: response.data.data || response.data
+      };
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('Error al obtener evento:', error);
+      return {
+        success: false,
+        data: null,
+        message: 'Error al obtener evento'
+      };
+    }
+  }
+
+  async createEvento(eventoData: any): Promise<ApiResponse<any>> {
+    try {
+      const response = await this.api.post('/programacion/eventos', eventoData);
+      return {
+        success: true,
+        data: response.data.data || response.data,
+        message: 'Evento creado exitosamente'
+      };
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('Error al crear evento:', error);
+      return {
+        success: false,
+        data: null,
+        message: 'Error al crear evento'
+      };
+    }
+  }
+
+  async updateEvento(eventoId: string, eventoData: any): Promise<ApiResponse<any>> {
+    try {
+      const response = await this.api.put(`/programacion/eventos/${eventoId}`, eventoData);
+      return {
+        success: true,
+        data: response.data.data || response.data,
+        message: 'Evento actualizado exitosamente'
+      };
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('Error al actualizar evento:', error);
+      return {
+        success: false,
+        data: null,
+        message: 'Error al actualizar evento'
+      };
+    }
+  }
+
+  async deleteEvento(eventoId: string): Promise<ApiResponse<null>> {
+    try {
+      await this.api.delete(`/programacion/eventos/${eventoId}`);
+      return {
+        success: true,
+        data: null,
+        message: 'Evento eliminado exitosamente'
+      };
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('Error al eliminar evento:', error);
+      return {
+        success: false,
+        data: null,
+        message: 'Error al eliminar evento'
+      };
+    }
+  }
+
+  async getProgramacionStats(): Promise<ApiResponse<any>> {
+    try {
+      const response = await this.api.get('/programacion/stats');
+      return {
+        success: true,
+        data: response.data.data || response.data
+      };
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('Error al obtener estadísticas de programación:', error);
+      return {
+        success: false,
+        data: null,
+        message: 'Error al obtener estadísticas'
       };
     }
   }

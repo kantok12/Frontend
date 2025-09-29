@@ -28,6 +28,16 @@ export interface UpdateNombreData {
   licencia_conducir?: string;
 }
 
+// Hook para obtener lista de personal
+export const usePersonal = (params?: { limit?: number; offset?: number }) => {
+  return useQuery({
+    queryKey: ['personal', params],
+    queryFn: () => apiService.getPersonal(params?.limit || 10, params?.offset || 0),
+    retry: 1,
+    staleTime: 5 * 60 * 1000, // 5 minutos
+  });
+};
+
 // Hook para obtener personal por RUT (corregido)
 export const usePersonalByRut = (rut: string) => {
   return useQuery({
