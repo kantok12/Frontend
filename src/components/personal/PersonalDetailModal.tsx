@@ -4,6 +4,8 @@ import { useUpdatePersonal } from '../../hooks/usePersonal';
 import { useUpdatePersonalData } from '../../hooks/useNombres';
 import { useEstados } from '../../hooks/useEstados';
 import { useCursosByRut, useDeleteCurso } from '../../hooks/useCursos';
+import { useDeleteDocumento, useDownloadDocumento, useDocumentosByPersona, useDocumento } from '../../hooks/useDocumentos';
+import { useQueryClient } from '@tanstack/react-query';
 import { X, User, MapPin, ShirtIcon, Car, Activity, Edit, Save, XCircle, GraduationCap, Plus, Trash2, FileText, Upload, Download, Eye } from 'lucide-react';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { CursoModal } from './CursoModal';
@@ -32,6 +34,12 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
   const { data: estadosData, isLoading: estadosLoading } = useEstados();
   const { data: cursosData, isLoading: cursosLoading, refetch: refetchCursos } = useCursosByRut(personal?.rut || '');
   const deleteCursoMutation = useDeleteCurso();
+  const deleteDocumentoMutation = useDeleteDocumento();
+  const downloadDocumentoMutation = useDownloadDocumento();
+  const queryClient = useQueryClient();
+  
+  // Obtener documentos reales del backend
+  const { data: documentosData, isLoading: documentosLoading, refetch: refetchDocumentos } = useDocumentosByPersona(personal?.rut || '');
 
   // Estados para modal de cursos
   const [showCursoModal, setShowCursoModal] = useState(false);
@@ -45,27 +53,34 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
   // Estados para documentación
   const [showDocumentModal, setShowDocumentModal] = useState(false);
   
-  // Solo mostrar datos mock para el primer personal (RUT específico)
-  const getDocumentosMock = useCallback(() => {
-    if (personal?.rut === '15338132-1') {
-      return [
-        { id: 1, nombre: 'Contrato de Trabajo', tipo: 'contrato', fecha: '2024-01-15', archivo: 'contrato_juan_perez.pdf', estado: 'vigente' },
-        { id: 2, nombre: 'Carnet de Identidad', tipo: 'identidad', fecha: '2024-01-10', archivo: 'carnet_juan_perez.pdf', estado: 'vigente' },
-        { id: 3, nombre: 'Examen Preocupacional', tipo: 'medico', fecha: '2024-01-12', archivo: 'examen_preocupacional.pdf', estado: 'vigente' },
-        { id: 4, nombre: 'Certificado de Antecedentes', tipo: 'antecedentes', fecha: '2024-01-08', archivo: 'antecedentes_juan_perez.pdf', estado: 'vigente' }
-      ];
-    }
-    return []; // Array vacío para otros personales
-  }, [personal?.rut]);
-  
-  const [documentos, setDocumentos] = useState(getDocumentosMock());
+  // Usar documentos reales del backend
+  const documentos = documentosData?.data || [];
 
   // Inicializar datos de edición cuando se abre la modal
   useEffect(() => {
     if (personal && isOpen) {
+      // Extraer nombre y apellido del campo nombres si está disponible
+      const nombresCompletos = (personal as any).nombres || '';
+      let nombre = '';
+      let apellido = '';
+      
+      if (nombresCompletos && nombresCompletos.trim()) {
+        const partesNombre = nombresCompletos.trim().split(' ');
+        if (partesNombre.length >= 2) {
+          nombre = partesNombre[0];
+          apellido = partesNombre.slice(1).join(' ');
+        } else {
+          nombre = partesNombre[0];
+        }
+      } else {
+        // Fallback a los campos individuales
+        nombre = personal.nombre || '';
+        apellido = personal.apellido || '';
+      }
+
       setEditData({
-        nombre: personal.nombre,
-        apellido: personal.apellido,
+        nombre: nombre,
+        apellido: apellido,
         cargo: personal.cargo,
         sexo: personal.sexo,
         licencia_conducir: personal.licencia_conducir,
@@ -78,10 +93,8 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
         comentario_estado: personal.comentario_estado,
       });
       
-      // Actualizar documentos mock según el personal
-      setDocumentos(getDocumentosMock());
     }
-  }, [personal, isOpen, getDocumentosMock]);
+  }, [personal, isOpen]);
 
   const handleInputChange = (field: string, value: any) => {
     setEditData(prev => ({
@@ -164,21 +177,25 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
         nombreActualizado = true;
       }
 
-      // 2. Actualizar en el servicio principal
+      // 2. Actualizar en el servicio principal (CAMPOS OBLIGATORIOS según backend)
       const updateData = {
-        nombre: editData.nombre || personal.nombre,
-        apellido: editData.apellido || personal.apellido,
-        sexo: editData.sexo || personal.sexo,
-        licencia_conducir: editData.licencia_conducir || personal.licencia_conducir,
-        cargo: editData.cargo || personal.cargo,
-        estado_id: editData.estado_id !== undefined ? editData.estado_id : personal.estado_id,
-        // Campos adicionales editables (SOLO los que existen en la BD)
-        talla_zapatos: editData.talla_zapatos || personal.talla_zapatos || '',
-        talla_pantalones: editData.talla_pantalones || personal.talla_pantalones || '',
-        talla_poleras: editData.talla_poleras || personal.talla_poleras || '',
+        nombre: editData.nombre || personal.nombre || '',
+        apellido: editData.apellido || personal.apellido || '',
+        sexo: editData.sexo || personal.sexo || 'M',
+        fecha_nacimiento: personal.fecha_nacimiento || '', // Campo obligatorio del backend
+        licencia_conducir: editData.licencia_conducir || personal.licencia_conducir || '',
+        cargo: editData.cargo || personal.cargo || '',
+        estado_id: editData.estado_id !== undefined ? editData.estado_id : personal.estado_id || 1,
         zona_geografica: editData.zona_geografica || personal.zona_geografica || '',
-        comentario_estado: editData.comentario_estado || personal.comentario_estado || '',
       };
+
+      // Validar que los campos obligatorios del backend no estén vacíos
+      if (!updateData.sexo || !updateData.fecha_nacimiento || !updateData.licencia_conducir || !updateData.cargo || !updateData.estado_id) {
+        alert('Por favor complete todos los campos obligatorios (sexo, fecha de nacimiento, licencia de conducir, cargo, estado)');
+        return;
+      }
+
+      // Debug: Mostrar datos que se van a enviar
 
       promises.push(
         updateMutation.mutateAsync({
@@ -200,8 +217,7 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
       alert(mensaje);
       
     } catch (error: any) {
-      // eslint-disable-next-line no-console
-      console.error('Error al actualizar:', error);
+      // Error al actualizar
       setErrors({ general: 'Error al actualizar el personal. Verifique los datos ingresados.' });
     }
   };
@@ -242,12 +258,26 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
   const handleDeleteCurso = async (curso: any) => {
     if (window.confirm(`¿Está seguro que desea eliminar el curso "${curso.nombre_curso}"?`)) {
       try {
+        // Eliminando curso
         await deleteCursoMutation.mutateAsync(curso.id);
-        refetchCursos();
-      } catch (error) {
-        // eslint-disable-next-line no-console
-        console.error('Error al eliminar curso:', error);
-        alert('Error al eliminar el curso');
+        
+        // Refrescar la lista de cursos para asegurar sincronización
+        await refetchCursos();
+        
+        // Verificar que el curso fue eliminado
+        alert('Curso eliminado exitosamente');
+      } catch (error: any) {
+        // Error al eliminar curso
+        
+        // Manejar diferentes tipos de errores
+        let errorMessage = 'Error al eliminar el curso';
+        if (error.response?.status === 404) {
+          errorMessage = 'El curso no fue encontrado en el servidor.';
+        } else if (error.response?.status === 500) {
+          errorMessage = 'Error interno del servidor al eliminar el curso.';
+        }
+        
+        alert(errorMessage);
       }
     }
   };
@@ -294,10 +324,8 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
     
     if (documentoCurso) {
       // Simular descarga del documento
-      // eslint-disable-next-line no-console
-      console.log('Descargando documento del curso:', {
-        curso: curso.nombre_curso,
-        documento: documentoCurso.nombre,
+      console.log('Descargando documento:', {
+        nombre: documentoCurso.nombre,
         tipo: documentoCurso.tipo,
         archivo: documentoCurso.archivo
       });
@@ -316,8 +344,6 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
 
   const handleViewCourseDocument = (documento: any) => {
     // Simular visualización
-    // eslint-disable-next-line no-console
-    console.log('Visualizando documento de curso:', documento.nombre);
     // Aquí iría la lógica real de visualización
   };
 
@@ -327,49 +353,104 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
   };
 
   const handleDocumentSuccess = (nuevoDocumento: any) => {
-    setDocumentos(prev => [...prev, nuevoDocumento]);
+    // Refetch documentos del backend después de subir uno nuevo
+    refetchDocumentos();
   };
 
   const handleDocumentModalClose = () => {
     setShowDocumentModal(false);
   };
 
-  const handleDeleteDocument = (documentId: number) => {
-    if (window.confirm('¿Está seguro de que desea eliminar este documento?')) {
-      setDocumentos(prev => prev.filter(doc => doc.id !== documentId));
+  const handleDeleteDocument = async (documentId: number) => {
+    // Verificar que el documento existe en la lista actual
+    const documento = documentos.find(doc => doc.id === documentId);
+    if (!documento) {
+      alert('El documento no fue encontrado en la lista actual.');
+      return;
+    }
+
+    if (window.confirm(`¿Está seguro de que desea eliminar el documento "${documento.nombre_documento}"?`)) {
+      try {
+        // Intentando eliminar documento
+        console.log('Intentando eliminar documento:', {
+          id: documentId,
+          nombre: documento.nombre_documento,
+          tipo: documento.tipo_documento
+        });
+        
+        await deleteDocumentoMutation.mutateAsync(documentId);
+        
+        // Refetch documentos del backend después de eliminar
+        await refetchDocumentos();
+        alert('Documento eliminado exitosamente');
+      } catch (error: any) {
+        // Error al eliminar documento
+        
+        // Mostrar mensaje de error específico
+        let errorMessage = 'Error al eliminar el documento';
+        if (error.response?.status === 500) {
+          errorMessage = 'Error interno del servidor. El documento puede estar siendo usado por otro proceso o ya fue eliminado.';
+        } else if (error.response?.status === 404) {
+          errorMessage = 'El documento no fue encontrado en el servidor.';
+        } else if (error.response?.status === 403) {
+          errorMessage = 'No tiene permisos para eliminar este documento.';
+        } else if (error.response?.status === 400) {
+          errorMessage = 'Solicitud inválida. Verifique que el documento existe.';
+        }
+        
+        alert(errorMessage);
+      }
     }
   };
 
-  const handleDownloadDocument = (documento: any) => {
-    // Simular descarga
-    // eslint-disable-next-line no-console
-    console.log('Descargando documento:', documento.nombre);
-    // Aquí iría la lógica real de descarga
+  const handleDownloadDocument = async (documento: any) => {
+    try {
+      const blob = await downloadDocumentoMutation.mutateAsync(documento.id);
+      
+      // Crear URL para descarga
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = documento.nombre_original || documento.nombre_archivo || `documento_${documento.id}`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      // Error al descargar documento
+      alert('Error al descargar el documento');
+    }
   };
 
   const handleViewDocument = (documento: any) => {
     // Simular visualización
-    // eslint-disable-next-line no-console
-    console.log('Visualizando documento:', documento.nombre);
     // Aquí iría la lógica real de visualización
   };
 
   const getDocumentIcon = (tipo: string) => {
     switch (tipo) {
-      case 'contrato': return '📄';
-      case 'identidad': return '🆔';
-      case 'medico': return '🏥';
-      case 'antecedentes': return '📋';
+      case 'certificado_curso': return '🎓';
+      case 'diploma': return '🏆';
+      case 'certificado_laboral': return '💼';
+      case 'certificado_medico': return '🏥';
+      case 'licencia_conducir': return '🚗';
+      case 'certificado_seguridad': return '🛡️';
+      case 'certificado_vencimiento': return '⏰';
+      case 'otro': return '📄';
       default: return '📄';
     }
   };
 
   const getDocumentColor = (tipo: string) => {
     switch (tipo) {
-      case 'contrato': return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'identidad': return 'bg-green-100 text-green-800 border-green-200';
-      case 'medico': return 'bg-red-100 text-red-800 border-red-200';
-      case 'antecedentes': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'certificado_curso': return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'diploma': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'certificado_laboral': return 'bg-green-100 text-green-800 border-green-200';
+      case 'certificado_medico': return 'bg-red-100 text-red-800 border-red-200';
+      case 'licencia_conducir': return 'bg-purple-100 text-purple-800 border-purple-200';
+      case 'certificado_seguridad': return 'bg-orange-100 text-orange-800 border-orange-200';
+      case 'certificado_vencimiento': return 'bg-pink-100 text-pink-800 border-pink-200';
+      case 'otro': return 'bg-gray-100 text-gray-800 border-gray-200';
       default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
@@ -420,7 +501,7 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                         className={`bg-white bg-opacity-20 text-white placeholder-blue-200 border ${
                           errors.nombre ? 'border-red-300' : 'border-white border-opacity-30'
                         } rounded px-2 py-1 text-lg focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50`}
-                        placeholder="Nombre"
+                        placeholder={editData.nombre ? editData.nombre : "Ingrese nombre"}
                       />
                       <input
                         type="text"
@@ -429,11 +510,11 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                         className={`bg-white bg-opacity-20 text-white placeholder-blue-200 border ${
                           errors.apellido ? 'border-red-300' : 'border-white border-opacity-30'
                         } rounded px-2 py-1 text-lg focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50`}
-                        placeholder="Apellido"
+                        placeholder={editData.apellido ? editData.apellido : "Ingrese apellido"}
                       />
                     </div>
                   ) : (
-                    `${personal.nombre} ${personal.apellido}`
+                    (personal as any).nombres || `${personal.nombre || ''} ${personal.apellido || ''}`.trim()
                   )}
                 </h2>
                 <p className="text-blue-100 text-lg">
@@ -1046,7 +1127,7 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                       <div>
                         <span className="text-orange-600 font-medium">Documentos vigentes:</span>
                         <span className="ml-2 text-orange-900 font-semibold">
-                          {documentos.filter(doc => doc.estado === 'vigente').length}
+                          {documentos.length}
                         </span>
                       </div>
                     </div>
@@ -1054,7 +1135,12 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                 )}
 
                 {/* Lista de Documentos */}
-                {documentos.length > 0 ? (
+                {documentosLoading ? (
+                  <div className="flex justify-center items-center py-8">
+                    <LoadingSpinner />
+                    <span className="ml-2 text-gray-600">Cargando documentos...</span>
+                  </div>
+                ) : documentos.length > 0 ? (
                   <div className="space-y-3">
                     {documentos.map((documento) => (
                       <div key={documento.id} className="bg-white rounded-lg border border-orange-200 p-3 hover:shadow-md transition-shadow">
@@ -1062,24 +1148,24 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                           <div className="flex-1">
                             <div className="flex items-center justify-between mb-2">
                               <div className="flex items-center">
-                                <span className="text-lg mr-2">{getDocumentIcon(documento.tipo)}</span>
+                                <span className="text-lg mr-2">{getDocumentIcon(documento.tipo_documento)}</span>
                                 <h4 className="font-semibold text-orange-900 text-sm">
-                                  {documento.nombre}
+                                  {documento.nombre_documento}
                                 </h4>
-                                <span className={`ml-2 text-xs px-2 py-1 rounded-full border ${getDocumentColor(documento.tipo)}`}>
-                                  {documento.tipo}
+                                <span className={`ml-2 text-xs px-2 py-1 rounded-full border ${getDocumentColor(documento.tipo_documento)}`}>
+                                  {documento.tipo_documento.replace(/_/g, ' ').toUpperCase()}
                                 </span>
                               </div>
                               <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
-                                {documento.estado}
+                                VIGENTE
                               </span>
                             </div>
                             <div className="space-y-1">
                               <p className="text-xs text-orange-600">
-                                <span className="font-medium">Archivo:</span> {documento.archivo}
+                                <span className="font-medium">Archivo:</span> {documento.nombre_original}
                               </p>
                               <p className="text-xs text-gray-500">
-                                <span className="font-medium">Subido:</span> {new Date(documento.fecha).toLocaleDateString('es-CL', {
+                                <span className="font-medium">Subido:</span> {new Date(documento.fecha_subida).toLocaleDateString('es-CL', {
                                   year: 'numeric',
                                   month: 'long',
                                   day: 'numeric'
@@ -1159,7 +1245,7 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
         onSuccess={handleCursoSuccess}
         curso={editingCurso}
         rutPersona={personal?.rut || ''}
-        nombrePersona={`${personal?.nombre || ''} ${personal?.apellido || ''}`.trim()}
+        nombrePersona={(personal as any)?.nombres || `${personal?.nombre || ''} ${personal?.apellido || ''}`.trim()}
       />
 
       {/* Modal de Documentos */}

@@ -233,7 +233,7 @@ export const PersonalPage: React.FC = () => {
                         </div>
                         <div>
                           <h3 className="text-lg font-semibold text-gray-900">
-                            {persona.nombre} {persona.apellido}
+                            {(persona as any).nombres || `${persona.nombre || ''} ${persona.apellido || ''}`.trim()}
                           </h3>
                           <p className="text-sm text-gray-600">{persona.cargo}</p>
                           {persona.empresa && (

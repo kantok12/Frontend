@@ -1,338 +1,381 @@
 import React, { useState } from 'react';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { Tooltip } from '../components/common/Tooltip';
-import { Search, Plus, Edit, Trash2, Eye, Clock, Settings, MapPin, Calendar, Users } from 'lucide-react';
-import { ServicioModal } from '../components/servicios/ServicioModal';
-import { ServicioViewModal } from '../components/servicios/ServicioViewModal';
-import { ServicioEditModal } from '../components/servicios/ServicioEditModal';
-import { ServicioDeleteModal } from '../components/servicios/ServicioDeleteModal';
+import { Search, Plus, Edit, Trash2, BarChart3, Users, DollarSign, TrendingUp, Building, Network, ArrowUpDown } from 'lucide-react';
+import { useCarteras, useCreateCartera, useUpdateCartera, useDeleteCartera, useCarteraEstadisticas } from '../hooks/useCarteras';
+import { useClientes, useDeleteCliente } from '../hooks/useClientes';
+import { useNodos, useDeleteNodo } from '../hooks/useNodos';
+import { Cartera, Cliente, Nodo } from '../types';
 
-// Empresas chilenas para la cartera
-const empresasChilenas = [
-  'CODELCO',
-  'Antofagasta Minerals',
-  'Anglo American Sur',
-  'BHP Billiton',
-  'Colbún S.A.',
-  'ENAP',
-  'Arauco',
-  'CAP S.A.',
-  'SQM',
-  'Escondida',
-  'Cencosud',
-  'Falabella',
-  'LAN Airlines',
-  'Banco de Chile',
-  'Copec',
-  'CCU',
-  'Molibdenos y Metales',
-  'Celulosa Arauco',
-  'Viña Concha y Toro',
-  'Agrosuper'
-];
+// Modal para crear/editar cartera
+interface CarteraModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSuccess: () => void;
+  cartera?: Cartera | null;
+}
 
-// Función para obtener empresa aleatoria
-const getEmpresaAleatoria = () => {
-  return empresasChilenas[Math.floor(Math.random() * empresasChilenas.length)];
+const CarteraModal: React.FC<CarteraModalProps> = ({ isOpen, onClose, onSuccess, cartera }) => {
+  const [formData, setFormData] = useState({
+    nombre: cartera?.nombre || '',
+    descripcion: cartera?.descripcion || ''
+  });
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const createMutation = useCreateCartera();
+  const updateMutation = useUpdateCartera();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // Validación básica
+    const newErrors: Record<string, string> = {};
+    if (!formData.nombre.trim()) {
+      newErrors.nombre = 'El nombre es requerido';
+    }
+    
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+
+    try {
+      if (cartera) {
+        await updateMutation.mutateAsync({ id: cartera.id, data: formData });
+      } else {
+        await createMutation.mutateAsync(formData);
+      }
+      onSuccess();
+      onClose();
+    } catch (error) {
+      setErrors({ general: 'Error al guardar la cartera' });
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 w-full max-w-md">
+        <h2 className="text-xl font-semibold mb-4">
+          {cartera ? 'Editar Cartera' : 'Nueva Cartera'}
+        </h2>
+        
+        {errors.general && (
+          <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+            {errors.general}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Nombre *
+            </label>
+            <input
+              type="text"
+              value={formData.nombre}
+              onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
+              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                errors.nombre ? 'border-red-500' : 'border-gray-300'
+              }`}
+              placeholder="Nombre de la cartera"
+            />
+            {errors.nombre && (
+              <p className="mt-1 text-xs text-red-600">{errors.nombre}</p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Descripción
+            </label>
+            <textarea
+              value={formData.descripcion}
+              onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Descripción de la cartera"
+              rows={3}
+            />
+          </div>
+
+          <div className="flex justify-end space-x-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={createMutation.isPending || updateMutation.isPending}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+            >
+              {createMutation.isPending || updateMutation.isPending ? 'Guardando...' : 'Guardar'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
 };
 
-// Datos mock para demostración organizados por Zonas de Gestión
-const mockServicios = [
-  // MINERÍA
-  {
-    id: '1',
-    nombre: 'Mantenimiento Sistema de Lubricación Minera',
-    descripcion: 'Mantenimiento preventivo y correctivo de sistemas de lubricación en equipos mineros',
-    duracion_horas: 8,
-    lugar: 'Planta Minera',
-    tiempoPlanificacion: '1 semana',
-    zonaGestion: 'Minería',
-    categoria: 'Mantenimiento',
-    cartera: 'CODELCO',
-    diasActividad: [
-      { dia: 'Lunes', actividad: 'Inspección de sistemas de lubricación en excavadoras' },
-      { dia: 'Miércoles', actividad: 'Verificación de filtros y niveles en camiones mineros' },
-      { dia: 'Viernes', actividad: 'Limpieza de boquillas en equipos de perforación' }
-    ],
-    personalRequerido: 3,
-    personalSeleccionado: ['1', '2', '3'],
-    activo: true,
-    created_at: '2024-01-15T10:00:00Z',
-    updated_at: '2024-01-15T10:00:00Z'
-  },
-  {
-    id: '2',
-    nombre: 'Servicio Spot Lubricación Minera',
-    descripcion: 'Servicio de lubricación inmediata en sitio para equipos mineros críticos',
-    duracion_horas: 4,
-    lugar: 'Sitio Minero',
-    tiempoPlanificacion: 'Emergencia',
-    zonaGestion: 'Minería',
-    categoria: 'Servicio Spot',
-    cartera: 'Antofagasta Minerals',
-    diasActividad: [
-      { dia: 'Inmediato', actividad: 'Evaluación de emergencia y diagnóstico rápido' },
-      { dia: 'Mismo día', actividad: 'Aplicación de lubricación y verificación operativa' }
-    ],
-    personalRequerido: 2,
-    personalSeleccionado: ['4', '5'],
-    activo: true,
-    created_at: '2024-01-16T10:00:00Z',
-    updated_at: '2024-01-16T10:00:00Z'
-  },
-  // INDUSTRIA
-  {
-    id: '3',
-    nombre: 'Servicio Integral de Lubricación Industrial',
-    descripcion: 'Servicio completo de lubricación para plantas industriales con monitoreo continuo',
-    duracion_horas: 12,
-    lugar: 'Planta Industrial',
-    tiempoPlanificacion: '2 semanas',
-    zonaGestion: 'Industria',
-    categoria: 'Servicio Integral',
-    cartera: 'Arauco',
-    diasActividad: [
-      { dia: 'Semana 1', actividad: 'Auditoría completa de sistemas de lubricación' },
-      { dia: 'Semana 2', actividad: 'Implementación de mejoras y optimización' }
-    ],
-    personalRequerido: 4,
-    personalSeleccionado: ['6', '7', '8', '9'],
-    activo: true,
-    created_at: '2024-01-17T10:00:00Z',
-    updated_at: '2024-01-17T10:00Z'
-  },
-  {
-    id: '4',
-    nombre: 'Programa de Lubricación Industrial',
-    descripcion: 'Programa estructurado de lubricación preventiva para equipos industriales',
-    duracion_horas: 6,
-    lugar: 'Centro Industrial',
-    tiempoPlanificacion: 'Mensual',
-    zonaGestion: 'Industria',
-    categoria: 'Programa de Lubricación',
-    cartera: 'ENAP',
-    diasActividad: [
-      { dia: 'Semana 1', actividad: 'Planificación mensual de lubricación' },
-      { dia: 'Semana 2', actividad: 'Ejecución de lubricación programada' },
-      { dia: 'Semana 3', actividad: 'Verificación y control de calidad' },
-      { dia: 'Semana 4', actividad: 'Reporte y análisis de resultados' }
-    ],
-    personalRequerido: 3,
-    personalSeleccionado: ['10', '1', '2'],
-    activo: true,
-    created_at: '2024-01-18T10:00:00Z',
-    updated_at: '2024-01-18T10:00:00Z'
-  },
-  {
-    id: '5',
-    nombre: 'Levantamiento de Sistemas de Lubricación',
-    descripcion: 'Evaluación técnica y levantamiento de información de sistemas existentes',
-    duracion_horas: 10,
-    lugar: 'Planta Industrial',
-    tiempoPlanificacion: '1 semana',
-    zonaGestion: 'Industria',
-    categoria: 'Levantamientos',
-    cartera: 'Colbún S.A.',
-    diasActividad: [
-      { dia: 'Día 1-2', actividad: 'Inspección física de equipos y sistemas' },
-      { dia: 'Día 3-4', actividad: 'Análisis de documentación técnica' },
-      { dia: 'Día 5', actividad: 'Generación de informe de levantamiento' }
-    ],
-    personalRequerido: 2,
-    personalSeleccionado: ['3', '4'],
-    activo: true,
-    created_at: '2024-01-19T10:00:00Z',
-    updated_at: '2024-01-19T10:00:00Z'
-  },
-  {
-    id: '6',
-    nombre: 'Instalación de Sistemas Automáticos',
-    descripcion: 'Instalación completa de sistemas automáticos de lubricación industrial',
-    duracion_horas: 40,
-    lugar: 'Planta Industrial',
-    tiempoPlanificacion: '1 mes',
-    zonaGestion: 'Industria',
-    categoria: 'Instalaciones',
-    cartera: 'BHP Billiton',
-    diasActividad: [
-      { dia: 'Semana 1', actividad: 'Preparación de sitio y planificación detallada' },
-      { dia: 'Semana 2', actividad: 'Instalación de componentes principales' },
-      { dia: 'Semana 3', actividad: 'Conexión y configuración de controles' },
-      { dia: 'Semana 4', actividad: 'Puesta en marcha y capacitación' }
-    ],
-    personalRequerido: 5,
-    personalSeleccionado: ['5', '6', '7', '8', '9'],
-    activo: true,
-    created_at: '2024-01-20T10:00:00Z',
-    updated_at: '2024-01-20T10:00:00Z'
-  },
-  {
-    id: '7',
-    nombre: 'Servicio de Mantenimiento Preventivo',
-    descripcion: 'Servicio de mantenimiento preventivo para equipos industriales',
-    zonaGestion: 'Industria',
-    categoria: 'Servicio Integral',
-    cartera: 'Empresa Demo',
-    lugar: 'Santiago',
-    duracion_horas: 8,
-    tiempoPlanificacion: '1 semana',
-    diasActividad: [
-      { dia: 'Día 1', actividad: 'Inspección general de equipos' },
-      { dia: 'Día 2', actividad: 'Lubricación y ajustes' }
-    ],
-    personalRequerido: 2,
-    personalSeleccionado: [], // Sin personal asignado
-    activo: true,
-    created_at: '2024-01-21T10:00:00Z',
-    updated_at: '2024-01-21T10:00:00Z'
-  }
-];
+// Modal para ver estadísticas de cartera
+interface EstadisticasModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  cartera: Cartera | null;
+}
+
+const EstadisticasModal: React.FC<EstadisticasModalProps> = ({ isOpen, onClose, cartera }) => {
+  const { data: estadisticasData, isLoading } = useCarteraEstadisticas(cartera?.id || 0);
+
+  if (!isOpen || !cartera) return null;
+
+  const estadisticas = estadisticasData?.data;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 w-full max-w-2xl">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-xl font-semibold">Estadísticas - {cartera.nombre}</h2>
+          <button
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-700"
+          >
+            ✕
+          </button>
+        </div>
+
+        {isLoading ? (
+          <div className="flex justify-center py-8">
+            <LoadingSpinner />
+          </div>
+        ) : estadisticas ? (
+          <div className="grid grid-cols-2 gap-6">
+            <div className="bg-blue-50 p-4 rounded-lg">
+              <div className="flex items-center">
+                <Users className="h-8 w-8 text-blue-600 mr-3" />
+                <div>
+                  <p className="text-sm text-blue-600">Total Clientes</p>
+                  <p className="text-2xl font-bold text-blue-900">{estadisticas.total_clientes}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-green-50 p-4 rounded-lg">
+              <div className="flex items-center">
+                <TrendingUp className="h-8 w-8 text-green-600 mr-3" />
+                <div>
+                  <p className="text-sm text-green-600">Clientes Activos</p>
+                  <p className="text-2xl font-bold text-green-900">{estadisticas.clientes_activos}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-purple-50 p-4 rounded-lg">
+              <div className="flex items-center">
+                <BarChart3 className="h-8 w-8 text-purple-600 mr-3" />
+                <div>
+                  <p className="text-sm text-purple-600">Servicios Activos</p>
+                  <p className="text-2xl font-bold text-purple-900">{estadisticas.servicios_activos}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-yellow-50 p-4 rounded-lg">
+              <div className="flex items-center">
+                <DollarSign className="h-8 w-8 text-yellow-600 mr-3" />
+                <div>
+                  <p className="text-sm text-yellow-600">Ingresos Totales</p>
+                  <p className="text-2xl font-bold text-yellow-900">
+                    ${estadisticas.ingresos_totales.toLocaleString()}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="text-center py-8 text-gray-500">
+            No se pudieron cargar las estadísticas
+          </div>
+        )}
+
+        <div className="flex justify-end mt-6">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
+          >
+            Cerrar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export const ServiciosPage: React.FC = () => {
-  const [page, setPage] = useState(1);
+  const [activeTab, setActiveTab] = useState<'carteras' | 'clientes' | 'nodos'>('carteras');
   const [search, setSearch] = useState('');
-  const [zonaFilter, setZonaFilter] = useState('Todas');
-  const [limit] = useState(10);
-  const [isLoading, setIsLoading] = useState(false);
-  const [showServicioModal, setShowServicioModal] = useState(false);
-  const [servicios, setServicios] = useState(mockServicios);
-  
-  // Estados para los modales
-  const [showViewModal, setShowViewModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [selectedServicio, setSelectedServicio] = useState<any>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEstadisticasModal, setShowEstadisticasModal] = useState(false);
+  const [selectedCartera, setSelectedCartera] = useState<Cartera | null>(null);
+  const [editingCartera, setEditingCartera] = useState<Cartera | null>(null);
+  const [sortField, setSortField] = useState<string>('');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [selectedCarteraFilter, setSelectedCarteraFilter] = useState<number | null>(null);
+  const [selectedClienteFilter, setSelectedClienteFilter] = useState<number | null>(null);
 
-  // Filtrar datos basado en la búsqueda y zona de gestión
-  const filteredServicios = servicios.filter(servicio => {
-    const matchesSearch = 
-      servicio.nombre.toLowerCase().includes(search.toLowerCase()) ||
-      servicio.descripcion.toLowerCase().includes(search.toLowerCase()) ||
-      servicio.lugar.toLowerCase().includes(search.toLowerCase()) ||
-      servicio.tiempoPlanificacion.toLowerCase().includes(search.toLowerCase()) ||
-      servicio.zonaGestion.toLowerCase().includes(search.toLowerCase()) ||
-      servicio.categoria.toLowerCase().includes(search.toLowerCase()) ||
-      servicio.cartera.toLowerCase().includes(search.toLowerCase());
+  const { data: carterasData, isLoading: carterasLoading, error: carterasError } = useCarteras();
+  const { data: clientesData, isLoading: clientesLoading, error: clientesError } = useClientes();
+  const { data: nodosData, isLoading: nodosLoading, error: nodosError } = useNodos();
+  
+  const deleteCarteraMutation = useDeleteCartera();
+  const deleteClienteMutation = useDeleteCliente();
+  const deleteNodoMutation = useDeleteNodo();
+
+  const carteras = carterasData?.data || [];
+  const clientes = clientesData?.data || [];
+  const nodos = nodosData?.data || [];
+
+  // Filtrar datos por búsqueda
+  const filteredCarteras = carteras.filter(cartera =>
+    cartera.nombre.toLowerCase().includes(search.toLowerCase()) ||
+    (cartera.descripcion && cartera.descripcion.toLowerCase().includes(search.toLowerCase()))
+  );
+
+  const filteredClientes = clientes.filter(cliente => {
+    const matchesSearch = cliente.nombre.toLowerCase().includes(search.toLowerCase()) ||
+      (cliente.email && cliente.email.toLowerCase().includes(search.toLowerCase()));
     
-    const matchesZona = zonaFilter === 'Todas' || servicio.zonaGestion === zonaFilter;
+    const matchesCarteraFilter = selectedCarteraFilter === null || cliente.cartera_id === selectedCarteraFilter;
     
-    return matchesSearch && matchesZona;
+    return matchesSearch && matchesCarteraFilter;
   });
 
-  // Paginación de datos mock
-  const startIndex = (page - 1) * limit;
-  const endIndex = startIndex + limit;
-  const paginatedServicios = filteredServicios.slice(startIndex, endIndex);
-  const totalPages = Math.ceil(filteredServicios.length / limit);
-  const total = filteredServicios.length;
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    setPage(1); // Reset to first page when searching
-  };
-
-  // Reset page when search or filter changes
-  React.useEffect(() => {
-    setPage(1);
-  }, [search, zonaFilter]);
-
-  const handlePageChange = (newPage: number) => {
-    setPage(newPage);
-  };
-
-  const handleServicioSuccess = (nuevoServicio: any) => {
-    // Agregar el nuevo servicio al listado
-    const servicioConId = {
-      ...nuevoServicio,
-      id: (servicios.length + 1).toString(),
-      activo: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      diasActividad: [
-        { dia: 'Día 1', actividad: 'Actividad inicial del servicio' },
-        { dia: 'Día 2', actividad: 'Seguimiento y control' }
-      ]
-    };
+  const filteredNodos = nodos.filter(nodo => {
+    const matchesSearch = nodo.nombre.toLowerCase().includes(search.toLowerCase()) ||
+      (nodo.ubicacion && nodo.ubicacion.toLowerCase().includes(search.toLowerCase()));
     
-    setServicios(prev => [servicioConId, ...prev]);
-    // eslint-disable-next-line no-console
-    console.log('Servicio creado exitosamente:', servicioConId);
-  };
+    const matchesClienteFilter = selectedClienteFilter === null || nodo.cliente_id === selectedClienteFilter;
+    
+    return matchesSearch && matchesClienteFilter;
+  });
 
-  // Funciones para manejar los modales
-  const handleViewServicio = (servicio: any) => {
-    setSelectedServicio(servicio);
-    setShowViewModal(true);
-  };
-
-  const handleEditServicio = (servicio: any) => {
-    setSelectedServicio(servicio);
-    setShowEditModal(true);
-  };
-
-  const handleDeleteServicio = (servicio: any) => {
-    setSelectedServicio(servicio);
-    setShowDeleteModal(true);
-  };
-
-  const handleEditSuccess = (servicioActualizado: any) => {
-    setServicios(prev => 
-      prev.map(servicio => 
-        servicio.id === servicioActualizado.id ? servicioActualizado : servicio
-      )
-    );
-    // eslint-disable-next-line no-console
-    console.log('Servicio actualizado exitosamente:', servicioActualizado);
-  };
-
-  const handleDeleteConfirm = () => {
-    if (selectedServicio) {
-      setServicios(prev => prev.filter(servicio => servicio.id !== selectedServicio.id));
-      // eslint-disable-next-line no-console
-      console.log('Servicio eliminado exitosamente:', selectedServicio);
+  // Función de ordenamiento
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
     }
   };
 
-  // Función para obtener los nombres del personal asignado
-  const getPersonalAsignadoInfo = (servicio: any) => {
-    // Verificar que el servicio y personalSeleccionado existan
-    if (!servicio || !servicio.personalSeleccionado || !Array.isArray(servicio.personalSeleccionado) || servicio.personalSeleccionado.length === 0) {
-      return 'No hay personal asignado';
-    }
+  // Función para ordenar datos
+  const sortData = <T extends Record<string, any>>(data: T[], field: string, direction: 'asc' | 'desc'): T[] => {
+    if (!field) return data;
     
-    // Mock data para nombres de personal (en una implementación real, esto vendría de una API)
-    const nombresPersonal: { [key: string]: string } = {
-      '1': 'Juan Pérez',
-      '2': 'María González',
-      '3': 'Carlos Rodríguez',
-      '4': 'Ana Martínez',
-      '5': 'Luis Fernández',
-      '6': 'Carmen López',
-      '7': 'Pedro Sánchez',
-      '8': 'Laura García',
-      '9': 'Miguel Torres',
-      '10': 'Isabel Ruiz',
-      '11': 'Roberto Silva',
-      '12': 'Patricia Morales',
-      '13': 'Diego Herrera',
-      '14': 'Valentina Castro',
-      '15': 'Andrés Jiménez'
-    };
+    return [...data].sort((a, b) => {
+      const aValue = a[field];
+      const bValue = b[field];
+      
+      if (aValue < bValue) return direction === 'asc' ? -1 : 1;
+      if (aValue > bValue) return direction === 'asc' ? 1 : -1;
+      return 0;
+    });
+  };
 
-    // Mapear IDs a nombres
-    const nombres: string[] = [];
-    for (const id of servicio.personalSeleccionado) {
-      const idStr = String(id);
-      const nombre = nombresPersonal[idStr];
-      if (nombre) {
-        nombres.push(nombre);
-      } else {
-        nombres.push(`Personal ${idStr}`);
+  // Aplicar ordenamiento a los datos filtrados
+  const sortedCarteras = sortData(filteredCarteras, sortField, sortDirection);
+  const sortedClientes = sortData(filteredClientes, sortField, sortDirection);
+  const sortedNodos = sortData(filteredNodos, sortField, sortDirection);
+
+  // Función helper para mostrar indicador de ordenamiento
+  const getSortIndicator = (field: string) => {
+    if (sortField === field) {
+      return sortDirection === 'asc' ? '↑' : '↓';
+    }
+    return <ArrowUpDown className="h-3 w-3" />;
+  };
+
+  // Función para limpiar filtros al cambiar de pestaña
+  const handleTabChange = (newTab: 'carteras' | 'clientes' | 'nodos') => {
+    setActiveTab(newTab);
+    setSelectedCarteraFilter(null);
+    setSelectedClienteFilter(null);
+    setSearch('');
+  };
+
+  // Función para manejar filtro de cartera
+  const handleCarteraFilterChange = (carteraId: number | null) => {
+    setSelectedCarteraFilter(carteraId);
+    setSelectedClienteFilter(null); // Limpiar filtro de cliente cuando cambia cartera
+  };
+
+  // Función para manejar filtro de cliente
+  const handleClienteFilterChange = (clienteId: number | null) => {
+    setSelectedClienteFilter(clienteId);
+  };
+
+  const handleDeleteCartera = async (cartera: Cartera) => {
+    if (window.confirm(`¿Estás seguro de que quieres eliminar la cartera "${cartera.nombre}"?`)) {
+      try {
+        await deleteCarteraMutation.mutateAsync(cartera.id);
+      } catch (error) {
+        alert('Error al eliminar la cartera');
       }
     }
-    
-    return nombres.join(', ');
   };
+
+  const handleDeleteCliente = async (cliente: Cliente) => {
+    if (window.confirm(`¿Estás seguro de que quieres eliminar el cliente "${cliente.nombre}"?`)) {
+      try {
+        await deleteClienteMutation.mutateAsync(cliente.id);
+      } catch (error) {
+        alert('Error al eliminar el cliente');
+      }
+    }
+  };
+
+  const handleDeleteNodo = async (nodo: Nodo) => {
+    if (window.confirm(`¿Estás seguro de que quieres eliminar el nodo "${nodo.nombre}"?`)) {
+      try {
+        await deleteNodoMutation.mutateAsync(nodo.id);
+      } catch (error) {
+        alert('Error al eliminar el nodo');
+      }
+    }
+  };
+
+  const handleViewEstadisticas = (cartera: Cartera) => {
+    setSelectedCartera(cartera);
+    setShowEstadisticasModal(true);
+  };
+
+  const handleEdit = (item: Cartera | Cliente | Nodo) => {
+    if ('fecha_creacion' in item) {
+      // Es una Cartera
+      setEditingCartera(item as Cartera);
+      setShowCreateModal(true);
+    } else if ('email' in item) {
+      // Es un Cliente
+      // TODO: Implementar modal de edición de cliente
+      alert('Funcionalidad de edición de cliente en desarrollo');
+    } else if ('estado' in item) {
+      // Es un Nodo
+      // TODO: Implementar modal de edición de nodo
+      alert('Funcionalidad de edición de nodo en desarrollo');
+    }
+  };
+
+  const handleModalSuccess = () => {
+    setEditingCartera(null);
+  };
+
+  const isLoading = carterasLoading || clientesLoading || nodosLoading;
+  const hasError = carterasError || clientesError || nodosError;
 
   if (isLoading) {
     return (
@@ -342,310 +385,433 @@ export const ServiciosPage: React.FC = () => {
     );
   }
 
-  return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-6 fade-in">
-        <h1 className="text-3xl font-bold text-gray-900">Gestión de Servicios</h1>
-        <button 
-          onClick={() => setShowServicioModal(true)}
-          className="btn-primary hover-grow"
-        >
-          <Plus className="h-4 w-4" />
-          Nuevo Servicio
-        </button>
+  if (hasError) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-red-600">Error al cargar los datos</p>
       </div>
+    );
+  }
 
-      {/* Filtros y búsqueda */}
-      <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
-        <form onSubmit={handleSearch} className="flex gap-3 items-center">
-          {/* Filtro por Zona de Gestión */}
-          <div className="w-48">
-            <select
-              value={zonaFilter}
-              onChange={(e) => {
-                setZonaFilter(e.target.value);
-                setPage(1);
-              }}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white text-gray-900"
+  return (
+    <div className="p-6">
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Gestión de Servicios</h1>
+        <p className="text-gray-600">Administra carteras, clientes y nodos</p>
+        
+        {/* Pestañas */}
+        <div className="mt-6 border-b border-gray-200">
+          <nav className="-mb-px flex space-x-8">
+            <button
+              onClick={() => handleTabChange('carteras')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'carteras'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
             >
-              <option value="Todas">Todas las Zonas</option>
-              <option value="Minería">Minería</option>
-              <option value="Industria">Industria</option>
-            </select>
+              <BarChart3 className="h-4 w-4 inline mr-2" />
+              Carteras ({carteras.length})
+            </button>
+            <button
+              onClick={() => handleTabChange('clientes')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'clientes'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <Building className="h-4 w-4 inline mr-2" />
+              Clientes ({clientes.length})
+            </button>
+        <button 
+              onClick={() => handleTabChange('nodos')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'nodos'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <Network className="h-4 w-4 inline mr-2" />
+              Nodos ({nodos.length})
+        </button>
+          </nav>
+      </div>
           </div>
           
-          {/* Barra de búsqueda */}
+      {/* Barra de búsqueda, filtros y acciones */}
+      <div className="flex flex-col gap-4 mb-6">
+        {/* Fila superior: Búsqueda y botón crear */}
+        <div className="flex flex-col sm:flex-row gap-4">
           <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4 z-10" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
             <input
               type="text"
-              placeholder="Buscar por nombre, descripción, lugar, zona, categoría o cartera..."
+              placeholder={
+                activeTab === 'carteras' ? 'Buscar carteras...' :
+                activeTab === 'clientes' ? 'Buscar clientes...' :
+                'Buscar nodos...'
+              }
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white text-gray-900 placeholder-gray-500 text-sm"
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
           <button
-            type="submit"
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
+            onClick={() => setShowCreateModal(true)}
+            className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
-            Buscar
+            <Plus className="h-5 w-5 mr-2" />
+            {activeTab === 'carteras' ? 'Nueva Cartera' :
+             activeTab === 'clientes' ? 'Nuevo Cliente' :
+             'Nuevo Nodo'}
           </button>
-          {(search || zonaFilter !== 'Todas') && (
+        </div>
+
+        {/* Indicadores de filtros activos */}
+        {(selectedCarteraFilter || selectedClienteFilter) && (
+          <div className="flex flex-wrap gap-2">
+            {selectedCarteraFilter && (
+              <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                Cartera: {carteras.find(c => c.id === selectedCarteraFilter)?.nombre}
+                <button
+                  onClick={() => handleCarteraFilterChange(null)}
+                  className="ml-2 text-blue-600 hover:text-blue-800"
+                >
+                  ×
+          </button>
+              </span>
+            )}
+            {selectedClienteFilter && (
+              <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                Cliente: {clientes.find(c => c.id === selectedClienteFilter)?.nombre}
             <button
-              type="button"
-              onClick={() => {
-                setSearch('');
-                setZonaFilter('Todas');
-                setPage(1);
-              }}
-              className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
-            >
-              Limpiar
+                  onClick={() => handleClienteFilterChange(null)}
+                  className="ml-2 text-green-600 hover:text-green-800"
+                >
+                  ×
             </button>
+              </span>
           )}
-        </form>
       </div>
+        )}
 
-      {/* Resumen de Zonas de Gestión */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 slide-up animate-delay-300">
-        {/* Estadísticas Minería */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Minería</h3>
-            <div className="h-8 w-8 rounded-full bg-orange-100 flex items-center justify-center">
-              <Settings className="h-4 w-4 text-orange-600" />
+        {/* Fila inferior: Filtros jerárquicos */}
+        {activeTab === 'clientes' && (
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Filtrar por Cartera
+              </label>
+              <select
+                value={selectedCarteraFilter || ''}
+                onChange={(e) => handleCarteraFilterChange(e.target.value ? Number(e.target.value) : null)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">Todas las carteras</option>
+                {carteras.map((cartera) => (
+                  <option key={cartera.id} value={cartera.id}>
+                    {cartera.nombre}
+                  </option>
+                ))}
+              </select>
             </div>
+            {selectedCarteraFilter && (
+              <div className="flex items-end">
+                <button
+                  onClick={() => handleCarteraFilterChange(null)}
+                  className="px-3 py-2 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  Limpiar filtro
+                </button>
           </div>
-          <div className="space-y-3">
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Total Servicios:</span>
-              <span className="font-semibold text-orange-600">
-                {servicios.filter(s => s.zonaGestion === 'Minería').length}
-              </span>
+            )}
             </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Mantenimiento:</span>
-              <span className="text-sm font-medium text-gray-900">
-                {servicios.filter(s => s.zonaGestion === 'Minería' && s.categoria === 'Mantenimiento').length}
-              </span>
+        )}
+
+        {activeTab === 'nodos' && (
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Filtrar por Cliente
+              </label>
+              <select
+                value={selectedClienteFilter || ''}
+                onChange={(e) => handleClienteFilterChange(e.target.value ? Number(e.target.value) : null)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">Todos los clientes</option>
+                {clientes.map((cliente) => (
+                  <option key={cliente.id} value={cliente.id}>
+                    {cliente.nombre}
+                  </option>
+                ))}
+              </select>
             </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Servicio Spot:</span>
-              <span className="text-sm font-medium text-gray-900">
-                {servicios.filter(s => s.zonaGestion === 'Minería' && s.categoria === 'Servicio Spot').length}
-              </span>
+            {selectedClienteFilter && (
+              <div className="flex items-end">
+                <button
+                  onClick={() => handleClienteFilterChange(null)}
+                  className="px-3 py-2 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  Limpiar filtro
+                </button>
             </div>
+            )}
           </div>
+        )}
         </div>
 
-        {/* Estadísticas Industria */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Industria</h3>
-            <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center">
-              <Settings className="h-4 w-4 text-blue-600" />
+      {/* Tabla estilo Excel */}
+      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            {/* Encabezados de tabla */}
+            <thead className="bg-gray-50">
+              <tr>
+                {activeTab === 'carteras' && (
+                  <>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => handleSort('id')}>
+                      <div className="flex items-center space-x-1">
+                        <span>ID</span>
+                        {getSortIndicator('id')}
             </div>
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => handleSort('nombre')}>
+                      <div className="flex items-center space-x-1">
+                        <span>Nombre</span>
+                        {getSortIndicator('nombre')}
           </div>
-          <div className="space-y-3">
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Total Servicios:</span>
-              <span className="font-semibold text-blue-600">
-                {servicios.filter(s => s.zonaGestion === 'Industria').length}
-              </span>
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => handleSort('descripcion')}>
+                      <div className="flex items-center space-x-1">
+                        <span>Descripción</span>
+                        {getSortIndicator('descripcion')}
             </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Servicio Integral:</span>
-              <span className="text-sm font-medium text-gray-900">
-                {servicios.filter(s => s.zonaGestion === 'Industria' && s.categoria === 'Servicio Integral').length}
-              </span>
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => handleSort('total_clientes')}>
+                      <div className="flex items-center space-x-1">
+                        <span>Total Clientes</span>
+                        {getSortIndicator('total_clientes')}
             </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Programa de Lubricación:</span>
-              <span className="text-sm font-medium text-gray-900">
-                {servicios.filter(s => s.zonaGestion === 'Industria' && s.categoria === 'Programa de Lubricación').length}
-              </span>
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => handleSort('fecha_creacion')}>
+                      <div className="flex items-center space-x-1">
+                        <span>Fecha Creación</span>
+                        {getSortIndicator('fecha_creacion')}
             </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Levantamientos:</span>
-              <span className="text-sm font-medium text-gray-900">
-                {servicios.filter(s => s.zonaGestion === 'Industria' && s.categoria === 'Levantamientos').length}
-              </span>
+                    </th>
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Acciones
+                    </th>
+                  </>
+                )}
+                {activeTab === 'clientes' && (
+                  <>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => handleSort('id')}>
+                      <div className="flex items-center space-x-1">
+                        <span>ID</span>
+                        {getSortIndicator('id')}
             </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Instalaciones:</span>
-              <span className="text-sm font-medium text-gray-900">
-                {servicios.filter(s => s.zonaGestion === 'Industria' && s.categoria === 'Instalaciones').length}
-              </span>
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => handleSort('nombre')}>
+                      <div className="flex items-center space-x-1">
+                        <span>Nombre</span>
+                        {getSortIndicator('nombre')}
             </div>
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => handleSort('email')}>
+                      <div className="flex items-center space-x-1">
+                        <span>Email</span>
+                        {getSortIndicator('email')}
           </div>
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => handleSort('telefono')}>
+                      <div className="flex items-center space-x-1">
+                        <span>Teléfono</span>
+                        {getSortIndicator('telefono')}
         </div>
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => handleSort('cartera_id')}>
+                      <div className="flex items-center space-x-1">
+                        <span>Cartera</span>
+                        {getSortIndicator('cartera_id')}
       </div>
-
-      {/* Cards de servicios */}
-      <div className="slide-up animate-delay-300">
-        <div className="mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">
-            Servicios ({total} registros)
-          </h2>
-        </div>
-
-        {paginatedServicios.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
-            {search || zonaFilter !== 'Todas' ? 
-              'No se encontraron servicios con los criterios de búsqueda' : 
-              'No hay servicios registrados'
-            }
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => handleSort('created_at')}>
+                      <div className="flex items-center space-x-1">
+                        <span>Fecha Creación</span>
+                        {getSortIndicator('created_at')}
           </div>
-        ) : (
-          <>
-            <div className="bg-white shadow-sm rounded-lg border border-gray-200 overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Servicio
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Zona de Gestión
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Acciones
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Categoría
+                  </>
+                )}
+                {activeTab === 'nodos' && (
+                  <>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => handleSort('id')}>
+                      <div className="flex items-center space-x-1">
+                        <span>ID</span>
+                        {getSortIndicator('id')}
+                      </div>
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Cartera
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => handleSort('nombre')}>
+                      <div className="flex items-center space-x-1">
+                        <span>Nombre</span>
+                        {getSortIndicator('nombre')}
+                      </div>
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Ubicación
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => handleSort('ubicacion')}>
+                      <div className="flex items-center space-x-1">
+                        <span>Ubicación</span>
+                        {getSortIndicator('ubicacion')}
+                      </div>
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Duración
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => handleSort('estado')}>
+                      <div className="flex items-center space-x-1">
+                        <span>Estado</span>
+                        {getSortIndicator('estado')}
+                      </div>
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Planificación
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => handleSort('cliente_id')}>
+                      <div className="flex items-center space-x-1">
+                        <span>Cliente</span>
+                        {getSortIndicator('cliente_id')}
+                      </div>
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Personal
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => handleSort('created_at')}>
+                      <div className="flex items-center space-x-1">
+                        <span>Fecha Creación</span>
+                        {getSortIndicator('created_at')}
+                      </div>
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Estado
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Acciones
                       </th>
+                  </>
+                )}
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {paginatedServicios.map((servicio, index) => (
-                      <tr key={servicio.id} className={`hover:bg-gray-50 transition-colors duration-200 stagger-item animate-delay-${(index + 1) * 100}`}>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <div className={`flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center ${
-                              servicio.zonaGestion === 'Minería' 
-                                ? 'bg-orange-100' 
-                                : 'bg-blue-100'
-                            }`}>
-                              <Settings className={`h-4 w-4 ${
-                                servicio.zonaGestion === 'Minería' 
-                                  ? 'text-orange-600' 
-                                  : 'text-blue-600'
-                              }`} />
-                            </div>
-                            <div className="ml-4">
-                              <div className="text-sm font-medium text-gray-900">
-                                {servicio.nombre}
-                              </div>
-                              <div className="text-sm text-gray-500 max-w-xs truncate">
-                                {servicio.descripcion}
-                              </div>
-                            </div>
+              {/* Filas de Carteras */}
+              {activeTab === 'carteras' && sortedCarteras.map((cartera, index) => (
+                <tr key={cartera.id} className={`${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-blue-50`}>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{cartera.id}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{cartera.nombre}</td>
+                  <td className="px-6 py-4 text-sm text-gray-500">{cartera.descripcion || '-'}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{cartera.total_clientes}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {new Date(cartera.fecha_creacion).toLocaleDateString()}
+                        </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
+                    <div className="flex justify-center space-x-2">
+                      <Tooltip content="Ver estadísticas">
+                        <button
+                          onClick={() => handleViewEstadisticas(cartera)}
+                          className="text-blue-600 hover:text-blue-900"
+                        >
+                          <BarChart3 className="h-4 w-4" />
+                        </button>
+                      </Tooltip>
+                      <Tooltip content="Editar">
+                        <button
+                          onClick={() => handleEdit(cartera)}
+                          className="text-gray-600 hover:text-gray-900"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </button>
+                      </Tooltip>
+                      <Tooltip content="Eliminar">
+                        <button
+                          onClick={() => handleDeleteCartera(cartera)}
+                          className="text-red-600 hover:text-red-900"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </Tooltip>
                           </div>
                         </td>
+                </tr>
+              ))}
+              
+              {/* Filas de Clientes */}
+              {activeTab === 'clientes' && sortedClientes.map((cliente, index) => (
+                <tr key={cliente.id} className={`${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-blue-50`}>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{cliente.id}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{cliente.nombre}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{cliente.email || '-'}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{cliente.telefono || '-'}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {carteras.find(c => c.id === cliente.cartera_id)?.nombre || `ID: ${cliente.cartera_id}`}
+                        </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {new Date(cliente.created_at).toLocaleDateString()}
+                        </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
+                    <div className="flex justify-center space-x-2">
+                      <Tooltip content="Editar">
+                        <button
+                          onClick={() => handleEdit(cliente)}
+                          className="text-gray-600 hover:text-gray-900"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </button>
+                      </Tooltip>
+                      <Tooltip content="Eliminar">
+                        <button
+                          onClick={() => handleDeleteCliente(cliente)}
+                          className="text-red-600 hover:text-red-900"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </Tooltip>
+                          </div>
+                        </td>
+                </tr>
+              ))}
+              
+              {/* Filas de Nodos */}
+              {activeTab === 'nodos' && sortedNodos.map((nodo, index) => (
+                <tr key={nodo.id} className={`${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-blue-50`}>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{nodo.id}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{nodo.nombre}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{nodo.ubicacion || '-'}</td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                            servicio.zonaGestion === 'Minería' 
-                              ? 'bg-orange-100 text-orange-800' 
-                              : 'bg-blue-100 text-blue-800'
-                          }`}>
-                            {servicio.zonaGestion}
+                      nodo.estado === 'activo' ? 'bg-green-100 text-green-800' :
+                      nodo.estado === 'inactivo' ? 'bg-red-100 text-red-800' :
+                      'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      {nodo.estado}
                           </span>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                            servicio.zonaGestion === 'Minería' 
-                              ? 'bg-orange-50 text-orange-700 border border-orange-300' 
-                              : 'bg-blue-50 text-blue-700 border border-blue-300'
-                          }`}>
-                            {servicio.categoria}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">
-                            {servicio.cartera}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center text-sm text-gray-900">
-                            <MapPin className="h-4 w-4 mr-1 text-gray-400" />
-                            {servicio.lugar}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center text-sm text-gray-900">
-                            <Clock className="h-4 w-4 mr-1 text-blue-500" />
-                            {servicio.duracion_horas} horas
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center text-sm text-gray-900">
-                            <Calendar className="h-4 w-4 mr-1 text-purple-500" />
-                            {servicio.tiempoPlanificacion}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <Tooltip 
-                            content={getPersonalAsignadoInfo(servicio)}
-                            position="top"
-                          >
-                            <div className="flex items-center text-sm text-gray-900 cursor-help">
-                              <Users className="h-4 w-4 mr-1 text-green-500" />
-                              {servicio.personalRequerido} personas
-                            </div>
-                          </Tooltip>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                            servicio.activo 
-                              ? 'bg-green-100 text-green-800' 
-                              : 'bg-red-100 text-red-800'
-                          }`}>
-                            {servicio.activo ? 'Activo' : 'Inactivo'}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <div className="flex space-x-2">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {clientes.find(c => c.id === nodo.cliente_id)?.nombre || `ID: ${nodo.cliente_id}`}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {new Date(nodo.created_at).toLocaleDateString()}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
+                    <div className="flex justify-center space-x-2">
+                      <Tooltip content="Editar">
                             <button 
-                              className="text-primary-600 hover:text-primary-900 p-1 rounded hover:bg-primary-50"
-                              onClick={() => handleViewServicio(servicio)}
-                              title="Ver detalles"
-                            >
-                              <Eye className="h-4 w-4" />
-                            </button>
-                            <button 
-                              className="text-blue-600 hover:text-blue-900 p-1 rounded hover:bg-blue-50"
-                              onClick={() => handleEditServicio(servicio)}
-                              title="Editar"
+                          onClick={() => handleEdit(nodo)}
+                          className="text-gray-600 hover:text-gray-900"
                             >
                               <Edit className="h-4 w-4" />
                             </button>
+                      </Tooltip>
+                      <Tooltip content="Eliminar">
                             <button 
-                              className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50"
-                              onClick={() => handleDeleteServicio(servicio)}
-                              title="Eliminar"
+                          onClick={() => handleDeleteNodo(nodo)}
+                          className="text-red-600 hover:text-red-900"
                             >
                               <Trash2 className="h-4 w-4" />
                             </button>
+                      </Tooltip>
                           </div>
                         </td>
                       </tr>
@@ -655,101 +821,59 @@ export const ServiciosPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Paginación */}
-            {totalPages > 1 && (
-              <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
-                <div className="flex-1 flex justify-between sm:hidden">
-                  <button
-                    onClick={() => handlePageChange(page - 1)}
-                    disabled={page === 1}
-                    className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Anterior
-                  </button>
-                  <button
-                    onClick={() => handlePageChange(page + 1)}
-                    disabled={page === totalPages}
-                    className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Siguiente
-                  </button>
+      {/* Mensaje cuando no hay datos */}
+      {((activeTab === 'carteras' && sortedCarteras.length === 0) ||
+        (activeTab === 'clientes' && sortedClientes.length === 0) ||
+        (activeTab === 'nodos' && sortedNodos.length === 0)) && (
+        <div className="bg-white rounded-lg border border-gray-200 p-12">
+          <div className="text-center">
+            <div className="text-gray-400 mb-4">
+              {activeTab === 'carteras' && <BarChart3 className="h-12 w-12 mx-auto" />}
+              {activeTab === 'clientes' && <Building className="h-12 w-12 mx-auto" />}
+              {activeTab === 'nodos' && <Network className="h-12 w-12 mx-auto" />}
                 </div>
-                <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-sm text-gray-700">
-                      Mostrando <span className="font-medium">{startIndex + 1}</span> a{' '}
-                      <span className="font-medium">
-                        {Math.min(endIndex, total)}
-                      </span>{' '}
-                      de <span className="font-medium">{total}</span> resultados
-                    </p>
-                  </div>
-                  <div>
-                    <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
+            <h3 className="text-lg font-medium text-gray-900 mb-2">
+              {activeTab === 'carteras' ? 'No hay carteras' :
+               activeTab === 'clientes' ? 'No hay clientes' :
+               'No hay nodos'}
+            </h3>
+            <p className="text-gray-600 mb-4">
+              {search ? `No se encontraron ${activeTab} con ese criterio de búsqueda.` : 
+               `Comienza creando tu primer${activeTab === 'carteras' ? 'a cartera' : activeTab === 'clientes' ? ' cliente' : ' nodo'}.`}
+            </p>
+            {!search && (
                       <button
-                        onClick={() => handlePageChange(page - 1)}
-                        disabled={page === 1}
-                        className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={() => setShowCreateModal(true)}
+                className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                       >
-                        Anterior
+                <Plus className="h-5 w-5 mr-2" />
+                {activeTab === 'carteras' ? 'Crear Primera Cartera' :
+                 activeTab === 'clientes' ? 'Crear Primer Cliente' :
+                 'Crear Primer Nodo'}
                       </button>
-                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
-                        <button
-                          key={pageNum}
-                          onClick={() => handlePageChange(pageNum)}
-                          className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
-                            pageNum === page
-                              ? 'z-10 bg-primary-50 border-primary-500 text-primary-600'
-                              : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
-                          }`}
-                        >
-                          {pageNum}
-                        </button>
-                      ))}
-                      <button
-                        onClick={() => handlePageChange(page + 1)}
-                        disabled={page === totalPages}
-                        className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        Siguiente
-                      </button>
-                    </nav>
-                  </div>
+            )}
                 </div>
               </div>
             )}
-          </>
-        )}
-      </div>
 
-      {/* Modal de Nuevo Servicio */}
-      <ServicioModal
-        isOpen={showServicioModal}
-        onClose={() => setShowServicioModal(false)}
-        onSuccess={(servicio) => handleServicioSuccess(servicio)}
+      {/* Modales */}
+      <CarteraModal
+        isOpen={showCreateModal}
+        onClose={() => {
+          setShowCreateModal(false);
+          setEditingCartera(null);
+        }}
+        onSuccess={handleModalSuccess}
+        cartera={editingCartera}
       />
 
-      {/* Modal de Ver Servicio */}
-      <ServicioViewModal
-        isOpen={showViewModal}
-        onClose={() => setShowViewModal(false)}
-        servicio={selectedServicio}
-      />
-
-      {/* Modal de Editar Servicio */}
-      <ServicioEditModal
-        isOpen={showEditModal}
-        onClose={() => setShowEditModal(false)}
-        onSuccess={handleEditSuccess}
-        servicio={selectedServicio}
-      />
-
-      {/* Modal de Eliminar Servicio */}
-      <ServicioDeleteModal
-        isOpen={showDeleteModal}
-        onClose={() => setShowDeleteModal(false)}
-        onConfirm={handleDeleteConfirm}
-        servicio={selectedServicio}
+      <EstadisticasModal
+        isOpen={showEstadisticasModal}
+        onClose={() => {
+          setShowEstadisticasModal(false);
+          setSelectedCartera(null);
+        }}
+        cartera={selectedCartera}
       />
     </div>
   );

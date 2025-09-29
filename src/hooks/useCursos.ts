@@ -2,11 +2,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '../services/api';
 import { Curso, CreateCursoData, UpdateCursoData } from '../types';
 
-// Hook para obtener todos los cursos con filtros
-export const useCursos = (filters?: { rut?: string; curso?: string; limit?: number; offset?: number }) => {
+// Hook para obtener todos los cursos
+export const useCursos = () => {
   return useQuery({
-    queryKey: ['cursos', filters],
-    queryFn: () => apiService.getCursos(filters),
+    queryKey: ['cursos'],
+    queryFn: () => apiService.getCursos(),
     staleTime: 5 * 60 * 1000, // 5 minutos
     retry: 2,
   });
@@ -29,6 +29,46 @@ export const useCursoById = (id: number) => {
     queryKey: ['curso', id],
     queryFn: () => apiService.getCursoById(id),
     enabled: !!id,
+    staleTime: 5 * 60 * 1000,
+    retry: 2,
+  });
+};
+
+// Hook para obtener cursos vencidos
+export const useCursosVencidos = () => {
+  return useQuery({
+    queryKey: ['cursos', 'vencidos'],
+    queryFn: () => apiService.getCursosVencidos(),
+    staleTime: 5 * 60 * 1000,
+    retry: 2,
+  });
+};
+
+// Hook para obtener alertas de cursos
+export const useCursosAlertas = () => {
+  return useQuery({
+    queryKey: ['cursos', 'alertas'],
+    queryFn: () => apiService.getCursosAlertas(),
+    staleTime: 5 * 60 * 1000,
+    retry: 2,
+  });
+};
+
+// Hook para obtener cursos por vencer
+export const useCursosPorVencer = () => {
+  return useQuery({
+    queryKey: ['cursos', 'por-vencer'],
+    queryFn: () => apiService.getCursosPorVencer(),
+    staleTime: 5 * 60 * 1000,
+    retry: 2,
+  });
+};
+
+// Hook para obtener estadísticas de vencimiento
+export const useCursosEstadisticasVencimiento = () => {
+  return useQuery({
+    queryKey: ['cursos', 'estadisticas-vencimiento'],
+    queryFn: () => apiService.getCursosEstadisticasVencimiento(),
     staleTime: 5 * 60 * 1000,
     retry: 2,
   });
@@ -63,10 +103,8 @@ export const useUpdateCurso = () => {
       queryClient.invalidateQueries({ queryKey: ['curso', variables.id] });
       queryClient.invalidateQueries({ queryKey: ['cursos', 'stats'] });
       
-      // También invalidar cursos por persona si sabemos el RUT
-      if (response.data?.rut_persona) {
-        queryClient.invalidateQueries({ queryKey: ['cursos', 'persona', response.data.rut_persona] });
-      }
+      // Invalidar todas las queries de cursos por persona
+      queryClient.invalidateQueries({ queryKey: ['cursos', 'persona'] });
     },
   });
 };
@@ -83,10 +121,8 @@ export const useDeleteCurso = () => {
       queryClient.invalidateQueries({ queryKey: ['curso', id] });
       queryClient.invalidateQueries({ queryKey: ['cursos', 'stats'] });
       
-      // También invalidar cursos por persona si sabemos el RUT
-      if (response.data?.rut_persona) {
-        queryClient.invalidateQueries({ queryKey: ['cursos', 'persona', response.data.rut_persona] });
-      }
+      // Invalidar todas las queries de cursos por persona
+      queryClient.invalidateQueries({ queryKey: ['cursos', 'persona'] });
     },
   });
 };

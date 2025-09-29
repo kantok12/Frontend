@@ -15,6 +15,7 @@ export interface Personal {
   id: string;
   nombre: string;
   apellido: string;
+  nombres?: string; // Campo adicional para nombres completos del backend
   rut: string;
   fecha_nacimiento: string;
   cargo: string;
@@ -393,6 +394,140 @@ export interface ValidationErrors {
   talla_zapatos?: string;
   talla_pantalones?: string;
   talla_poleras?: string;
+}
+
+// Interfaces para Carteras
+export interface Cartera {
+  id: number;
+  nombre: string;
+  descripcion?: string;
+  fecha_creacion: string;
+  total_clientes: string;
+  clientes?: Cliente[];
+  estadisticas?: CarteraEstadisticas;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface Cliente {
+  id: number;
+  nombre: string;
+  email?: string;
+  telefono?: string;
+  cartera_id: number;
+  activo: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CarteraEstadisticas {
+  total_clientes: number;
+  clientes_activos: number;
+  servicios_activos: number;
+  ingresos_totales: number;
+  ultima_actualizacion: string;
+}
+
+export interface Nodo {
+  id: number;
+  nombre: string;
+  descripcion?: string;
+  cliente_id: number;
+  ubicacion?: string;
+  estado: 'activo' | 'inactivo' | 'mantenimiento';
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ClienteEstadisticas {
+  total_nodos: number;
+  nodos_activos: number;
+  nodos_inactivos: number;
+  nodos_mantenimiento: number;
+  ultima_actualizacion: string;
+}
+
+export interface NodoEstadisticas {
+  total_nodos: number;
+  nodos_activos: number;
+  nodos_inactivos: number;
+  nodos_mantenimiento: number;
+  clientes_con_nodos: number;
+  ultima_actualizacion: string;
+}
+
+// ==================== INTERFACES PARA DOCUMENTOS ====================
+export interface Documento {
+  id: number;
+  rut_persona: string;
+  nombre_documento: string;
+  tipo_documento: string;
+  nombre_archivo: string;
+  nombre_original: string;
+  tipo_mime: string;
+  tamaño_bytes: number;
+  descripcion?: string;
+  fecha_subida: string;
+  subido_por: string;
+  nombre_persona: string;
+  cargo: string;
+  zona_geografica?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface TipoDocumento {
+  id: string;
+  nombre: string;
+  descripcion?: string;
+  requerido: boolean;
+}
+
+export interface FormatoDocumento {
+  extension: string;
+  mime_type: string;
+  descripcion: string;
+  tamaño_maximo: number;
+}
+
+export interface DocumentoUpload {
+  archivo: File;
+  rut_persona: string;
+  nombre_documento: string;
+  tipo_documento: string;
+  descripcion?: string;
+}
+
+export interface DocumentosResponse {
+  success: boolean;
+  data: Documento[];
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+    offset: number;
+    hasMore: boolean;
+  };
+  message?: string;
+}
+
+export interface DocumentoResponse {
+  success: boolean;
+  data: Documento;
+  message?: string;
+}
+
+export interface TiposDocumentosResponse {
+  success: boolean;
+  data: string[];
+  message?: string;
+}
+
+export interface FormatosDocumentosResponse {
+  success: boolean;
+  data: FormatoDocumento[];
+  message?: string;
 }
 
 // Funciones de validación

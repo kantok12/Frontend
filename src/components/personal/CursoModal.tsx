@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, GraduationCap, Calendar, Save, Upload, FileText } from 'lucide-react';
 import { useCreateCurso, useUpdateCurso, validateCursoData } from '../../hooks/useCursos';
+import { useUploadDocumento } from '../../hooks/useDocumentos';
 import { Curso, CreateCursoData, UpdateCursoData } from '../../types';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 
@@ -32,9 +33,10 @@ export const CursoModal: React.FC<CursoModalProps> = ({
 
   const createMutation = useCreateCurso();
   const updateMutation = useUpdateCurso();
+  const uploadDocumentoMutation = useUploadDocumento();
 
   const isEditing = !!curso;
-  const isLoading = createMutation.isLoading || updateMutation.isLoading;
+  const isLoading = createMutation.isLoading || updateMutation.isLoading || uploadDocumentoMutation.isLoading;
 
   // Llenar formulario si es edición
   useEffect(() => {
@@ -101,6 +103,21 @@ export const CursoModal: React.FC<CursoModalProps> = ({
     'Otro'
   ];
 
+  // Función para verificar si un curso ya existe
+  const checkIfCursoExists = async (nombreCurso: string, rutPersona: string): Promise<boolean> => {
+    try {
+      const { apiService } = await import('../../services/api');
+      const cursos = await apiService.getCursosByRut(rutPersona);
+      return cursos.data?.some((curso: any) => 
+        curso.nombre_curso.toLowerCase() === nombreCurso.toLowerCase() && 
+        curso.activo !== false // Considerar solo cursos activos
+      ) || false;
+    } catch (error) {
+      // Error al verificar curso existente
+      return false;
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -114,6 +131,19 @@ export const CursoModal: React.FC<CursoModalProps> = ({
     if (validationErrors.length > 0) {
       setErrors(validationErrors);
       return;
+    }
+
+    // Si no es edición, verificar si el curso ya existe
+    if (!isEditing) {
+      const cursoExiste = await checkIfCursoExists(formData.nombre_curso, rutPersona);
+      if (cursoExiste) {
+        setErrors([
+          'Este curso ya está registrado para esta persona.',
+          'Si no aparece en la lista, es posible que esté marcado como eliminado.',
+          'Para reactivarlo, contacte al administrador del sistema.'
+        ]);
+        return;
+      }
     }
 
     // Validar que si se selecciona tipo de documento, también se suba un archivo
@@ -131,22 +161,49 @@ export const CursoModal: React.FC<CursoModalProps> = ({
         });
       } else {
         // Crear nuevo curso
-        await createMutation.mutateAsync({
-          rut_persona: rutPersona,
-          nombre_curso: formData.nombre_curso,
-          fecha_obtencion: formData.fecha_obtencion
-        } as CreateCursoData);
+        try {
+          await createMutation.mutateAsync({
+            rut_persona: rutPersona,
+            nombre_curso: formData.nombre_curso,
+            fecha_obtencion: formData.fecha_obtencion
+          } as CreateCursoData);
+        } catch (createError: any) {
+          // Si el curso ya existe (error 409), manejar la situación
+          if (createError.response?.status === 409) {
+            // Curso ya existe, verificando estado
+            
+            // Verificar si el curso existe en la lista actual
+            const { useCursosByRut } = await import('../../hooks/useCursos');
+            
+            // Mostrar mensaje más informativo
+            setErrors([
+              'Este curso ya está registrado para esta persona.',
+              'Si el curso no aparece en la lista, es posible que esté marcado como eliminado.',
+              'Para reactivarlo, contacte al administrador del sistema.'
+            ]);
+            return;
+          }
+          throw createError; // Re-lanzar otros errores
+        }
       }
 
-      // Si hay documento, simular la subida y agregar a la lista de documentos
+      // Si hay documento, subirlo al backend
       if (formData.archivo && formData.tipo_documento) {
-        // Simular subida de documento
-        // eslint-disable-next-line no-console
-        console.log('Documento subido:', {
-          nombre: formData.archivo.name,
-          tipo: formData.tipo_documento,
-          curso: formData.nombre_curso
-        });
+        try {
+          const documentoData = {
+            archivo: formData.archivo,
+            rut_persona: rutPersona,
+            nombre_documento: `${formData.nombre_curso} - ${formData.tipo_documento}`,
+            tipo_documento: formData.tipo_documento,
+            descripcion: `Documento del curso: ${formData.nombre_curso}`,
+          };
+
+          await uploadDocumentoMutation.mutateAsync(documentoData);
+          console.log('Documento del curso subido exitosamente');
+        } catch (error) {
+          console.error('Error al subir documento del curso:', error);
+          // No fallar el curso si el documento falla
+        }
       }
 
       onSuccess();
