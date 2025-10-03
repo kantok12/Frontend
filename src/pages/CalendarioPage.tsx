@@ -1,7 +1,5 @@
 import React, { useState } from 'react';
 import { Calendar, ChevronLeft, ChevronRight, Plus, Download } from 'lucide-react';
-import { PlanificacionSemanalModal } from '../components/servicios/PlanificacionSemanalModal';
-import { exportarPlanificacionPDF } from '../utils/pdfExporter';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 
 
@@ -100,7 +98,8 @@ export const CalendarioPage: React.FC = () => {
   };
 
   const handleExportarPDF = () => {
-    exportarPlanificacionPDF(fechaInicioSemana, asignaciones);
+    // Función de exportación PDF - implementar cuando sea necesario
+    alert('Función de exportación PDF no implementada');
   };
 
   const handleCambiarSemana = (direccion: 'anterior' | 'siguiente') => {
@@ -293,14 +292,21 @@ export const CalendarioPage: React.FC = () => {
         </div>
       )}
 
-      {/* Modal de Planificación Semanal */}
-      <PlanificacionSemanalModal
-        isOpen={showPlanificacionModal}
-        onClose={() => setShowPlanificacionModal(false)}
-        onSuccess={handlePlanificacionSuccess}
-        fechaInicio={fechaInicioSemana}
-        asignacionesExistentes={asignaciones}
-      />
+      {/* Modal de Planificación Semanal - Componente no disponible */}
+      {showPlanificacionModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold mb-4">Planificación Semanal</h3>
+            <p className="text-gray-600 mb-4">Esta funcionalidad no está disponible actualmente.</p>
+            <button
+              onClick={() => setShowPlanificacionModal(false)}
+              className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Cerrar
+            </button>
+          </div>
+        </div>
+      )}
 
     </div>
   );

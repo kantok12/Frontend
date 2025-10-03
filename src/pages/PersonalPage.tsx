@@ -3,6 +3,7 @@ import { usePersonalList, useDeletePersonal } from '../hooks/usePersonal';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { PersonalForm } from '../components/personal/PersonalForm';
 import { PersonalDetailModal } from '../components/personal/PersonalDetailModal';
+import { ProfileImage } from '../components/common/ProfileImage';
 import { Search, Plus, Trash2, Eye, User, Mail, CheckCircle, XCircle } from 'lucide-react';
 import { Personal } from '../types';
 
@@ -92,6 +93,7 @@ export const PersonalPage: React.FC = () => {
   };
 
   const handleDelete = (personal: Personal) => {
+    console.log('🗑️ Intentando eliminar personal:', personal);
     setSelectedPersonal(personal);
     setShowDeleteModal(true);
   };
@@ -99,14 +101,22 @@ export const PersonalPage: React.FC = () => {
   const confirmDelete = async () => {
     if (selectedPersonal) {
       try {
-        await deletePersonalMutation.mutateAsync(selectedPersonal.id || selectedPersonal.rut);
+        console.log('🗑️ Confirmando eliminación de:', selectedPersonal);
+        const idToDelete = selectedPersonal.id || selectedPersonal.rut;
+        console.log('🗑️ ID a eliminar:', idToDelete);
+        
+        await deletePersonalMutation.mutateAsync(idToDelete);
+        
+        console.log('✅ Personal eliminado exitosamente');
         setShowDeleteModal(false);
         setSelectedPersonal(null);
         refetch();
-        // Aquí puedes mostrar un toast de éxito
-        alert('Personal eliminado exitosamente');
+        
+        // Mostrar mensaje de éxito
+        alert(`Personal "${selectedPersonal.nombre} ${selectedPersonal.apellido}" eliminado exitosamente`);
       } catch (error) {
-        alert('Error al eliminar personal');
+        console.error('❌ Error al eliminar personal:', error);
+        alert(`Error al eliminar personal: ${error instanceof Error ? error.message : 'Error desconocido'}`);
       }
     }
   };
@@ -226,10 +236,13 @@ export const PersonalPage: React.FC = () => {
                     {/* Header con foto y info básica */}
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex items-center space-x-4">
-                        <div className="flex-shrink-0 h-12 w-12">
-                          <div className="h-12 w-12 rounded-full bg-primary-100 flex items-center justify-center">
-                            <User className="h-6 w-6 text-primary-600" />
-                          </div>
+                        <div className="flex-shrink-0">
+                          <ProfileImage 
+                            rut={persona.rut}
+                            nombre={persona.nombre}
+                            apellido={persona.apellido}
+                            size="md"
+                          />
                         </div>
                         <div>
                           <h3 className="text-lg font-semibold text-gray-900">
@@ -376,31 +389,98 @@ export const PersonalPage: React.FC = () => {
 
       {/* Modal de confirmación de eliminación */}
       {showDeleteModal && selectedPersonal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">
-              ¿Eliminar Personal?
-            </h3>
-            <p className="text-sm text-gray-600 mb-6">
-              ¿Estás seguro de que deseas eliminar a <strong>{selectedPersonal.nombre} {selectedPersonal.apellido}</strong>? Esta acción no se puede deshacer.
-            </p>
-            <div className="flex justify-end space-x-3">
-              <button
-                onClick={() => {
-                  setShowDeleteModal(false);
-                  setSelectedPersonal(null);
-                }}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={confirmDelete}
-                disabled={deletePersonalMutation.isLoading}
-                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 disabled:opacity-50"
-              >
-                {deletePersonalMutation.isLoading ? 'Eliminando...' : 'Eliminar'}
-              </button>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full">
+            {/* Header del modal */}
+            <div className="bg-red-50 border-b border-red-200 p-6 rounded-t-xl">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <div className="h-10 w-10 rounded-full bg-red-100 flex items-center justify-center">
+                    <Trash2 className="h-5 w-5 text-red-600" />
+                  </div>
+                </div>
+                <div className="ml-4">
+                  <h3 className="text-lg font-semibold text-red-900">
+                    Eliminar Personal
+                  </h3>
+                  <p className="text-sm text-red-700">
+                    Esta acción no se puede deshacer
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Contenido del modal */}
+            <div className="p-6">
+              <div className="mb-4">
+                <p className="text-sm text-gray-600 mb-2">
+                  ¿Estás seguro de que deseas eliminar a este personal?
+                </p>
+                <div className="bg-gray-50 rounded-lg p-4 border">
+                  <div className="flex items-center space-x-3">
+                    <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
+                      <User className="h-5 w-5 text-gray-600" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-900">
+                        {selectedPersonal.nombre} {selectedPersonal.apellido}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        {selectedPersonal.cargo}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        RUT: {selectedPersonal.rut}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div className="ml-3">
+                    <p className="text-sm text-yellow-800">
+                      <strong>Advertencia:</strong> Esta acción eliminará permanentemente todos los datos del personal, incluyendo cursos, documentos y asignaciones.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Botones de acción */}
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => {
+                    setShowDeleteModal(false);
+                    setSelectedPersonal(null);
+                  }}
+                  disabled={deletePersonalMutation.isLoading}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={confirmDelete}
+                  disabled={deletePersonalMutation.isLoading}
+                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors flex items-center space-x-2"
+                >
+                  {deletePersonalMutation.isLoading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      <span>Eliminando...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="h-4 w-4" />
+                      <span>Eliminar</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>

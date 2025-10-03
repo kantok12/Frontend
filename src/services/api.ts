@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 import axios, { AxiosInstance, AxiosResponse } from 'axios';
 import { 
   User, 
@@ -12,7 +13,7 @@ import {
   ExtendedRegisterForm
 } from '../types';
 
-import { API_CONFIG } from '../config/api';
+import { API_CONFIG, FILE_CONFIG } from '../config/api';
 
 class ApiService {
   private api: AxiosInstance;
@@ -165,18 +166,89 @@ class ApiService {
 
 
   async updatePersonal(id: string, personalData: Partial<Personal>): Promise<ApiResponse<Personal>> {
-    const response: AxiosResponse<ApiResponse<Personal>> = await this.api.put(`/personal-disponible/${id}`, personalData);
-    return response.data;
+    // eslint-disable-next-line no-console
+    console.log('🌐 Actualizando personal en endpoint principal:', {
+      id,
+      personalData,
+      url: `/personal-disponible/${id}`
+    });
+    try {
+      const response: AxiosResponse<ApiResponse<Personal>> = await this.api.put(`/personal-disponible/${id}`, personalData);
+      // eslint-disable-next-line no-console
+      console.log('✅ Respuesta exitosa del endpoint principal:', response.data);
+      return response.data;
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('❌ Error en endpoint principal:', error);
+      // eslint-disable-next-line no-console
+      console.error('❌ Datos enviados:', JSON.stringify({ id, personalData }, null, 2));
+      // eslint-disable-next-line no-console
+      console.error('❌ Error response:', (error as any).response?.data);
+      throw error;
+    }
   }
 
   async createPersonalDisponible(personalData: CreatePersonalDisponibleData): Promise<ApiResponse<PersonalDisponible>> {
-    const response: AxiosResponse<ApiResponse<PersonalDisponible>> = await this.api.post('/personal-disponible', personalData);
-    return response.data;
+    // eslint-disable-next-line no-console
+    console.log('🌐 Creando personal disponible con datos:', JSON.stringify(personalData, null, 2));
+    try {
+      const response: AxiosResponse<ApiResponse<PersonalDisponible>> = await this.api.post('/personal-disponible', personalData);
+      // eslint-disable-next-line no-console
+      console.log('✅ Personal creado exitosamente:', response.data);
+      return response.data;
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('❌ Error al crear personal:', error);
+      // eslint-disable-next-line no-console
+      console.error('❌ Datos enviados:', JSON.stringify(personalData, null, 2));
+      throw error;
+    }
   }
 
   async deletePersonal(id: string): Promise<ApiResponse<void>> {
     const response: AxiosResponse<ApiResponse<void>> = await this.api.delete(`/personal-disponible/${id}`);
     return response.data;
+  }
+
+  // ==================== MÉTODOS PARA NOMBRES ====================
+  
+  // Crear nombre en la tabla nombres
+  async createNombre(nombreData: any): Promise<ApiResponse<any>> {
+    console.log('🌐 Creando nombre en tabla nombres:', nombreData);
+    try {
+      const response: AxiosResponse<ApiResponse<any>> = await this.api.post('/nombres', nombreData);
+      console.log('✅ Nombre creado exitosamente:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error al crear nombre:', error);
+      throw error;
+    }
+  }
+
+  // Actualizar nombre en la tabla nombres
+  async updateNombre(rut: string, nombreData: any): Promise<ApiResponse<any>> {
+    console.log('🌐 Actualizando nombre en tabla nombres para RUT:', rut, nombreData);
+    try {
+      const response: AxiosResponse<ApiResponse<any>> = await this.api.put(`/nombres/${rut}`, nombreData);
+      console.log('✅ Nombre actualizado exitosamente:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error al actualizar nombre:', error);
+      throw error;
+    }
+  }
+
+  // Obtener nombre por RUT
+  async getNombreByRut(rut: string): Promise<ApiResponse<any>> {
+    console.log('🌐 Obteniendo nombre para RUT:', rut);
+    try {
+      const response: AxiosResponse<ApiResponse<any>> = await this.api.get(`/nombres/${rut}`);
+      console.log('✅ Nombre obtenido:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error al obtener nombre:', error);
+      throw error;
+    }
   }
 
   // ==================== MÉTODOS PARA PERSONAL DISPONIBLE (CORREGIDOS) ====================
@@ -241,8 +313,18 @@ class ApiService {
 
   // Obtener cursos de una persona específica
   async getCursosByRut(rut: string): Promise<ApiResponse<any[]>> {
-    const response: AxiosResponse<ApiResponse<any[]>> = await this.api.get(`/cursos?rut=${rut}`);
-    return response.data;
+    // eslint-disable-next-line no-console
+    console.log('🌐 Haciendo petición a /cursos/persona/' + rut);
+    try {
+      const response: AxiosResponse<ApiResponse<any[]>> = await this.api.get(`/cursos/persona/${rut}`);
+      // eslint-disable-next-line no-console
+      console.log('✅ Respuesta de cursos para RUT', rut, ':', response.data);
+      return response.data;
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('❌ Error en getCursosByRut para RUT', rut, ':', error);
+      throw error;
+    }
   }
 
   // Obtener curso específico por ID
@@ -251,11 +333,24 @@ class ApiService {
     return response.data;
   }
 
-
   // Crear nuevo curso/certificación
   async createCurso(cursoData: any): Promise<ApiResponse<any>> {
-    const response: AxiosResponse<ApiResponse<any>> = await this.api.post('/cursos', cursoData);
-    return response.data;
+    // eslint-disable-next-line no-console
+    console.log('🌐 Creando curso con datos:', JSON.stringify(cursoData, null, 2));
+    try {
+      const response: AxiosResponse<ApiResponse<any>> = await this.api.post('/cursos', cursoData);
+      // eslint-disable-next-line no-console
+      console.log('✅ Curso creado exitosamente:', response.data);
+      return response.data;
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('❌ Error al crear curso:', error);
+      // eslint-disable-next-line no-console
+      console.error('❌ Datos enviados:', JSON.stringify(cursoData, null, 2));
+      // eslint-disable-next-line no-console
+      console.error('❌ Error response:', (error as any).response?.data);
+      throw error;
+    }
   }
 
   // Actualizar curso/certificación
@@ -267,6 +362,30 @@ class ApiService {
   // Eliminar curso/certificación
   async deleteCurso(id: number): Promise<ApiResponse<any>> {
     const response: AxiosResponse<ApiResponse<any>> = await this.api.delete(`/cursos/${id}`);
+    return response.data;
+  }
+
+  // Obtener cursos vencidos
+  async getCursosVencidos(): Promise<ApiResponse<any[]>> {
+    const response: AxiosResponse<ApiResponse<any[]>> = await this.api.get('/cursos/vencidos');
+    return response.data;
+  }
+
+  // Obtener alertas de cursos
+  async getCursosAlertas(): Promise<ApiResponse<any[]>> {
+    const response: AxiosResponse<ApiResponse<any[]>> = await this.api.get('/cursos/alertas');
+    return response.data;
+  }
+
+  // Obtener cursos por vencer
+  async getCursosPorVencer(): Promise<ApiResponse<any[]>> {
+    const response: AxiosResponse<ApiResponse<any[]>> = await this.api.get('/cursos/vencer');
+    return response.data;
+  }
+
+  // Obtener estadísticas de vencimiento
+  async getCursosEstadisticasVencimiento(): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.get('/cursos/estadisticas-vencimiento');
     return response.data;
   }
 
@@ -349,14 +468,52 @@ class ApiService {
     return response.data;
   }
 
-  // Subir documentos
-  async uploadDocumentos(documentosData: FormData): Promise<ApiResponse<any>> {
-    const response: AxiosResponse<ApiResponse<any>> = await this.api.post('/documentos', documentosData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
+  // Subir documento
+  async uploadDocumento(documentoData: FormData): Promise<ApiResponse<any>> {
+    // Debug: Log del FormData que se está enviando
+    const archivo = documentoData.get('archivo');
+    console.log('🔍 Enviando FormData al backend:', {
+      hasFile: documentoData.has('archivo'),
+      personal_id: documentoData.get('personal_id'),
+      nombre_documento: documentoData.get('nombre_documento'),
+      tipo_documento: documentoData.get('tipo_documento'),
+      archivo_name: archivo instanceof File ? archivo.name : 'No file',
+      archivo_size: archivo instanceof File ? archivo.size : 'No file',
+      archivo_type: archivo instanceof File ? archivo.type : 'No file'
     });
-    return response.data;
+    
+    // Log de todos los campos del FormData
+    console.log('🔍 Todos los campos del FormData:');
+    const entries = Array.from(documentoData.entries());
+    entries.forEach(([key, value]) => {
+      if (value instanceof File) {
+        console.log(`  ${key}: File(${value.name}, ${value.size} bytes, ${value.type})`);
+      } else {
+        console.log(`  ${key}: ${value}`);
+      }
+    });
+    
+    try {
+      // Crear una instancia de axios específica para uploads sin headers por defecto
+      const uploadApi = axios.create({
+        baseURL: API_CONFIG.BASE_URL,
+        timeout: FILE_CONFIG.UPLOAD_TIMEOUT, // Timeout específico para archivos grandes
+        withCredentials: false,
+      });
+      
+      const response: AxiosResponse<ApiResponse<any>> = await uploadApi.post('/documentos', documentoData, {
+        headers: {
+          // No establecer Content-Type para que axios lo establezca automáticamente con boundary
+        },
+      });
+      console.log('✅ Respuesta exitosa del backend:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ Error en uploadDocumento:', error);
+      console.error('❌ Error response:', error.response?.data);
+      console.error('❌ Error status:', error.response?.status);
+      throw error;
+    }
   }
 
   // Obtener documento por ID
@@ -365,14 +522,17 @@ class ApiService {
     return response.data;
   }
 
-  // Obtener documentos por persona
+  // Obtener documentos por persona (RUT)
   async getDocumentosByPersona(rut: string): Promise<ApiResponse<any[]>> {
     const response: AxiosResponse<ApiResponse<any[]>> = await this.api.get(`/documentos/persona/${rut}`);
     return response.data;
   }
 
+  // Nota: No hay endpoint específico para documentos de cursos
+  // Los documentos se obtienen por persona y se filtran por tipo
+
   // Descargar documento
-  async downloadDocumento(id: string): Promise<Blob> {
+  async downloadDocumento(id: number): Promise<Blob> {
     const response = await this.api.get(`/documentos/${id}/descargar`, {
       responseType: 'blob'
     });
@@ -380,14 +540,27 @@ class ApiService {
   }
 
   // Eliminar documento
-  async deleteDocumento(id: string): Promise<ApiResponse<any>> {
+  async deleteDocumento(id: number): Promise<ApiResponse<any>> {
     const response: AxiosResponse<ApiResponse<any>> = await this.api.delete(`/documentos/${id}`);
     return response.data;
   }
 
   // Obtener tipos de documentos disponibles
   async getTiposDocumentos(): Promise<ApiResponse<any[]>> {
-    const response: AxiosResponse<ApiResponse<any[]>> = await this.api.get('/documentos/tipos');
+    console.log('🌐 Haciendo petición a /documentos/tipos');
+    try {
+      const response: AxiosResponse<ApiResponse<any[]>> = await this.api.get('/documentos/tipos');
+      console.log('✅ Respuesta de tipos de documentos:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error en getTiposDocumentos:', error);
+      throw error;
+    }
+  }
+
+  // Obtener formatos de archivo soportados
+  async getFormatosArchivo(): Promise<ApiResponse<any[]>> {
+    const response: AxiosResponse<ApiResponse<any[]>> = await this.api.get('/documentos/formatos');
     return response.data;
   }
 
@@ -526,6 +699,71 @@ class ApiService {
           servicios_activos: 12
         }
       };
+    }
+  }
+
+  // ==================== MÉTODOS PARA IMÁGENES DE PERFIL ====================
+  
+  // Subir imagen de perfil
+  async uploadProfileImage(rut: string, file: File): Promise<ApiResponse<any>> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const uploadApi = axios.create({
+        baseURL: API_CONFIG.BASE_URL,
+        timeout: 30000, // 30 segundos para imágenes
+        withCredentials: false,
+      });
+
+      const response: AxiosResponse<ApiResponse<any>> = await uploadApi.post(`/personal/${rut}/profile-image`, formData, {
+        headers: {
+          // No establecer Content-Type para que axios lo establezca automáticamente con boundary
+        },
+      });
+      
+      console.log('✅ Imagen de perfil subida exitosamente:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ Error al subir imagen de perfil:', error);
+      throw error;
+    }
+  }
+
+  // Obtener imagen de perfil
+  async getProfileImage(rut: string): Promise<ApiResponse<any>> {
+    try {
+      const response: AxiosResponse<ApiResponse<any>> = await this.api.get(`/personal/${rut}/profile-image`);
+      console.log('✅ Imagen de perfil obtenida:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ Error al obtener imagen de perfil:', error);
+      throw error;
+    }
+  }
+
+  // Descargar imagen de perfil
+  async downloadProfileImage(rut: string): Promise<Blob> {
+    try {
+      const response = await this.api.get(`/personal/${rut}/profile-image/download`, {
+        responseType: 'blob'
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ Error al descargar imagen de perfil:', error);
+      throw error;
+    }
+  }
+
+  // Eliminar imagen de perfil
+  async deleteProfileImage(rut: string): Promise<ApiResponse<any>> {
+    try {
+      const response: AxiosResponse<ApiResponse<any>> = await this.api.delete(`/personal/${rut}/profile-image`);
+      console.log('✅ Imagen de perfil eliminada:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ Error al eliminar imagen de perfil:', error);
+      throw error;
     }
   }
 

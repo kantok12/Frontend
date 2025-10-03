@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Personal, CreatePersonalData, UpdatePersonalData, CreatePersonalDisponibleData } from '../../types';
 import { useCreatePersonal, useUpdatePersonal } from '../../hooks/usePersonal';
+import { useEstados } from '../../hooks/useEstados';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { X } from 'lucide-react';
 
@@ -22,41 +23,66 @@ export const PersonalForm: React.FC<PersonalFormProps> = ({
     apellido: '',
     rut: '',
     fecha_nacimiento: '',
+    edad: '', // Campo de edad editable
     cargo: '',
     sexo: 'M',
     licencia_conducir: '',
+    estado_id: 1, // Estado "Activo" por defecto
+    email: '', // Campo de contacto
+    telefono: '', // Campo de contacto
     talla_zapatos: '',
     talla_pantalones: '',
     talla_poleras: '',
     zona_geografica: '',
-    empresa_id: '',
-    servicio_id: '',
-    activo: true,
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const createMutation = useCreatePersonal();
   const updateMutation = useUpdatePersonal();
+  const { data: estadosData, isLoading: estadosLoading } = useEstados();
+
+  // Función para calcular la edad basada en la fecha de nacimiento
+  const calculateAge = (fechaNacimiento: string): string => {
+    if (!fechaNacimiento) return '';
+    
+    const today = new Date();
+    const birthDate = new Date(fechaNacimiento);
+    
+    // Verificar si la fecha es válida
+    if (isNaN(birthDate.getTime())) return '';
+    
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    
+    // Ajustar si aún no ha cumplido años este año
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    
+    return age >= 0 ? age.toString() : '0';
+  };
 
   // Poblar formulario si estamos editando
   useEffect(() => {
     if (personal) {
+      const fechaNacimiento = personal.fecha_nacimiento.split('T')[0];
       setFormData({
         nombre: personal.nombre || '',
         apellido: personal.apellido || '',
         rut: personal.rut,
-        fecha_nacimiento: personal.fecha_nacimiento.split('T')[0], // Formato para input date
+        fecha_nacimiento: fechaNacimiento, // Formato para input date
+        edad: calculateAge(fechaNacimiento), // Calcular edad automáticamente
         cargo: personal.cargo,
         sexo: personal.sexo,
         licencia_conducir: personal.licencia_conducir,
+        estado_id: personal.estado_id || 1,
+        email: personal.email || '',
+        telefono: personal.contacto?.telefono || '',
         talla_zapatos: personal.talla_zapatos,
         talla_pantalones: personal.talla_pantalones,
         talla_poleras: personal.talla_poleras,
         zona_geografica: personal.zona_geografica,
-        empresa_id: personal.empresa_id || '',
-        servicio_id: personal.servicio_id || '',
-        activo: personal.activo || true,
       });
     } else {
       // Reset form for creating new personal
@@ -65,16 +91,17 @@ export const PersonalForm: React.FC<PersonalFormProps> = ({
         apellido: '',
         rut: '',
         fecha_nacimiento: '',
+        edad: '', // Campo de edad editable
         cargo: '',
         sexo: 'M',
         licencia_conducir: '',
+        estado_id: 1, // Estado "Activo" por defecto
+        email: '', // Campo de contacto
+        telefono: '', // Campo de contacto
         talla_zapatos: '',
         talla_pantalones: '',
         talla_poleras: '',
         zona_geografica: '',
-        empresa_id: '',
-        servicio_id: '',
-        activo: true,
       });
     }
     setErrors({});
@@ -125,24 +152,36 @@ export const PersonalForm: React.FC<PersonalFormProps> = ({
         });
       } else {
         // Crear nuevo personal - convertir a formato de personal disponible
+        // Combinar nombre y apellido en un solo campo 'nombres' como espera el backend
+        const nombreCompleto = `${formData.nombre} ${formData.apellido}`.trim();
+        
         const personalDisponibleData: CreatePersonalDisponibleData = {
           rut: formData.rut,
           sexo: formData.sexo,
           fecha_nacimiento: formData.fecha_nacimiento,
           licencia_conducir: formData.licencia_conducir,
           cargo: formData.cargo,
-          estado_id: 1, // Estado "Activo" por defecto
+          estado_id: formData.estado_id, // Usar el estado seleccionado
           talla_zapatos: formData.talla_zapatos,
           talla_pantalones: formData.talla_pantalones,
           talla_poleras: formData.talla_poleras,
           zona_geografica: formData.zona_geografica,
-          nombre: formData.nombre,
-          apellido: formData.apellido,
-          // Si hay campos adicionales en el formData que correspondan
-          ...(formData.empresa_id && { empresa_id: formData.empresa_id }),
-          ...(formData.servicio_id && { servicio_id: formData.servicio_id }),
+          nombres: nombreCompleto, // Campo combinado que espera el backend
+          // Campos de contacto
+          ...(formData.email && { email: formData.email }),
+          ...(formData.telefono && { telefono: formData.telefono }),
         };
+        
+        // Log para debuggear
+        console.log('🔍 Datos del formulario:', formData);
+        console.log('🔍 Nombre completo generado:', nombreCompleto);
+        console.log('🔍 Fecha de nacimiento:', formData.fecha_nacimiento);
+        console.log('🔍 Datos que se envían al backend:', personalDisponibleData);
+        
         await createMutation.mutateAsync(personalDisponibleData);
+        
+        // Mensaje de éxito específico para creación
+        alert(`✅ Personal creado exitosamente:\n• Nombre: ${nombreCompleto}\n• RUT: ${formData.rut}\n• Fecha de nacimiento: ${formData.fecha_nacimiento}`);
       }
       onSuccess();
       onClose();
@@ -161,10 +200,20 @@ export const PersonalForm: React.FC<PersonalFormProps> = ({
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
     const { name, value, type } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value,
-    }));
+    
+    setFormData((prev) => {
+      const newData = {
+        ...prev,
+        [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value,
+      };
+      
+      // Si cambió la fecha de nacimiento, calcular la edad automáticamente
+      if (name === 'fecha_nacimiento') {
+        newData.edad = calculateAge(value);
+      }
+      
+      return newData;
+    });
 
     // Limpiar error del campo cuando el usuario empiece a escribir
     if (errors[name]) {
@@ -297,6 +346,30 @@ export const PersonalForm: React.FC<PersonalFormProps> = ({
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Edad
+                </label>
+                <input
+                  type="number"
+                  name="edad"
+                  value={formData.edad}
+                  onChange={handleInputChange}
+                  min="0"
+                  max="120"
+                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    errors.edad ? 'border-red-500' : 'border-gray-300'
+                  }`}
+                  placeholder="Se calcula automáticamente"
+                />
+                {errors.edad && (
+                  <p className="mt-1 text-xs text-red-600">{errors.edad}</p>
+                )}
+                <p className="mt-1 text-xs text-gray-500">
+                  Se calcula automáticamente al cambiar la fecha de nacimiento
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
                   Cargo *
                 </label>
                 <input
@@ -311,6 +384,44 @@ export const PersonalForm: React.FC<PersonalFormProps> = ({
                 />
                 {errors.cargo && (
                   <p className="mt-1 text-xs text-red-600">{errors.cargo}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleInputChange}
+                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    errors.email ? 'border-red-500' : 'border-gray-300'
+                  }`}
+                  placeholder="ejemplo@empresa.com"
+                />
+                {errors.email && (
+                  <p className="mt-1 text-xs text-red-600">{errors.email}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Teléfono
+                </label>
+                <input
+                  type="tel"
+                  name="telefono"
+                  value={formData.telefono}
+                  onChange={handleInputChange}
+                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    errors.telefono ? 'border-red-500' : 'border-gray-300'
+                  }`}
+                  placeholder="+56 9 1234 5678"
+                />
+                {errors.telefono && (
+                  <p className="mt-1 text-xs text-red-600">{errors.telefono}</p>
                 )}
               </div>
             </div>
@@ -358,33 +469,7 @@ export const PersonalForm: React.FC<PersonalFormProps> = ({
                 )}
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  ID Empresa
-                </label>
-                <input
-                  type="text"
-                  name="empresa_id"
-                  value={formData.empresa_id}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 border-gray-300"
-                  placeholder="ID de la empresa"
-                />
-              </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  ID Servicio
-                </label>
-                <input
-                  type="text"
-                  name="servicio_id"
-                  value={formData.servicio_id}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 border-gray-300"
-                  placeholder="ID del servicio"
-                />
-              </div>
             </div>
           </div>
 
@@ -438,18 +523,40 @@ export const PersonalForm: React.FC<PersonalFormProps> = ({
 
           {/* Estado */}
           <div className="pb-6">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Estado</h3>
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                name="activo"
-                checked={formData.activo}
-                onChange={handleInputChange}
-                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-              />
-              <label className="ml-2 block text-sm text-gray-700">
-                Empleado activo
-              </label>
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Estado del Personal</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Estado *
+                </label>
+                <select
+                  name="estado_id"
+                  value={formData.estado_id}
+                  onChange={handleInputChange}
+                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    errors.estado_id ? 'border-red-500' : 'border-gray-300'
+                  }`}
+                  disabled={estadosLoading}
+                >
+                  {estadosLoading ? (
+                    <option value="">Cargando estados...</option>
+                  ) : (
+                    estadosData?.data?.map((estado: any) => (
+                      <option key={estado.id} value={estado.id}>
+                        {estado.nombre}
+                      </option>
+                    ))
+                  )}
+                </select>
+                {errors.estado_id && (
+                  <p className="mt-1 text-xs text-red-600">{errors.estado_id}</p>
+                )}
+                {!estadosLoading && estadosData?.data && (
+                  <p className="mt-1 text-xs text-gray-500">
+                    Selecciona el estado actual del personal
+                  </p>
+                )}
+              </div>
             </div>
           </div>
 

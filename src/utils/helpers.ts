@@ -32,7 +32,7 @@ export const formatCurrency = (amount: number): string => {
 // Formateo de RUT chileno
 export const formatRut = (rut: string): string => {
   // Eliminar puntos y guión
-  let value = rut.replace(/\./g, '').replace(/-/g, '');
+  const value = rut.replace(/\./g, '').replace(/-/g, '');
   
   // Obtener dígito verificador
   const dv = value.slice(-1);
@@ -257,4 +257,60 @@ export const getRandomColor = (): string => {
     '#06B6D4', '#84CC16', '#F97316', '#EC4899', '#6366F1'
   ];
   return colors[Math.floor(Math.random() * colors.length)];
+};
+
+// Validación de archivos
+export const validateFileSize = (file: File, maxSizeMB: number = 100): { isValid: boolean; error?: string } => {
+  const maxSizeBytes = maxSizeMB * 1024 * 1024;
+  
+  if (file.size > maxSizeBytes) {
+    return {
+      isValid: false,
+      error: `El archivo es demasiado grande. Tamaño máximo permitido: ${maxSizeMB}MB. Tamaño actual: ${formatBytes(file.size)}`
+    };
+  }
+  
+  return { isValid: true };
+};
+
+export const validateFileType = (file: File, allowedTypes: string[]): { isValid: boolean; error?: string } => {
+  if (!allowedTypes.includes(file.type)) {
+    const allowedExtensions = allowedTypes.map(type => {
+      const extension = type.split('/')[1];
+      return extension ? `.${extension}` : type;
+    }).join(', ');
+    
+    return {
+      isValid: false,
+      error: `Tipo de archivo no permitido. Tipos permitidos: ${allowedExtensions}`
+    };
+  }
+  
+  return { isValid: true };
+};
+
+export const validateFile = (file: File, maxSizeMB: number = 100, allowedTypes: string[]): { isValid: boolean; error?: string } => {
+  // Validar tamaño
+  const sizeValidation = validateFileSize(file, maxSizeMB);
+  if (!sizeValidation.isValid) {
+    return sizeValidation;
+  }
+  
+  // Validar tipo
+  const typeValidation = validateFileType(file, allowedTypes);
+  if (!typeValidation.isValid) {
+    return typeValidation;
+  }
+  
+  return { isValid: true };
+};
+
+// Función para mostrar progreso de upload
+export const createUploadProgressHandler = (onProgress: (progress: number) => void) => {
+  return (progressEvent: any) => {
+    if (progressEvent.lengthComputable) {
+      const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+      onProgress(progress);
+    }
+  };
 };

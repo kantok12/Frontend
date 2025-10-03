@@ -7,6 +7,7 @@ import {
   Activity
 } from 'lucide-react';
 import { useDashboardStats } from '../../hooks/useDashboard';
+import { usePersonalList } from '../../hooks/usePersonal';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { PersonalInfoModal } from './PersonalInfoModal';
 import { PersonalTrabajandoModal } from './PersonalTrabajandoModal';
@@ -334,16 +335,22 @@ export const DashboardStats: React.FC = () => {
   const [showPersonalTrabajandoModal, setShowPersonalTrabajandoModal] = useState(false);
   const [showEventosModal, setShowEventosModal] = useState(false);
 
-  // Calcular estadísticas reales de las tablas existentes
-  const totalPersonal = mockPersonal.length;
-  const personalActivo = mockPersonal.filter(p => p.activo).length;
-  const personalTrabajando = mockPersonal.filter(p => 
-    p.activo && p.estadoActividad.label === 'Trabajando'
-  ).length;
-  const personalAcreditacion = mockPersonal.filter(p => 
-    p.activo && p.estadoActividad.label === 'En Acreditación'
-  ).length;
+  // Obtener datos reales del backend
+  const { data: personalData, isLoading: personalLoading } = usePersonalList(1, 100, ''); // Obtener todos los registros
   
+  // Calcular estadísticas reales de los datos del backend
+  const personalList = personalData?.data?.items || [];
+  const totalPersonal = personalData?.data?.total || 0;
+  const personalActivo = personalList.filter(p => p.activo).length;
+  
+  // Para personal trabajando, usamos el campo activo como indicador
+  // ya que no tenemos un campo específico de estado de actividad
+  const personalTrabajando = personalList.filter(p => p.activo).length;
+  
+  // Para personal en acreditación, usamos el comentario de estado
+  const personalAcreditacion = personalList.filter(p => 
+    p.activo && p.comentario_estado?.toLowerCase().includes('acreditación')
+  ).length;
   
   const totalEventos = mockEventos.length;
   const eventosHoy = mockEventos.filter(e => {
@@ -351,7 +358,7 @@ export const DashboardStats: React.FC = () => {
     return e.fecha === hoy;
   }).length;
 
-  // Usar datos reales calculados de las tablas
+  // Usar datos reales del backend
   const dashboardStats = {
     total_personal: totalPersonal,
     personal_activo: personalActivo,
@@ -362,7 +369,7 @@ export const DashboardStats: React.FC = () => {
     eventos_hoy: eventosHoy,
   };
 
-  if (isLoading) {
+  if (isLoading || personalLoading) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {Array.from({ length: 4 }, (_, index) => (
@@ -452,9 +459,22 @@ export const DashboardStats: React.FC = () => {
       <PersonalTrabajandoModal
         isOpen={showPersonalTrabajandoModal}
         onClose={() => setShowPersonalTrabajandoModal(false)}
-        personalTrabajando={mockPersonal.filter(p => 
-          p.activo && p.estadoActividad.label === 'Trabajando'
-        )}
+        personalTrabajando={personalList.filter(p => p.activo).map(p => ({
+          id: p.id,
+          nombre: p.nombre,
+          apellido: p.apellido,
+          cargo: p.cargo,
+          ubicacion: p.zona_geografica || 'No especificada',
+          servicioAsignado: {
+            id: p.servicio_id || '1',
+            nombre: 'Servicio Asignado',
+            categoria: 'General',
+            zonaGestion: p.zona_geografica || 'No especificada'
+          },
+          estadoActividad: {
+            label: p.activo ? 'Trabajando' : 'Inactivo'
+          }
+        }))}
       />
 
       {/* Modal de eventos */}

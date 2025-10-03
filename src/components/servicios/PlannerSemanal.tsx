@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Calendar, Plus, Edit, Trash2, Download, User, Clock, MapPin } from 'lucide-react';
 import { PlanificacionModal } from './PlanificacionModal';
+import { ProfileImage } from '../common/ProfileImage';
 
 interface Asignacion {
   id: string;
@@ -175,8 +176,13 @@ export const PlannerSemanal: React.FC<PlannerSemanalProps> = ({
               <tr key={personal.id} className="hover:bg-gray-50">
                 <td className="px-4 py-4 whitespace-nowrap">
                   <div className="flex items-center">
-                    <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center mr-3">
-                      <User className="h-4 w-4 text-blue-600" />
+                    <div className="mr-3">
+                      <ProfileImage 
+                        rut={personal.id}
+                        nombre={personal.nombre}
+                        apellido=""
+                        size="sm"
+                      />
                     </div>
                     <div>
                       <div className="text-sm font-medium text-gray-900">

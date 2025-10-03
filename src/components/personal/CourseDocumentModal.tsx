@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { X, Upload, FileText, AlertCircle, GraduationCap } from 'lucide-react';
+import { X, Upload, FileText, GraduationCap } from 'lucide-react';
+import { useUploadDocumento, useTiposDocumentos, validateDocumentoData, createDocumentoFormData } from '../../hooks/useDocumentos';
+import { CreateDocumentoData } from '../../types';
 
 interface CourseDocumentModalProps {
   isOpen: boolean;
@@ -7,6 +9,7 @@ interface CourseDocumentModalProps {
   onSuccess: (document: any) => void;
   rutPersona: string;
   nombrePersona: string;
+  personalId: string; // ID del personal para la API
   cursoNombre?: string;
 }
 
@@ -16,24 +19,20 @@ const CourseDocumentModal: React.FC<CourseDocumentModalProps> = ({
   onSuccess,
   rutPersona,
   nombrePersona,
+  personalId,
   cursoNombre,
 }) => {
   const [formData, setFormData] = useState({
-    nombre: '',
-    tipo: 'certificado',
+    nombre_documento: '',
+    tipo_documento: '',
     archivo: null as File | null,
   });
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errors, setErrors] = useState<string[]>([]);
 
-  const tiposDocumento = [
-    { value: 'certificado', label: 'Certificado de Curso' },
-    { value: 'diploma', label: 'Diploma' },
-    { value: 'constancia', label: 'Constancia de Participación' },
-    { value: 'evaluacion', label: 'Evaluación/Examen' },
-    { value: 'material', label: 'Material del Curso' },
-    { value: 'otro', label: 'Otro' },
-  ];
+  const uploadMutation = useUploadDocumento();
+  const { data: tiposDocumento, isLoading: loadingTipos } = useTiposDocumentos();
+
+  const isLoading = uploadMutation.isLoading || loadingTipos;
 
   const handleInputChange = (field: string, value: any) => {
     setFormData(prev => ({
@@ -41,117 +40,81 @@ const CourseDocumentModal: React.FC<CourseDocumentModalProps> = ({
       [field]: value
     }));
 
-    // Limpiar error del campo
-    if (errors[field]) {
-      setErrors(prev => ({
-        ...prev,
-        [field]: ''
-      }));
+    // Limpiar errores al cambiar input
+    if (errors.length > 0) {
+      setErrors([]);
     }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Validar tipo de archivo
-      const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
-      if (!allowedTypes.includes(file.type)) {
-        setErrors(prev => ({
-          ...prev,
-          archivo: 'Solo se permiten archivos PDF, JPG, JPEG o PNG'
-        }));
-        return;
-      }
-
-      // Validar tamaño (máximo 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        setErrors(prev => ({
-          ...prev,
-          archivo: 'El archivo no puede ser mayor a 5MB'
-        }));
-        return;
-      }
-
       setFormData(prev => ({
         ...prev,
         archivo: file
       }));
 
-      // Limpiar error
-      if (errors.archivo) {
-        setErrors(prev => ({
-          ...prev,
-          archivo: ''
-        }));
+      // Limpiar errores
+      if (errors.length > 0) {
+        setErrors([]);
       }
     }
-  };
-
-  const validateForm = () => {
-    const newErrors: Record<string, string> = {};
-
-    if (!formData.nombre.trim()) {
-      newErrors.nombre = 'El nombre del documento es requerido';
-    }
-
-    if (!formData.archivo) {
-      newErrors.archivo = 'Debe seleccionar un archivo';
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!validateForm()) {
+    if (!formData.archivo) {
+      setErrors(['Debe seleccionar un archivo']);
       return;
     }
 
-    setIsSubmitting(true);
+    const documentoData: CreateDocumentoData = {
+      personal_id: personalId || rutPersona, // Usar RUT si personalId no está disponible
+      nombre_documento: formData.nombre_documento,
+      tipo_documento: formData.tipo_documento,
+      archivo: formData.archivo
+    };
+
+    const validationErrors = validateDocumentoData(documentoData);
+    if (validationErrors.length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
 
     try {
-      // Simular subida de archivo
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const formDataToSend = createDocumentoFormData(documentoData);
+      const response = await uploadMutation.mutateAsync(formDataToSend);
 
-      const nuevoDocumento = {
-        id: Date.now(), // ID temporal
-        nombre: formData.nombre,
-        tipo: formData.tipo,
-        fecha: new Date().toISOString().split('T')[0],
-        archivo: formData.archivo?.name || 'documento.pdf',
-        estado: 'vigente',
-        curso: cursoNombre || 'Curso General'
-      };
-
-      onSuccess(nuevoDocumento);
-      
-      // Limpiar formulario
-      setFormData({
-        nombre: '',
-        tipo: 'certificado',
-        archivo: null,
-      });
-      setErrors({});
-      onClose();
-      
-    } catch (error) {
-      // eslint-disable-next-line no-console
+      if (response.success) {
+        onSuccess(response.data);
+        
+        // Limpiar formulario
+        setFormData({
+          nombre_documento: '',
+          tipo_documento: '',
+          archivo: null,
+        });
+        setErrors([]);
+        onClose();
+      }
+    } catch (error: any) {
       console.error('Error al subir documento de curso:', error);
-      setErrors({ general: 'Error al subir el documento. Intente nuevamente.' });
-    } finally {
-      setIsSubmitting(false);
+      if (error.response?.status === 400) {
+        setErrors(['Los datos ingresados no son válidos. Por favor, verifique la información.']);
+      } else {
+        setErrors(['Error al subir el documento. Por favor, intente nuevamente.']);
+      }
     }
   };
 
   const handleClose = () => {
     setFormData({
-      nombre: '',
-      tipo: 'certificado',
+      nombre_documento: '',
+      tipo_documento: '',
       archivo: null,
     });
-    setErrors({});
+    setErrors([]);
     onClose();
   };
 
@@ -190,6 +153,17 @@ const CourseDocumentModal: React.FC<CourseDocumentModalProps> = ({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Errores */}
+          {errors.length > 0 && (
+            <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+              <ul className="list-disc list-inside space-y-1">
+                {errors.map((error) => (
+                  <li key={`error-${error.replace(/\s+/g, '-').toLowerCase()}`} className="text-sm">{error}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {/* Nombre del documento */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -197,19 +171,13 @@ const CourseDocumentModal: React.FC<CourseDocumentModalProps> = ({
             </label>
             <input
               type="text"
-              value={formData.nombre}
-              onChange={(e) => handleInputChange('nombre', e.target.value)}
-              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                errors.nombre ? 'border-red-500' : 'border-gray-300'
-              }`}
+              value={formData.nombre_documento}
+              onChange={(e) => handleInputChange('nombre_documento', e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="Ej: Certificado de Seguridad Industrial"
+              disabled={isLoading}
+              required
             />
-            {errors.nombre && (
-              <p className="mt-1 text-sm text-red-600 flex items-center">
-                <AlertCircle className="h-4 w-4 mr-1" />
-                {errors.nombre}
-              </p>
-            )}
           </div>
 
           {/* Tipo de documento */}
@@ -218,13 +186,16 @@ const CourseDocumentModal: React.FC<CourseDocumentModalProps> = ({
               Tipo de Documento *
             </label>
             <select
-              value={formData.tipo}
-              onChange={(e) => handleInputChange('tipo', e.target.value)}
+              value={formData.tipo_documento}
+              onChange={(e) => handleInputChange('tipo_documento', e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              disabled={isLoading}
+              required
             >
-              {tiposDocumento.map((tipo) => (
-                <option key={tipo.value} value={tipo.value}>
-                  {tipo.label}
+              <option value="">Seleccionar tipo de documento</option>
+              {tiposDocumento?.data?.map((tipo: any) => (
+                <option key={tipo.value || tipo.id} value={tipo.value || tipo.nombre}>
+                  {tipo.label || tipo.nombre}
                 </option>
               ))}
             </select>
@@ -241,28 +212,24 @@ const CourseDocumentModal: React.FC<CourseDocumentModalProps> = ({
                 onChange={handleFileChange}
                 accept=".pdf,.jpg,.jpeg,.png"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                disabled={isLoading}
+                required
               />
             </div>
-            {errors.archivo && (
-              <p className="mt-1 text-sm text-red-600 flex items-center">
-                <AlertCircle className="h-4 w-4 mr-1" />
-                {errors.archivo}
-              </p>
-            )}
             <p className="mt-1 text-xs text-gray-500">
               Formatos permitidos: PDF, JPG, JPEG, PNG (máximo 5MB)
             </p>
+            
+            {/* Mostrar archivo seleccionado */}
+            {formData.archivo && (
+              <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded-md">
+                <p className="text-sm text-green-800 flex items-center">
+                  <FileText className="h-4 w-4 mr-2" />
+                  {formData.archivo.name}
+                </p>
+              </div>
+            )}
           </div>
-
-          {/* Error general */}
-          {errors.general && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-sm text-red-600 flex items-center">
-                <AlertCircle className="h-4 w-4 mr-2" />
-                {errors.general}
-              </p>
-            </div>
-          )}
 
           {/* Botones */}
           <div className="flex gap-3 pt-4">
@@ -270,15 +237,16 @@ const CourseDocumentModal: React.FC<CourseDocumentModalProps> = ({
               type="button"
               onClick={handleClose}
               className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              disabled={isLoading}
             >
               Cancelar
             </button>
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isLoading}
               className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
             >
-              {isSubmitting ? (
+              {isLoading ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                   Subiendo...

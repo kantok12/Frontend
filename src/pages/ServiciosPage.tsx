@@ -5,10 +5,7 @@ import { ServicioModal } from '../components/servicios/ServicioModal';
 import { ServicioViewModal } from '../components/servicios/ServicioViewModal';
 import { ServicioEditModal } from '../components/servicios/ServicioEditModal';
 import { ServicioDeleteModal } from '../components/servicios/ServicioDeleteModal';
-import { AgregarClienteModal } from '../components/servicios/AgregarClienteModal';
-import { CarteraViewModal } from '../components/servicios/CarteraViewModal';
-import { CarteraEditModal } from '../components/servicios/CarteraEditModal';
-import { CarteraDeleteModal } from '../components/servicios/CarteraDeleteModal';
+// Componentes de servicios no disponibles actualmente
 import { useCarteras } from '../hooks/useCarteras';
 import { Tooltip } from '../components/common/Tooltip';
 
@@ -105,7 +102,7 @@ export const ServiciosPage: React.FC = () => {
   const [zonaFilter, setZonaFilter] = useState('Todas');
   const [limit] = useState(10);
   const [showServicioModal, setShowServicioModal] = useState(false);
-  const [showAgregarClienteModal, setShowAgregarClienteModal] = useState(false);
+  // const [showAgregarClienteModal, setShowAgregarClienteModal] = useState(false);
   
   // Estados para servicios (datos mock)
   const [servicios, setServicios] = useState(mockServicios);
@@ -132,10 +129,10 @@ export const ServiciosPage: React.FC = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedServicio, setSelectedServicio] = useState<any>(null);
   
-  // Estados para los modales de carteras
-  const [showCarteraViewModal, setShowCarteraViewModal] = useState(false);
-  const [showCarteraEditModal, setShowCarteraEditModal] = useState(false);
-  const [showCarteraDeleteModal, setShowCarteraDeleteModal] = useState(false);
+  // Estados para los modales de carteras - Componentes no disponibles
+  // const [showCarteraViewModal, setShowCarteraViewModal] = useState(false);
+  // const [showCarteraEditModal, setShowCarteraEditModal] = useState(false);
+  // const [showCarteraDeleteModal, setShowCarteraDeleteModal] = useState(false);
   const [selectedCartera, setSelectedCartera] = useState<any>(null);
 
 
@@ -154,7 +151,7 @@ export const ServiciosPage: React.FC = () => {
   // Filtrar carteras basado en la búsqueda
   const filteredCarteras = carteras.filter(cartera => {
     const matchesSearch = 
-      cartera.name.toLowerCase().includes(search.toLowerCase());
+      cartera.name && cartera.name.toLowerCase().includes(search.toLowerCase());
     
     return matchesSearch;
   });
@@ -266,36 +263,20 @@ export const ServiciosPage: React.FC = () => {
     }
   };
 
-  // Funciones para manejar los modales de carteras
+  // Funciones para manejar los modales de carteras - Componentes no disponibles
   const handleViewCartera = (cartera: any) => {
     setSelectedCartera(cartera);
-    setShowCarteraViewModal(true);
+    alert(`Ver cartera: ${cartera.nombre} - Funcionalidad no disponible`);
   };
 
   const handleEditCartera = (cartera: any) => {
     setSelectedCartera(cartera);
-    setShowCarteraEditModal(true);
+    alert(`Editar cartera: ${cartera.nombre} - Funcionalidad no disponible`);
   };
 
   const handleDeleteCartera = (cartera: any) => {
     setSelectedCartera(cartera);
-    setShowCarteraDeleteModal(true);
-  };
-
-  const handleCarteraEditSuccess = (carteraActualizada: any) => {
-    // En el futuro, aquí se podría actualizar la cartera en el listado
-    // eslint-disable-next-line no-console
-    console.log('Cartera actualizada exitosamente:', carteraActualizada);
-    setShowCarteraEditModal(false);
-    setSelectedCartera(null);
-  };
-
-  const handleCarteraDeleteConfirm = (carteraId: string) => {
-    // En el futuro, aquí se podría eliminar la cartera del backend
-    // eslint-disable-next-line no-console
-    console.log('Cartera eliminada:', carteraId);
-    setShowCarteraDeleteModal(false);
-    setSelectedCartera(null);
+    alert(`Eliminar cartera: ${cartera.nombre} - Funcionalidad no disponible`);
   };
 
 
@@ -316,7 +297,7 @@ export const ServiciosPage: React.FC = () => {
             if (activeTab === 'servicios') {
               setShowServicioModal(true);
             } else {
-              setShowAgregarClienteModal(true);
+              alert('Agregar cliente - Funcionalidad no disponible');
             }
           }}
           className="btn-primary hover-grow"
@@ -518,7 +499,7 @@ export const ServiciosPage: React.FC = () => {
                   .map((cartera, index) => (
                     <div key={cartera.id} className="flex justify-between items-center">
                       <span className="text-sm text-gray-600 capitalize">
-                        {index + 1}. {cartera.name.replace('_', ' ')}
+                        {index + 1}. {cartera.name ? cartera.name.replace('_', ' ') : 'Sin nombre'}
                       </span>
                       <span className="font-semibold text-green-600">
                         {cartera.total_clientes} clientes
@@ -688,7 +669,7 @@ export const ServiciosPage: React.FC = () => {
                                 </div>
                                 <div className="ml-4">
                                   <div className="text-sm font-medium text-gray-900 capitalize">
-                                    {item.name.replace('_', ' ')}
+                                    {item.name ? item.name.replace('_', ' ') : 'Sin nombre'}
                                   </div>
                                   <div className="text-sm text-gray-500">
                                     Cartera de servicios
@@ -822,36 +803,7 @@ export const ServiciosPage: React.FC = () => {
         onSuccess={(servicio) => handleServicioSuccess(servicio)}
       />
 
-      {/* Modal de Agregar Cliente */}
-      <AgregarClienteModal
-        isOpen={showAgregarClienteModal}
-        onClose={() => setShowAgregarClienteModal(false)}
-        onSuccess={handleAgregarClienteSuccess}
-        carteras={carteras}
-      />
-
-      {/* Modal de Ver Cartera */}
-      <CarteraViewModal
-        isOpen={showCarteraViewModal}
-        onClose={() => setShowCarteraViewModal(false)}
-        cartera={selectedCartera}
-      />
-
-      {/* Modal de Editar Cartera */}
-      <CarteraEditModal
-        isOpen={showCarteraEditModal}
-        onClose={() => setShowCarteraEditModal(false)}
-        onSuccess={handleCarteraEditSuccess}
-        cartera={selectedCartera}
-      />
-
-      {/* Modal de Eliminar Cartera */}
-      <CarteraDeleteModal
-        isOpen={showCarteraDeleteModal}
-        onClose={() => setShowCarteraDeleteModal(false)}
-        onConfirm={handleCarteraDeleteConfirm}
-        cartera={selectedCartera}
-      />
+      {/* Modales de servicios no disponibles actualmente */}
 
       {/* Modal de Ver Servicio */}
       <ServicioViewModal

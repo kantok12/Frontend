@@ -31,6 +31,7 @@ export interface Personal {
   estado_id: number;
   estado_nombre?: string;
   comentario_estado: string;
+  profile_image_url?: string;
   ubicacion?: Ubicacion;
   contacto?: Contacto;
   contacto_emergencia?: ContactoEmergencia;
@@ -73,10 +74,14 @@ export interface Curso {
   id: number;
   personal_id: string;
   nombre_curso: string;
-  fecha_obtencion: string;
-  institucion?: string;
-  fecha_inicio?: string;
-  fecha_fin?: string;
+  fecha_inicio?: string; // Fecha de inicio del curso
+  fecha_fin?: string; // Fecha de finalización del curso
+  fecha_vencimiento?: string; // Fecha de vencimiento del certificado
+  estado?: string; // Estado del curso (default: 'completado')
+  institucion?: string; // Institución que otorga el curso
+  descripcion?: string; // Descripción del curso
+  // Campos legacy (mantener para compatibilidad)
+  fecha_obtencion?: string;
   horas_academicas?: number;
   tipo_curso?: string;
   certificado?: boolean;
@@ -90,6 +95,36 @@ export interface Curso {
   };
   created_at: string;
   updated_at: string;
+}
+
+// Interfaz para documentos según la API real del backend
+export interface Documento {
+  id: number;
+  rut_persona: string;
+  nombre_documento: string;
+  tipo_documento: string;
+  nombre_archivo: string;
+  nombre_original: string;
+  tipo_mime: string;
+  tamaño_bytes: number;
+  ruta_archivo: string;
+  descripcion?: string;
+  fecha_subida: string;
+  subido_por: string;
+}
+
+// Tipos de documentos disponibles (según backend)
+export interface TipoDocumento {
+  label: string;
+  value: string;
+}
+
+// Formatos de archivo soportados
+export interface FormatoArchivo {
+  extension: string;
+  tipo_mime: string;
+  descripcion: string;
+  activo: boolean;
 }
 
 // Interfaces auxiliares
@@ -159,6 +194,45 @@ export interface PaginatedResponse<T> {
   message?: string;
 }
 
+// Interfaces específicas para respuestas según documentación de la API
+export interface CursosResponse {
+  success: boolean;
+  data: {
+    persona: {
+      rut: string;
+      nombre: string;
+      cargo: string;
+      zona_geografica: string;
+    } | null;
+    cursos: Curso[];
+  };
+  message?: string;
+}
+
+export interface DocumentosResponse {
+  success: boolean;
+  data: Documento[];
+  pagination: {
+    total: number;
+    limit: number;
+    offset: number;
+    hasMore: boolean;
+  };
+  message?: string;
+}
+
+export interface ProfileImageResponse {
+  success: boolean;
+  data: {
+    profile_image_url: string;
+    rut: string;
+    filename?: string;
+    size?: number;
+    mimetype?: string;
+  };
+  message?: string;
+}
+
 // Interfaces para formularios
 export interface LoginForm {
   email: string;
@@ -191,6 +265,7 @@ export interface PersonalDisponible {
   email?: string;
   telefono?: string;
   activo?: boolean;
+  profile_image_url?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -206,10 +281,11 @@ export interface CreatePersonalDisponibleData {
   talla_pantalones?: string;
   talla_poleras?: string;
   zona_geografica?: string;
-  nombre?: string;
-  apellido?: string;
-  email?: string;
-  telefono?: string;
+  nombres?: string; // Campo combinado de nombre completo
+  nombre?: string; // Campo legacy
+  apellido?: string; // Campo legacy
+  email?: string; // Campo de contacto
+  telefono?: string; // Campo de contacto
 }
 
 // Interface extendida para el registro que incluye datos de personal disponible
@@ -244,12 +320,13 @@ export interface CreatePersonalData {
   apellido: string;
   rut: string;
   fecha_nacimiento: string;
+  edad?: string; // Campo de edad editable
   cargo: string;
-  empresa_id: string;
-  servicio_id: string;
-  activo: boolean;
   sexo: 'M' | 'F';
   licencia_conducir: string;
+  estado_id: number; // Campo requerido por el backend
+  email?: string; // Campo de contacto
+  telefono?: string; // Campo de contacto
   talla_zapatos: string;
   talla_pantalones: string;
   talla_poleras: string;
@@ -257,22 +334,25 @@ export interface CreatePersonalData {
 }
 
 export interface UpdatePersonalData {
-  nombre?: string;
-  apellido?: string;
-  rut?: string;
-  fecha_nacimiento?: string;
-  cargo?: string;
-  empresa_id?: string;
-  servicio_id?: string;
-  activo?: boolean;
+  nombres?: string; // Campo principal para nombre completo
   sexo?: 'M' | 'F';
   licencia_conducir?: string;
+  cargo?: string;
+  estado_id?: number;
+  fecha_nacimiento?: string; // Campo requerido por el backend
+  edad?: string; // Campo de edad editable
   talla_zapatos?: string;
   talla_pantalones?: string;
   talla_poleras?: string;
   zona_geografica?: string;
-  estado_id?: number;
   comentario_estado?: string;
+  // Campos legacy (mantener para compatibilidad)
+  nombre?: string;
+  apellido?: string;
+  rut?: string;
+  empresa_id?: string;
+  servicio_id?: string;
+  activo?: boolean;
 }
 
 export interface CreateServicioData {
@@ -295,10 +375,14 @@ export interface CreateCursoData {
   rut_persona?: string; // Para crear desde el modal
   personal_id?: string; // Para crear directamente
   nombre_curso: string;
-  fecha_obtencion: string;
-  institucion?: string;
-  fecha_inicio?: string;
-  fecha_fin?: string;
+  fecha_inicio?: string; // Fecha de inicio del curso
+  fecha_fin?: string; // Fecha de finalización del curso
+  fecha_vencimiento?: string; // Fecha de vencimiento del certificado
+  estado?: string; // Estado del curso (default: 'completado')
+  institucion?: string; // Institución que otorga el curso
+  descripcion?: string; // Descripción del curso
+  // Campos legacy (mantener para compatibilidad)
+  fecha_obtencion?: string;
   horas_academicas?: number;
   tipo_curso?: string;
   certificado?: boolean;
@@ -317,6 +401,21 @@ export interface UpdateCursoData {
   tipo_curso?: string;
   certificado?: boolean;
   observaciones?: string;
+  activo?: boolean;
+}
+
+// Interfaces para documentos
+export interface CreateDocumentoData {
+  personal_id: string;
+  nombre_documento: string;
+  tipo_documento: string;
+  archivo: File;
+  descripcion?: string; // Campo opcional según documentación de la API
+}
+
+export interface UpdateDocumentoData {
+  nombre_documento?: string;
+  tipo_documento?: string;
   activo?: boolean;
 }
 

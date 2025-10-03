@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { X, GraduationCap, Calendar, Save, Upload, FileText } from 'lucide-react';
 import { useCreateCurso, useUpdateCurso, validateCursoData } from '../../hooks/useCursos';
-import { Curso, CreateCursoData, UpdateCursoData } from '../../types';
+import { useUploadDocumento, useTiposDocumentos, validateDocumentoData, createDocumentoFormData } from '../../hooks/useDocumentos';
+import { Curso, CreateCursoData, UpdateCursoData, CreateDocumentoData } from '../../types';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 
 interface CursoModalProps {
@@ -11,6 +12,7 @@ interface CursoModalProps {
   curso?: Curso | null; // Si se pasa un curso, es para editar
   rutPersona: string; // RUT de la persona para quien se agrega el curso
   nombrePersona: string; // Nombre de la persona para mostrar en el título
+  personalId: string; // ID del personal para la API
 }
 
 export const CursoModal: React.FC<CursoModalProps> = ({
@@ -19,29 +21,43 @@ export const CursoModal: React.FC<CursoModalProps> = ({
   onSuccess,
   curso = null,
   rutPersona,
-  nombrePersona
+  nombrePersona,
+  personalId
 }) => {
   const [formData, setFormData] = useState({
     nombre_curso: '',
-    fecha_obtencion: '',
+    fecha_inicio: '',
+    fecha_fin: '',
+    fecha_vencimiento: '',
+    fecha_obtencion: '', // Campo legacy para compatibilidad
+    estado: 'completado',
+    institucion: '',
+    descripcion: '',
     tipo_documento: '',
     archivo: null as File | null,
   });
   const [errors, setErrors] = useState<string[]>([]);
-  const [fileError, setFileError] = useState<string>('');
 
   const createMutation = useCreateCurso();
   const updateMutation = useUpdateCurso();
+  const uploadMutation = useUploadDocumento();
+  const { data: tiposDocumento, isLoading: loadingTipos } = useTiposDocumentos();
 
   const isEditing = !!curso;
-  const isLoading = createMutation.isLoading || updateMutation.isLoading;
+  const isLoading = createMutation.isLoading || updateMutation.isLoading || uploadMutation.isLoading || loadingTipos;
 
   // Llenar formulario si es edición
   useEffect(() => {
     if (curso && isOpen) {
       setFormData({
         nombre_curso: curso.nombre_curso || '',
-        fecha_obtencion: curso.fecha_obtencion ? curso.fecha_obtencion.split('T')[0] : '', // Formato YYYY-MM-DD para input date
+        fecha_inicio: curso.fecha_inicio ? curso.fecha_inicio.split('T')[0] : '',
+        fecha_fin: curso.fecha_fin ? curso.fecha_fin.split('T')[0] : '',
+        fecha_vencimiento: curso.fecha_vencimiento ? curso.fecha_vencimiento.split('T')[0] : '',
+        fecha_obtencion: curso.fecha_obtencion ? curso.fecha_obtencion.split('T')[0] : '', // Campo legacy
+        estado: curso.estado || 'completado',
+        institucion: curso.institucion || '',
+        descripcion: curso.descripcion || '',
         tipo_documento: '',
         archivo: null,
       });
@@ -49,13 +65,18 @@ export const CursoModal: React.FC<CursoModalProps> = ({
       // Reset para nuevo curso
       setFormData({
         nombre_curso: '',
-        fecha_obtencion: '',
+        fecha_inicio: '',
+        fecha_fin: '',
+        fecha_vencimiento: '',
+        fecha_obtencion: '', // Campo legacy
+        estado: 'completado',
+        institucion: '',
+        descripcion: '',
         tipo_documento: '',
         archivo: null,
       });
     }
     setErrors([]);
-    setFileError('');
   }, [curso, isOpen]);
 
   const handleInputChange = (field: string, value: string) => {
@@ -70,36 +91,18 @@ export const CursoModal: React.FC<CursoModalProps> = ({
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Validar tipo de archivo
-      const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
-      if (!allowedTypes.includes(file.type)) {
-        setFileError('Solo se permiten archivos PDF, JPG, JPEG o PNG');
-        return;
-      }
-      
-      // Validar tamaño (5MB máximo)
-      if (file.size > 5 * 1024 * 1024) {
-        setFileError('El archivo no puede ser mayor a 5MB');
-        return;
-      }
-      
       setFormData(prev => ({
         ...prev,
         archivo: file
       }));
-      setFileError('');
+
+      // Limpiar errores
+      if (errors.length > 0) {
+        setErrors([]);
+      }
     }
   };
 
-  // Tipos de documentos disponibles
-  const tiposDocumento = [
-    'Certificado de Curso',
-    'Diploma',
-    'Constancia de Participación',
-    'Evaluación/Examen',
-    'Material del Curso',
-    'Otro'
-  ];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -131,34 +134,96 @@ export const CursoModal: React.FC<CursoModalProps> = ({
         });
       } else {
         // Crear nuevo curso
-        await createMutation.mutateAsync({
-          rut_persona: rutPersona,
-          nombre_curso: formData.nombre_curso,
+        // Validar que el RUT no esté vacío
+        if (!rutPersona || rutPersona.trim() === '') {
+          setErrors(['Error: RUT de la persona no está disponible.']);
+          return;
+        }
+
+        const cursoData = {
+          rut_persona: rutPersona.trim(),
+          nombre_curso: formData.nombre_curso.trim(),
+          fecha_inicio: formData.fecha_inicio || undefined,
+          fecha_fin: formData.fecha_fin || undefined,
+          fecha_vencimiento: formData.fecha_vencimiento || undefined,
+          estado: formData.estado || 'completado',
+          institucion: formData.institucion || undefined,
+          descripcion: formData.descripcion || undefined,
+          // Mantener compatibilidad con campo legacy
           fecha_obtencion: formData.fecha_obtencion
-        } as CreateCursoData);
+        } as CreateCursoData;
+        
+        // eslint-disable-next-line no-console
+        console.log('🔍 Datos del curso a crear:', cursoData);
+        // eslint-disable-next-line no-console
+        console.log('🔍 RUT persona:', rutPersona);
+        // eslint-disable-next-line no-console
+        console.log('🔍 Nombre curso:', formData.nombre_curso);
+        // eslint-disable-next-line no-console
+        console.log('🔍 Fecha obtención:', formData.fecha_obtencion);
+        
+        await createMutation.mutateAsync(cursoData);
       }
 
-      // Si hay documento, simular la subida y agregar a la lista de documentos
+      // Si hay documento, subirlo usando la nueva API
       if (formData.archivo && formData.tipo_documento) {
-        // Simular subida de documento
-        // eslint-disable-next-line no-console
-        console.log('Documento subido:', {
-          nombre: formData.archivo.name,
-          tipo: formData.tipo_documento,
-          curso: formData.nombre_curso
-        });
+        const documentoData: CreateDocumentoData = {
+          personal_id: personalId,
+          nombre_documento: `${formData.nombre_curso} - ${formData.tipo_documento}`,
+          tipo_documento: formData.tipo_documento,
+          archivo: formData.archivo
+        };
+
+        const documentValidationErrors = validateDocumentoData(documentoData);
+        if (documentValidationErrors.length > 0) {
+          setErrors([...errors, ...documentValidationErrors]);
+          return;
+        }
+
+        try {
+          const formDataToSend = createDocumentoFormData(documentoData);
+          await uploadMutation.mutateAsync(formDataToSend);
+        } catch (docError) {
+          // eslint-disable-next-line no-console
+          console.error('Error al subir documento:', docError);
+          setErrors(['Curso guardado exitosamente, pero hubo un error al subir el documento.']);
+        }
       }
 
       onSuccess();
       onClose();
     } catch (error: any) {
+      // eslint-disable-next-line no-console
+      console.error('❌ Error al guardar curso:', error);
+      
       // Manejar diferentes tipos de errores
       if (error.response?.status === 409) {
-        setErrors(['Este curso ya está registrado para esta persona. Por favor, verifique los datos o edite el curso existente.']);
+        const cursoNombre = formData.nombre_curso || 'este curso';
+        const mensajeBackend = error.response?.data?.message || '';
+        setErrors([
+          `⚠️ El curso "${cursoNombre}" ya está registrado para esta persona.`,
+          mensajeBackend ? `📋 Detalle: ${mensajeBackend}` : '',
+          '💡 Opciones disponibles:',
+          '• Editar el curso existente desde la lista de cursos',
+          '• Cambiar el nombre del curso por uno diferente',
+          '• Verificar si ya tiene este certificado registrado',
+          '• Usar un nombre más específico (ej: "Curso Básico 2025")'
+        ].filter(Boolean)); // Filtrar strings vacíos
       } else if (error.response?.status === 400) {
-        setErrors(['Los datos ingresados no son válidos. Por favor, verifique la información.']);
+        setErrors(['❌ Los datos ingresados no son válidos. Por favor, verifique la información.']);
+      } else if (error.response?.status === 500) {
+        const errorMessage = error.response?.data?.error || '';
+        if (errorMessage.includes('no existe la columna «nombre»')) {
+          setErrors([
+            '❌ Error del servidor: La base de datos necesita ser actualizada.',
+            'El backend está intentando usar una columna que ya no existe.',
+            'Contacta al administrador del sistema para corregir este problema.'
+          ]);
+        } else {
+          setErrors(['🔧 Error del servidor. Por favor, intente nuevamente más tarde.']);
+        }
       } else {
-        setErrors(['Error al guardar el curso. Por favor, intente nuevamente.']);
+        setErrors([`❌ Error inesperado: ${error.message || 'Error desconocido'}`]);
       }
     }
   };
@@ -194,6 +259,16 @@ export const CursoModal: React.FC<CursoModalProps> = ({
 
         {/* Content */}
         <form onSubmit={handleSubmit} className="p-6">
+          {/* Información del modal */}
+          {!isEditing && (
+            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 text-blue-800 rounded">
+              <p className="text-sm">
+                <strong>💡 Información:</strong> Si esta persona ya tiene un curso con el mismo nombre, 
+                se mostrará un error. En ese caso, puedes editar el curso existente desde la lista.
+              </p>
+            </div>
+          )}
+
           {/* Errores */}
           {errors.length > 0 && (
             <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
@@ -257,10 +332,10 @@ export const CursoModal: React.FC<CursoModalProps> = ({
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                   disabled={isLoading}
                 >
-                  <option value="">Seleccionar tipo de documento</option>
-                  {tiposDocumento.map((tipo) => (
-                    <option key={tipo} value={tipo}>
-                      {tipo}
+                  <option key="default" value="">Seleccionar tipo de documento</option>
+                  {tiposDocumento?.data && Array.isArray(tiposDocumento.data) && tiposDocumento.data.map((tipo: any) => (
+                    <option key={tipo.value || tipo.id} value={tipo.value || tipo.nombre}>
+                      {tipo.label || tipo.nombre}
                     </option>
                   ))}
                 </select>
@@ -309,10 +384,6 @@ export const CursoModal: React.FC<CursoModalProps> = ({
                   </div>
                 )}
                 
-                {/* Mostrar error de archivo */}
-                {fileError && (
-                  <p className="mt-1 text-sm text-red-600">{fileError}</p>
-                )}
               </div>
             </div>
 
