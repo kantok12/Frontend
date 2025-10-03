@@ -499,3 +499,79 @@ export interface ValidatePersonalDataResult {
   isValid: boolean;
   errors: ValidationErrors;
 }
+
+// ==================== INTERFACES PARA SERVICIOS ====================
+
+export interface Cartera {
+  id: number;
+  nombre: string;
+  fecha_creacion: string;
+  total_clientes: number;
+  total_nodos: number;
+  clientes?: Cliente[];
+}
+
+export interface Cliente {
+  id: number;
+  nombre: string;
+  cartera_id: number;
+  created_at: string;
+  region_id?: number;
+  cartera_nombre?: string;
+  total_nodos: number;
+  nodos?: Nodo[];
+}
+
+export interface Nodo {
+  id: number;
+  nombre: string;
+  cliente_id: number;
+  created_at: string;
+  cliente_nombre?: string;
+  cartera_id?: number;
+  cartera_nombre?: string;
+}
+
+export interface EstructuraCompleta {
+  id: number;
+  nombre: string;
+  created_at: string;
+  clientes: Cliente[];
+}
+
+export interface EstadisticasServicios {
+  totales: {
+    carteras: number;
+    clientes: number;
+    nodos: number;
+  };
+  por_cartera: {
+    id: number;
+    cartera_nombre: string;
+    total_clientes: number;
+    total_nodos: number;
+  }[];
+}
+
+export interface CreateCarteraData {
+  name: string;
+}
+
+export interface CreateClienteData {
+  nombre: string;
+  cartera_id: number;
+  region_id?: number;
+}
+
+export interface CreateNodoData {
+  nombre: string;
+  cliente_id: number;
+}
+
+export interface ServiciosParams {
+  limit?: number;
+  offset?: number;
+  search?: string;
+  cartera_id?: number;
+  cliente_id?: number;
+}

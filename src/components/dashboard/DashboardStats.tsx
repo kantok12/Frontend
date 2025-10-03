@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { useDashboardStats } from '../../hooks/useDashboard';
 import { usePersonalList } from '../../hooks/usePersonal';
+import { useEstadisticasServicios } from '../../hooks/useServicios';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { PersonalInfoModal } from './PersonalInfoModal';
 import { PersonalTrabajandoModal } from './PersonalTrabajandoModal';
@@ -337,6 +338,7 @@ export const DashboardStats: React.FC = () => {
 
   // Obtener datos reales del backend
   const { data: personalData, isLoading: personalLoading } = usePersonalList(1, 100, ''); // Obtener todos los registros
+  const { data: estadisticasServicios, isLoading: serviciosLoading } = useEstadisticasServicios();
   
   // Calcular estadísticas reales de los datos del backend
   const personalList = personalData?.data?.items || [];
@@ -359,17 +361,20 @@ export const DashboardStats: React.FC = () => {
   }).length;
 
   // Usar datos reales del backend
+  const serviciosData = estadisticasServicios?.data;
   const dashboardStats = {
     total_personal: totalPersonal,
     personal_activo: personalActivo,
     personal_trabajando: personalTrabajando,
-    total_servicios: mockServicios.length,
-    servicios_activos: mockServicios.filter(s => s.activo).length,
+    total_servicios: serviciosData?.totales?.nodos || 0,
+    servicios_activos: serviciosData?.totales?.nodos || 0, // Todos los nodos se consideran activos
     total_eventos: totalEventos,
     eventos_hoy: eventosHoy,
+    total_carteras: serviciosData?.totales?.carteras || 0,
+    total_clientes: serviciosData?.totales?.clientes || 0,
   };
 
-  if (isLoading || personalLoading) {
+  if (isLoading || personalLoading || serviciosLoading) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {Array.from({ length: 4 }, (_, index) => (
@@ -436,10 +441,41 @@ export const DashboardStats: React.FC = () => {
         </div>
         <div className="stagger-item animate-delay-400">
           <StatCard
-            title="Total Servicios"
+            title="Total Nodos"
             value={dashboardStats.total_servicios}
             icon={<Settings className="h-6 w-6 text-white" />}
             color="bg-orange-500"
+            href="/servicios"
+          />
+        </div>
+      </div>
+
+      {/* Segunda fila de estadísticas de servicios */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
+        <div className="stagger-item animate-delay-500">
+          <StatCard
+            title="Total Carteras"
+            value={dashboardStats.total_carteras}
+            icon={<Users className="h-6 w-6 text-white" />}
+            color="bg-purple-500"
+            href="/servicios"
+          />
+        </div>
+        <div className="stagger-item animate-delay-600">
+          <StatCard
+            title="Total Clientes"
+            value={dashboardStats.total_clientes}
+            icon={<Users className="h-6 w-6 text-white" />}
+            color="bg-indigo-500"
+            href="/servicios"
+          />
+        </div>
+        <div className="stagger-item animate-delay-700">
+          <StatCard
+            title="Servicios Activos"
+            value={dashboardStats.servicios_activos}
+            icon={<Activity className="h-6 w-6 text-white" />}
+            color="bg-green-500"
             href="/servicios"
           />
         </div>

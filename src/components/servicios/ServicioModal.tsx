@@ -3,6 +3,7 @@ import { X, Settings, Users, MapPin, Clock, Calendar, Save, AlertCircle } from '
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { useCarteras } from '../../hooks/useCarteras';
 import { useClientesByCartera } from '../../hooks/useCarteras';
+import { Cartera } from '../../types';
 
 interface Personal {
   id: string;
@@ -290,9 +291,9 @@ export const ServicioModal: React.FC<ServicioModalProps> = ({
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="">Seleccionar cartera</option>
-                {carteras.map((cartera) => (
+                {carteras.map((cartera: Cartera) => (
                   <option key={cartera.id} value={cartera.id}>
-                    {cartera.name?.replace('_', ' ').toUpperCase() || cartera.id}
+                    {cartera.nombre?.replace('_', ' ').toUpperCase() || cartera.id}
                   </option>
                 ))}
               </select>

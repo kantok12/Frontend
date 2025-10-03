@@ -18,7 +18,7 @@ export const useCarteras = (filters?: {
 export const useCarteraById = (id: string) => {
   return useQuery({
     queryKey: ['cartera', id],
-    queryFn: () => apiService.getCarteraById(id),
+    queryFn: () => apiService.getCartera(parseInt(id)),
     enabled: !!id,
     staleTime: 10 * 60 * 1000,
   });

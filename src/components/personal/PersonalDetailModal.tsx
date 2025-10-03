@@ -35,15 +35,6 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
   const { data: estadosData, isLoading: estadosLoading } = useEstados();
   const { data: cursosData, isLoading: cursosLoading, refetch: refetchCursos } = useCursosByRut(personal?.rut || '');
   
-  // Debug: Log de datos de cursos
-  // eslint-disable-next-line no-console
-  console.log('🔍 PersonalDetailModal - cursosData:', cursosData);
-  // eslint-disable-next-line no-console
-  console.log('🔍 PersonalDetailModal - cursosLoading:', cursosLoading);
-  // eslint-disable-next-line no-console
-  console.log('🔍 PersonalDetailModal - personal?.rut:', personal?.rut);
-  // eslint-disable-next-line no-console
-  console.log('🔍 PersonalDetailModal - personal?.id:', personal?.id);
   const deleteCursoMutation = useDeleteCurso();
   const deleteDocumentoMutation = useDeleteDocumento();
 
@@ -126,6 +117,11 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
       // Los documentos se cargan automáticamente desde el backend
     }
   }, [personal, isOpen]);
+
+  // Si no hay personal o el modal no está abierto, no renderizar nada
+  if (!isOpen || !personal) {
+    return null;
+  }
 
   const handleInputChange = (field: string, value: any) => {
     setEditData(prev => ({

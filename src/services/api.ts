@@ -407,31 +407,10 @@ class ApiService {
   }
 
   // ==================== MÉTODOS PARA SERVICIOS/CARTERAS ====================
-  
-  // Obtener todas las carteras con filtros
-  async getCarteras(filters?: { 
-    limit?: number; 
-    offset?: number; 
-    search?: string 
-  }): Promise<ApiResponse<any[]>> {
-    const params = new URLSearchParams();
-    if (filters?.limit) params.append('limit', filters.limit.toString());
-    if (filters?.offset) params.append('offset', filters.offset.toString());
-    if (filters?.search) params.append('search', filters.search);
-    
-    const response: AxiosResponse<ApiResponse<any[]>> = await this.api.get(`/servicio/carteras${params.toString() ? '?' + params.toString() : ''}`);
-    return response.data;
-  }
-
-  // Obtener cartera específica con sus clientes
-  async getCarteraById(id: string): Promise<ApiResponse<any>> {
-    const response: AxiosResponse<ApiResponse<any>> = await this.api.get(`/servicio/carteras/${id}`);
-    return response.data;
-  }
 
   // Obtener todos los clientes de una cartera específica
   async getClientesByCartera(carteraId: string): Promise<ApiResponse<any[]>> {
-    const carteraResponse = await this.getCarteraById(carteraId);
+    const carteraResponse = await this.getCartera(parseInt(carteraId));
     if (carteraResponse.success && carteraResponse.data?.clientes) {
       return {
         success: true,
@@ -734,11 +713,23 @@ class ApiService {
   async getProfileImage(rut: string): Promise<ApiResponse<any>> {
     try {
       const response: AxiosResponse<ApiResponse<any>> = await this.api.get(`/personal/${rut}/profile-image`);
-      console.log('✅ Imagen de perfil obtenida:', response.data);
       return response.data;
     } catch (error: any) {
-      console.error('❌ Error al obtener imagen de perfil:', error);
-      throw error;
+      // Si es un error 404, significa que no hay imagen de perfil, no es un error crítico
+      if (error.response?.status === 404) {
+        return {
+          success: false,
+          message: 'No se encontró imagen de perfil',
+          data: null
+        };
+      }
+      // Para otros errores, los mostramos como warnings, no como errores críticos
+      console.warn('⚠️ No se pudo obtener imagen de perfil para RUT:', rut);
+      return {
+        success: false,
+        message: 'Error al obtener imagen de perfil',
+        data: null
+      };
     }
   }
 
@@ -880,6 +871,67 @@ class ApiService {
         message: 'Error al obtener estadísticas'
       };
     }
+  }
+
+  // ==================== MÉTODOS PARA SERVICIOS ====================
+  
+  // Carteras
+  async getCarteras(params?: { limit?: number; offset?: number; search?: string }): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.get('/servicios/carteras', { params });
+    return response.data;
+  }
+
+  async getCartera(id: number): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.get(`/servicios/carteras/${id}`);
+    return response.data;
+  }
+
+  async createCartera(data: { name: string }): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.post('/servicios/carteras', data);
+    return response.data;
+  }
+
+  // Clientes
+  async getClientes(params?: { limit?: number; offset?: number; search?: string; cartera_id?: number }): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.get('/servicios/clientes', { params });
+    return response.data;
+  }
+
+  async getCliente(id: number): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.get(`/servicios/clientes/${id}`);
+    return response.data;
+  }
+
+  async createCliente(data: { nombre: string; cartera_id: number; region_id?: number }): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.post('/servicios/clientes', data);
+    return response.data;
+  }
+
+  // Nodos
+  async getNodos(params?: { limit?: number; offset?: number; search?: string; cliente_id?: number; cartera_id?: number }): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.get('/servicios/nodos', { params });
+    return response.data;
+  }
+
+  async getNodo(id: number): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.get(`/servicios/nodos/${id}`);
+    return response.data;
+  }
+
+  async createNodo(data: { nombre: string; cliente_id: number }): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.post('/servicios/nodos', data);
+    return response.data;
+  }
+
+  // Estructura y Estadísticas
+  async getEstructura(params?: { cartera_id?: number; cliente_id?: number }): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.get('/servicios/estructura', { params });
+    return response.data;
+  }
+
+  async getEstadisticasServicios(): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.get('/servicios/estadisticas');
+    return response.data;
   }
 }
 

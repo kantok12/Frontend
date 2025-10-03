@@ -3,6 +3,7 @@ import { X, Calendar, Clock, MapPin, Users, Building, Save, AlertCircle } from '
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { usePersonal } from '../../hooks/useNombres';
 import { useCarteras } from '../../hooks/useCarteras';
+import { Cartera } from '../../types';
 
 interface EventoModalProps {
   isOpen: boolean;
@@ -43,7 +44,7 @@ export const EventoModal: React.FC<EventoModalProps> = ({
   const carteras = carterasResponse?.data || [];
 
   // Obtener clientes de la cartera seleccionada
-  const carteraSeleccionada = carteras.find(c => c.id === formData.cartera);
+  const carteraSeleccionada = carteras.find((c: Cartera) => c.id === parseInt(formData.cartera));
   const clientes = carteraSeleccionada?.clientes || [];
 
   // Categorías por zona de gestión
@@ -334,9 +335,9 @@ export const EventoModal: React.FC<EventoModalProps> = ({
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="">Seleccionar cartera</option>
-                {carteras.map(cartera => (
+                {carteras.map((cartera: Cartera) => (
                   <option key={cartera.id} value={cartera.id}>
-                    {cartera.name}
+                    {cartera.nombre}
                   </option>
                 ))}
               </select>
