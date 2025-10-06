@@ -10,10 +10,10 @@ export interface Estado {
 }
 
 // Hook para obtener todos los estados
-export const useEstados = () => {
+export const useEstados = (params?: { limit?: number; offset?: number; search?: string }) => {
   return useQuery({
-    queryKey: ['estados'],
-    queryFn: () => apiService.getEstados(),
+    queryKey: ['estados', params?.limit || 20, params?.offset || 0, params?.search || ''],
+    queryFn: () => apiService.getEstados(params),
     staleTime: 30 * 60 * 1000, // 30 minutos
     retry: 2,
   });

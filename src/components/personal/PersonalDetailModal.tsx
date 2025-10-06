@@ -29,6 +29,7 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState<UpdatePersonalData>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [currentEstadoId, setCurrentEstadoId] = useState<number>(personal?.estado_id || 1);
   
   const updateMutation = useUpdatePersonal();
   const updatePersonalDataMutation = useUpdatePersonalData();
@@ -59,6 +60,20 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
     isUploading, 
     isDeleting 
   } = useProfileImage(personal?.rut || '');
+
+  // Mantener sincronizado el estado local cuando cambie la persona seleccionada
+  useEffect(() => {
+    if (personal?.estado_id !== undefined) {
+      setCurrentEstadoId(personal.estado_id);
+    }
+  }, [personal?.estado_id]);
+
+  // Obtener nombre del estado por id (usando datos de la API)
+  const getEstadoNombreById = (id?: number) => {
+    if (!id) return personal?.estado_nombre || 'Desconocido';
+    const found = estadosData?.data?.find((e: any) => e.id === id);
+    return found?.nombre || personal?.estado_nombre || 'Desconocido';
+  };
   
   // Usar datos reales del backend en lugar de datos mock
   const { data: documentosData, isLoading: documentosLoading, refetch: refetchDocumentos } = useDocumentosByPersona(personal?.rut || '');
@@ -243,7 +258,13 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
 
       // 3. Ejecutar todas las actualizaciones
       await Promise.all(promises);
-      
+
+      // Si se cambió el estado, actualizar la vista inmediatamente
+      const newEstadoId = editData.estado_id !== undefined ? editData.estado_id : personal.estado_id;
+      if (newEstadoId !== undefined) {
+        setCurrentEstadoId(newEstadoId);
+      }
+
       setIsEditing(false);
       onUpdate?.(); // Refrescar datos
       
@@ -905,7 +926,7 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                           : 'bg-red-100 text-red-800 border border-red-200'
                       }`}>
                         <Activity className="h-4 w-4 mr-2" />
-                        {personal.estado_nombre}
+                        {getEstadoNombreById(currentEstadoId)}
                       </span>
                     )}
                   </div>

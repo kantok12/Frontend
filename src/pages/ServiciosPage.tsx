@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
-import { Search, Plus, Edit, Trash2, Eye, Settings, Users, Building2, MapPin, AlertCircle, ChevronRight } from 'lucide-react';
+import { Search, Plus, Settings, Users, Building2, MapPin, AlertCircle, ChevronRight } from 'lucide-react';
 import { useServiciosPage } from '../hooks/useServicios';
 import { Tooltip } from '../components/common/Tooltip';
 import { Cartera, Cliente, Nodo } from '../types';
@@ -18,10 +18,6 @@ export const ServiciosPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [limit] = useState(10);
   const [showModal, setShowModal] = useState(false);
-  const [showViewModal, setShowViewModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<Cartera | Cliente | Nodo | null>(null);
   
   // Obtener datos reales del backend
   const { 
@@ -98,31 +94,7 @@ export const ServiciosPage: React.FC = () => {
     setPage(newPage);
   };
 
-  // Funciones para manejar los modales
-  const handleViewItem = (item: Cartera | Cliente | Nodo) => {
-    setSelectedItem(item);
-    setShowViewModal(true);
-  };
-
-  const handleEditItem = (item: Cartera | Cliente | Nodo) => {
-    setSelectedItem(item);
-    setShowEditModal(true);
-  };
-
-  const handleDeleteItem = (item: Cartera | Cliente | Nodo) => {
-    setSelectedItem(item);
-    setShowDeleteModal(true);
-  };
-
-  const handleDeleteConfirm = () => {
-    if (selectedItem) {
-      // eslint-disable-next-line no-console
-      console.log('Eliminando item:', selectedItem);
-      // Aquí se implementaría la lógica de eliminación
-      setShowDeleteModal(false);
-      setSelectedItem(null);
-    }
-  };
+  // Sin acciones: se eliminan handlers de ver/editar/eliminar
 
   // Funciones para navegación jerárquica
   const handleCarteraClick = (cartera: Cartera) => {
@@ -313,38 +285,8 @@ export const ServiciosPage: React.FC = () => {
         </form>
       </div>
 
-      {/* Resumen dinámico según pestaña activa */}
+      {/* Resumen dinámico según pestaña activa (solo tarjeta por pestaña) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 slide-up animate-delay-300">
-        {/* Estadísticas Generales */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Estadísticas Generales</h3>
-            <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center">
-              <Settings className="h-4 w-4 text-blue-600" />
-            </div>
-          </div>
-          <div className="space-y-3">
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Total Carteras:</span>
-              <span className="font-semibold text-blue-600">
-                {isLoading ? '...' : (estadisticas?.total_carteras || 0)}
-              </span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Total Clientes:</span>
-              <span className="font-semibold text-green-600">
-                {isLoading ? '...' : (estadisticas?.total_clientes || 0)}
-              </span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Total Nodos:</span>
-              <span className="font-semibold text-purple-600">
-                {isLoading ? '...' : (estadisticas?.total_nodos || 0)}
-              </span>
-            </div>
-          </div>
-        </div>
-
         {/* Estadísticas por Pestaña */}
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <div className="flex items-center justify-between mb-4">
@@ -440,9 +382,7 @@ export const ServiciosPage: React.FC = () => {
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Fecha Creación
                           </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Acciones
-                          </th>
+                          {/* Sin acciones */}
                         </>
                       ) : activeTab === 'clientes' ? (
                         <>
@@ -458,9 +398,7 @@ export const ServiciosPage: React.FC = () => {
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Fecha Creación
                           </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Acciones
-                          </th>
+                          {/* Sin acciones */}
                         </>
                       ) : (
                         <>
@@ -476,9 +414,7 @@ export const ServiciosPage: React.FC = () => {
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Fecha Creación
                           </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Acciones
-                          </th>
+                          {/* Sin acciones */}
                         </>
                       )}
                     </tr>
@@ -530,37 +466,7 @@ export const ServiciosPage: React.FC = () => {
                                 {new Date((item as Cartera).fecha_creacion).toLocaleDateString()}
                               </div>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                              <div className="flex space-x-2">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleViewItem(item);
-                                  }}
-                                  className="text-blue-600 hover:text-blue-900 p-2 rounded-full hover:bg-blue-50"
-                                >
-                                  <Eye className="h-4 w-4" />
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleEditItem(item);
-                                  }}
-                                  className="text-yellow-600 hover:text-yellow-900 p-2 rounded-full hover:bg-yellow-50"
-                                >
-                                  <Edit className="h-4 w-4" />
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDeleteItem(item);
-                                  }}
-                                  className="text-red-600 hover:text-red-900 p-2 rounded-full hover:bg-red-50"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </button>
-                              </div>
-                            </td>
+                            {/* Sin acciones */}
                           </>
                         ) : activeTab === 'clientes' ? (
                           <>
@@ -595,37 +501,7 @@ export const ServiciosPage: React.FC = () => {
                                 {new Date((item as Cliente).created_at).toLocaleDateString()}
                               </div>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                              <div className="flex space-x-2">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleViewItem(item);
-                                  }}
-                                  className="text-blue-600 hover:text-blue-900 p-2 rounded-full hover:bg-blue-50"
-                                >
-                                  <Eye className="h-4 w-4" />
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleEditItem(item);
-                                  }}
-                                  className="text-yellow-600 hover:text-yellow-900 p-2 rounded-full hover:bg-yellow-50"
-                                >
-                                  <Edit className="h-4 w-4" />
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDeleteItem(item);
-                                  }}
-                                  className="text-red-600 hover:text-red-900 p-2 rounded-full hover:bg-red-50"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </button>
-                              </div>
-                            </td>
+                            {/* Sin acciones */}
                           </>
                         ) : (
                           <>
@@ -659,37 +535,7 @@ export const ServiciosPage: React.FC = () => {
                                 {new Date((item as Nodo).created_at).toLocaleDateString()}
                               </div>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                              <div className="flex space-x-2">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleViewItem(item);
-                                  }}
-                                  className="text-blue-600 hover:text-blue-900 p-2 rounded-full hover:bg-blue-50"
-                                >
-                                  <Eye className="h-4 w-4" />
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleEditItem(item);
-                                  }}
-                                  className="text-yellow-600 hover:text-yellow-900 p-2 rounded-full hover:bg-yellow-50"
-                                >
-                                  <Edit className="h-4 w-4" />
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDeleteItem(item);
-                                  }}
-                                  className="text-red-600 hover:text-red-900 p-2 rounded-full hover:bg-red-50"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </button>
-                              </div>
-                            </td>
+                            {/* Sin acciones */}
                           </>
                         )}
                       </tr>
@@ -740,69 +586,8 @@ export const ServiciosPage: React.FC = () => {
         )}
       </div>
 
-      {/* Modales */}
-      {showViewModal && selectedItem && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold mb-4">Detalles del {activeTab.slice(0, -1)}</h3>
-            <div className="space-y-2">
-              <p><strong>ID:</strong> {selectedItem.id}</p>
-              <p><strong>Nombre:</strong> {(selectedItem as any).nombre}</p>
-              {activeTab === 'carteras' && (
-                <>
-                  <p><strong>Clientes:</strong> {(selectedItem as Cartera).total_clientes}</p>
-                  <p><strong>Nodos:</strong> {(selectedItem as Cartera).total_nodos}</p>
-                </>
-              )}
-              {activeTab === 'clientes' && (
-                <>
-                  <p><strong>Cartera ID:</strong> {(selectedItem as Cliente).cartera_id}</p>
-                  <p><strong>Nodos:</strong> {(selectedItem as Cliente).total_nodos}</p>
-                </>
-              )}
-              {activeTab === 'nodos' && (
-                <>
-                  <p><strong>Cliente ID:</strong> {(selectedItem as Nodo).cliente_id}</p>
-                  <p><strong>Cartera ID:</strong> {(selectedItem as Nodo).cartera_id}</p>
-                </>
-              )}
-            </div>
-            <div className="mt-6 flex justify-end">
-              <button
-                onClick={() => setShowViewModal(false)}
-                className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
-              >
-                Cerrar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showDeleteModal && selectedItem && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold mb-4">Confirmar eliminación</h3>
-            <p className="text-gray-600 mb-6">
-              ¿Estás seguro de que quieres eliminar este {activeTab.slice(0, -1)}?
-            </p>
-            <div className="flex justify-end space-x-3">
-              <button
-                onClick={() => setShowDeleteModal(false)}
-                className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleDeleteConfirm}
-                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
-              >
-                Eliminar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Modales eliminados junto a acciones */}
     </div>
   );
 };
+

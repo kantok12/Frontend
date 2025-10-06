@@ -4,7 +4,7 @@ import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { PersonalForm } from '../components/personal/PersonalForm';
 import { PersonalDetailModal } from '../components/personal/PersonalDetailModal';
 import { ProfileImage } from '../components/common/ProfileImage';
-import { Search, Plus, Trash2, Eye, User, Mail, CheckCircle, XCircle } from 'lucide-react';
+import { Search, Plus, Trash2, Eye, User, Mail, CheckCircle, XCircle, Activity } from 'lucide-react';
 import { Personal } from '../types';
 
 // Estados de actividad (para UI, no relacionados con backend)
@@ -13,9 +13,19 @@ const estadosActividad = [
   { id: 'inactivo', label: 'Inactivo', color: 'red', icon: XCircle }
 ];
 
-// Función para obtener estado de actividad basado en el campo 'activo'
-const getEstadoActividad = (activo: boolean) => {
-  return activo ? estadosActividad[0] : estadosActividad[1];
+// Función para obtener estado visual según estado_nombre del backend
+const getEstadoVisual = (estadoNombre?: string) => {
+  const nombre = (estadoNombre || '').toLowerCase();
+  if (nombre.includes('asignado')) return { label: 'Asignado', color: 'bg-green-100 text-green-800 border-green-200', icon: CheckCircle };
+  if (nombre.includes('vacacion')) return { label: 'Vacaciones', color: 'bg-yellow-100 text-yellow-800 border-yellow-200', icon: Activity };
+  if (nombre.includes('capacit')) return { label: 'Capacitación', color: 'bg-blue-100 text-blue-800 border-blue-200', icon: Activity };
+  if (nombre.includes('examen')) return { label: 'Exámenes', color: 'bg-purple-100 text-purple-800 border-purple-200', icon: Activity };
+  if (nombre.includes('desvinc')) return { label: 'Desvinculado', color: 'bg-red-100 text-red-800 border-red-200', icon: XCircle };
+  if (nombre.includes('licencia')) return { label: 'Licencia médica', color: 'bg-orange-100 text-orange-800 border-orange-200', icon: Activity };
+  // Fallback: usar campo activo clásico
+  return (estadoNombre?.toLowerCase() === 'activo')
+    ? { label: 'Activo', color: 'bg-green-100 text-green-800 border-green-200', icon: CheckCircle }
+    : { label: estadoNombre || 'Sin estado', color: 'bg-gray-100 text-gray-800 border-gray-200', icon: Activity };
 };
 
 // Función para formatear fecha (comentada porque no se usa actualmente)
@@ -221,15 +231,8 @@ export const PersonalPage: React.FC = () => {
           <>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {personalList.map((persona, index) => {
-                const estadoActividad = getEstadoActividad(persona.activo || false);
-                const IconComponent = estadoActividad.icon;
-                const getStatusColor = (color: string) => {
-                  const colors = {
-                    green: 'bg-green-100 text-green-800 border-green-200',
-                    red: 'bg-red-100 text-red-800 border-red-200'
-                  };
-                  return colors[color as keyof typeof colors] || 'bg-gray-100 text-gray-800 border-gray-200';
-                };
+                const estado = getEstadoVisual(persona.estado_nombre);
+                const IconComponent = estado.icon;
 
                 return (
                   <div key={persona.id} className={`bg-white rounded-lg border border-gray-200 p-6 hover:shadow-lg transition-all duration-200 stagger-item animate-delay-${(index + 1) * 100}`}>
@@ -277,11 +280,11 @@ export const PersonalPage: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Estado actual */}
+                    {/* Estado actual (desde backend) */}
                     <div className="mb-4">
-                      <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium border ${getStatusColor(estadoActividad.color)}`}>
+                      <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium border ${estado.color}`}>
                         <IconComponent className="h-4 w-4 mr-2" />
-                        {estadoActividad.label}
+                        {estado.label}
                       </div>
                       <span className="ml-3 text-xs text-gray-500">
                         Actualizado: {formatUpdateTime(persona.updated_at || new Date().toISOString())}

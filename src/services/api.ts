@@ -291,9 +291,9 @@ class ApiService {
 
   // ==================== MÉTODOS PARA ESTADOS ====================
   
-  // Obtener todos los estados
-  async getEstados(): Promise<ApiResponse<any[]>> {
-    const response: AxiosResponse<ApiResponse<any[]>> = await this.api.get('/estados');
+  // Obtener todos los estados (con soporte para paginación y búsqueda)
+  async getEstados(params?: { limit?: number; offset?: number; search?: string }): Promise<ApiResponse<any[]>> {
+    const response: AxiosResponse<ApiResponse<any[]>> = await this.api.get('/estados', { params });
     return response.data;
   }
 
