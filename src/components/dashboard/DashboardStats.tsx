@@ -14,140 +14,7 @@ import { PersonalInfoModal } from './PersonalInfoModal';
 import { PersonalTrabajandoModal } from './PersonalTrabajandoModal';
 import { EventosModal } from './EventosModal';
 
-// Importar datos mock reales de las páginas
-// Datos mock del personal (copiados de PersonalPage.tsx)
-const mockPersonal = [
-  {
-    id: '1',
-    nombre: 'Juan Carlos',
-    apellido: 'Pérez González',
-    cargo: 'Ingeniero IMC',
-    ubicacion: 'Santiago',
-    activo: true,
-    estadoActividad: { label: 'Trabajando' },
-    servicioAsignado: {
-      id: '1',
-      nombre: 'Mantenimiento Industrial',
-      categoria: 'Mantenimiento',
-      zonaGestion: 'Minería'
-    }
-  },
-  {
-    id: '2',
-    nombre: 'María Elena',
-    apellido: 'Rodríguez López',
-    cargo: 'Ingeniero de Aplicaciones',
-    ubicacion: 'Valparaíso',
-    activo: true,
-    estadoActividad: { label: 'En Reunión' },
-    servicioAsignado: {
-      id: '2',
-      nombre: 'Servicio Spot',
-      categoria: 'Servicio Spot',
-      zonaGestion: 'Minería'
-    }
-  },
-  {
-    id: '3',
-    nombre: 'Carlos Alberto',
-    apellido: 'Martínez Silva',
-    cargo: 'Ingeniero en Servicio',
-    ubicacion: 'Concepción',
-    activo: true,
-    estadoActividad: { label: 'Trabajando' },
-    servicioAsignado: {
-      id: '3',
-      nombre: 'Servicio Integral',
-      categoria: 'Servicio Integral',
-      zonaGestion: 'Industria'
-    }
-  },
-  {
-    id: '4',
-    nombre: 'Ana Sofía',
-    apellido: 'García Fernández',
-    cargo: 'Técnico Nivel 3',
-    ubicacion: 'La Serena',
-    activo: false,
-    estadoActividad: { label: 'Licencia Médica' },
-    servicioAsignado: {
-      id: '4',
-      nombre: 'Programa de Lubricación',
-      categoria: 'Programa de Lubricación',
-      zonaGestion: 'Industria'
-    }
-  },
-  {
-    id: '5',
-    nombre: 'Luis Fernando',
-    apellido: 'Ramírez Morales',
-    cargo: 'Capataz',
-    ubicacion: 'Santiago',
-    activo: true,
-    estadoActividad: { label: 'En Descanso' },
-    servicioAsignado: {
-      id: '5',
-      nombre: 'Levantamientos',
-      categoria: 'Levantamientos',
-      zonaGestion: 'Industria'
-    }
-  },
-  {
-    id: '6',
-    nombre: 'Patricia',
-    apellido: 'Vargas Castro',
-    cargo: 'Técnico Nivel 2',
-    ubicacion: 'Valparaíso',
-    activo: true,
-    estadoActividad: { label: 'Capacitación' },
-    servicioAsignado: {
-      id: '6',
-      nombre: 'Instalaciones',
-      categoria: 'Instalaciones',
-      zonaGestion: 'Industria'
-    }
-  },
-  {
-    id: '7',
-    nombre: 'Roberto',
-    apellido: 'Silva Mendoza',
-    cargo: 'Técnico Nivel 1',
-    ubicacion: 'Concepción',
-    activo: true,
-    estadoActividad: { label: 'Trabajando' },
-    servicioAsignado: {
-      id: '1',
-      nombre: 'Mantenimiento Industrial',
-      categoria: 'Mantenimiento',
-      zonaGestion: 'Minería'
-    }
-  },
-  {
-    id: '8',
-    nombre: 'Carmen',
-    apellido: 'López Torres',
-    cargo: 'Ingeniero IMC',
-    ubicacion: 'La Serena',
-    activo: true,
-    estadoActividad: { label: 'Trabajando' },
-    servicioAsignado: {
-      id: '3',
-      nombre: 'Servicio Integral',
-      categoria: 'Servicio Integral',
-      zonaGestion: 'Industria'
-    }
-  }
-];
-
-// Datos mock de servicios (copiados de ServiciosPage.tsx)
-const mockServicios = [
-  { id: '1', zonaGestion: 'Minería', categoria: 'Mantenimiento', activo: true },
-  { id: '2', zonaGestion: 'Minería', categoria: 'Servicio Spot', activo: true },
-  { id: '3', zonaGestion: 'Industria', categoria: 'Servicio Integral', activo: true },
-  { id: '4', zonaGestion: 'Industria', categoria: 'Programa de Lubricación', activo: true },
-  { id: '5', zonaGestion: 'Industria', categoria: 'Levantamientos', activo: true },
-  { id: '6', zonaGestion: 'Industria', categoria: 'Instalaciones', activo: true }
-];
+// Notas: se mantendrán solo datos de eventos mock hasta contar con endpoint real
 
 // Datos mock de eventos del calendario (próximos 15 días)
 const getProximosDias = () => {
@@ -367,7 +234,7 @@ export const DashboardStats: React.FC = () => {
     personal_activo: personalActivo,
     personal_trabajando: personalTrabajando,
     total_servicios: serviciosData?.totales?.nodos || 0,
-    servicios_activos: serviciosData?.totales?.nodos || 0, // Todos los nodos se consideran activos
+    servicios_activos: serviciosData?.totales?.nodos || 0,
     total_eventos: totalEventos,
     eventos_hoy: eventosHoy,
     total_carteras: serviciosData?.totales?.carteras || 0,
@@ -390,6 +257,40 @@ export const DashboardStats: React.FC = () => {
 
   return (
     <>
+      {/* Gráfico simple: comparación de totales */}
+      <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-gray-900">Resumen de Servicios</h3>
+          <Settings className="h-5 w-5 text-gray-400" />
+        </div>
+        {(() => {
+          const chartData = [
+            { label: 'Carteras', value: dashboardStats.total_carteras, color: 'bg-purple-500' },
+            { label: 'Clientes', value: dashboardStats.total_clientes, color: 'bg-indigo-500' },
+            { label: 'Nodos', value: dashboardStats.total_servicios, color: 'bg-orange-500' },
+          ];
+          const maxValue = Math.max(1, ...chartData.map(d => d.value));
+          return (
+            <div className="space-y-3">
+              {chartData.map((d) => (
+                <div key={d.label}>
+                  <div className="flex items-center justify-between text-sm text-gray-700 mb-1">
+                    <span>{d.label}</span>
+                    <span className="font-semibold">{d.value}</span>
+                  </div>
+                  <div className="h-3 w-full bg-gray-100 rounded">
+                    <div
+                      className={`h-3 ${d.color} rounded`}
+                      style={{ width: `${(d.value / maxValue) * 100}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="stagger-item animate-delay-100">
           <div 

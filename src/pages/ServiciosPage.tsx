@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { Search, Plus, Settings, Users, Building2, MapPin, AlertCircle, ChevronRight } from 'lucide-react';
 import { useServiciosPage } from '../hooks/useServicios';
 import { Tooltip } from '../components/common/Tooltip';
 import { Cartera, Cliente, Nodo } from '../types';
+import { usePersonalList } from '../hooks/usePersonal';
+import { apiService } from '../services/api';
 
 export const ServiciosPage: React.FC = () => {
   // Estado para la pestaña activa
@@ -12,6 +14,18 @@ export const ServiciosPage: React.FC = () => {
   // Estado para navegación jerárquica
   const [selectedCartera, setSelectedCartera] = useState<Cartera | null>(null);
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
+  const [selectedNodo, setSelectedNodo] = useState<Nodo | null>(null);
+  const [assignedPersonal, setAssignedPersonal] = useState<{ rut: string; nombre?: string }[] | null>(null);
+  const [assignedLoading, setAssignedLoading] = useState(false);
+  const [assignedError, setAssignedError] = useState<string | null>(null);
+  const [selectedRutToAssign, setSelectedRutToAssign] = useState('');
+  const [personSearch, setPersonSearch] = useState('');
+  const [assigning, setAssigning] = useState(false);
+  const [unassigningRut, setUnassigningRut] = useState<string | null>(null);
+
+  // Listado de personal para seleccionar (hasta 100, con búsqueda)
+  const { data: personListData, isLoading: personListLoading } = usePersonalList(1, 100, personSearch);
+  const personOptions = personListData?.data?.items || [];
   
   // Estados comunes
   const [page, setPage] = useState(1);
@@ -100,6 +114,7 @@ export const ServiciosPage: React.FC = () => {
   const handleCarteraClick = (cartera: Cartera) => {
     setSelectedCartera(cartera);
     setSelectedCliente(null);
+    setSelectedNodo(null);
     setActiveTab('clientes');
     setPage(1);
     setSearch('');
@@ -107,6 +122,7 @@ export const ServiciosPage: React.FC = () => {
 
   const handleClienteClick = (cliente: Cliente) => {
     setSelectedCliente(cliente);
+    setSelectedNodo(null);
     setActiveTab('nodos');
     setPage(1);
     setSearch('');
@@ -115,6 +131,7 @@ export const ServiciosPage: React.FC = () => {
   const handleBackToCarteras = () => {
     setSelectedCartera(null);
     setSelectedCliente(null);
+    setSelectedNodo(null);
     setActiveTab('carteras');
     setPage(1);
     setSearch('');
@@ -122,9 +139,131 @@ export const ServiciosPage: React.FC = () => {
 
   const handleBackToClientes = () => {
     setSelectedCliente(null);
+    setSelectedNodo(null);
     setActiveTab('clientes');
     setPage(1);
     setSearch('');
+  };
+
+  // Cargar asignaciones según selección actual
+  useEffect(() => {
+    const load = async () => {
+      setAssignedError(null);
+      setAssignedPersonal(null);
+      if (!selectedCartera && !selectedCliente && !selectedNodo) return;
+      setAssignedLoading(true);
+      try {
+        if (selectedNodo) {
+          const res = await apiService.getPersonalByNodo(selectedNodo.id);
+          setAssignedPersonal(res.data as any);
+        } else if (selectedCliente) {
+          const res = await apiService.getPersonalByCliente(selectedCliente.id);
+          setAssignedPersonal(res.data as any);
+        } else if (selectedCartera) {
+          const res = await apiService.getPersonalByCartera(selectedCartera.id);
+          setAssignedPersonal(res.data as any);
+        }
+      } catch (e: any) {
+        setAssignedError(e?.message || 'Error al cargar asignaciones');
+      } finally {
+        setAssignedLoading(false);
+      }
+    };
+    load();
+  }, [selectedCartera, selectedCliente, selectedNodo]);
+
+  // Enriquecer con nombres si llegan solo RUTs
+  useEffect(() => {
+    const hydrateNames = async () => {
+      if (!assignedPersonal || assignedPersonal.length === 0) return;
+      const needLookup = assignedPersonal.filter(p => !p.nombre);
+      if (needLookup.length === 0) return;
+      try {
+        const updated = await Promise.all(
+          assignedPersonal.map(async (p) => {
+            if (p.nombre) return p;
+            // Intentar encontrar en la lista ya cargada
+            const found = personOptions.find((x: any) => x.rut === p.rut);
+            if (found) {
+              return { ...p, nombre: `${found.nombre} ${found.apellido}`.trim() };
+            }
+            // Consultar al backend por RUT
+            try {
+              const res = await apiService.getPersonalByRut(p.rut);
+              const data: any = res.data || {};
+              const full = data.nombres || data.nombre || data.nombre_completo || '';
+              const nombreCompuesto = full ? full : undefined;
+              return { ...p, nombre: nombreCompuesto };
+            } catch {
+              return p;
+            }
+          })
+        );
+        setAssignedPersonal(updated);
+      } catch {
+        // Ignorar
+      }
+    };
+    hydrateNames();
+  }, [assignedPersonal, personOptions]);
+
+  const handleAssign = async () => {
+    if (!selectedRutToAssign.trim()) return;
+    setAssigning(true);
+    try {
+      if (selectedNodo) {
+        await apiService.assignNodoToPersona(selectedRutToAssign.trim(), selectedNodo.id);
+      } else if (selectedCliente) {
+        await apiService.assignClienteToPersona(selectedRutToAssign.trim(), selectedCliente.id);
+      } else if (selectedCartera) {
+        await apiService.assignCarteraToPersona(selectedRutToAssign.trim(), selectedCartera.id);
+      }
+      setSelectedRutToAssign('');
+      // Refrescar asignados
+      if (selectedNodo) {
+        const res = await apiService.getPersonalByNodo(selectedNodo.id);
+        setAssignedPersonal(res.data as any);
+      } else if (selectedCliente) {
+        const res = await apiService.getPersonalByCliente(selectedCliente.id);
+        setAssignedPersonal(res.data as any);
+      } else if (selectedCartera) {
+        const res = await apiService.getPersonalByCartera(selectedCartera.id);
+        setAssignedPersonal(res.data as any);
+      }
+    } catch (e: any) {
+      alert(e?.message || 'Error al asignar');
+    } finally {
+      setAssigning(false);
+    }
+  };
+
+  const handleUnassign = async (rut: string) => {
+    if (!rut) return;
+    setUnassigningRut(rut);
+    try {
+      if (selectedNodo) {
+        await apiService.unassignNodoFromPersona(rut, selectedNodo.id);
+      } else if (selectedCliente) {
+        await apiService.unassignClienteFromPersona(rut, selectedCliente.id);
+      } else if (selectedCartera) {
+        await apiService.unassignCarteraFromPersona(rut, selectedCartera.id);
+      }
+      // Refrescar asignados
+      if (selectedNodo) {
+        const res = await apiService.getPersonalByNodo(selectedNodo.id);
+        setAssignedPersonal(res.data as any);
+      } else if (selectedCliente) {
+        const res = await apiService.getPersonalByCliente(selectedCliente.id);
+        setAssignedPersonal(res.data as any);
+      } else if (selectedCartera) {
+        const res = await apiService.getPersonalByCartera(selectedCartera.id);
+        setAssignedPersonal(res.data as any);
+      }
+    } catch (e: any) {
+      alert(e?.message || 'Error al desasignar');
+    } finally {
+      setUnassigningRut(null);
+    }
   };
 
   if (isLoading) {
@@ -325,6 +464,83 @@ export const ServiciosPage: React.FC = () => {
 
       {/* Tabla dinámica según pestaña activa */}
       <div className="slide-up animate-delay-300">
+        {/* Panel de personal asignado según la selección */}
+        {(selectedCartera || selectedCliente || selectedNodo) && (
+          <div className="mb-6 bg-white rounded-lg border border-gray-200 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">
+                Personal asignado a {selectedNodo ? 'Nodo' : selectedCliente ? 'Cliente' : 'Cartera'}
+              </h3>
+            </div>
+            {/* Formulario de asignación: seleccionar personal de una lista */}
+            <div className="flex items-center gap-2 mb-4">
+              <div className="flex-1 flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Buscar personal por nombre o RUT..."
+                  value={personSearch}
+                  onChange={(e) => setPersonSearch(e.target.value)}
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                />
+                <select
+                  value={selectedRutToAssign}
+                  onChange={(e) => setSelectedRutToAssign(e.target.value)}
+                  className="w-80 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  disabled={personListLoading}
+                >
+                  <option value="">{personListLoading ? 'Cargando personal...' : 'Seleccionar personal'}</option>
+                  {personOptions.map((p: any) => (
+                    <option key={p.rut} value={p.rut}>
+                      {p.nombre} {p.apellido} ({p.rut})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <button
+                onClick={handleAssign}
+                disabled={assigning || !selectedRutToAssign.trim()}
+                className="px-3 py-2 text-sm text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50"
+              >
+                {assigning ? 'Asignando...' : 'Asignar'}
+              </button>
+            </div>
+            {assignedLoading ? (
+              <div className="flex items-center text-gray-600 text-sm">
+                <LoadingSpinner size="sm" />
+                <span className="ml-2">Cargando personal asignado...</span>
+              </div>
+            ) : assignedError ? (
+              <div className="text-sm text-red-600">{assignedError}</div>
+            ) : !assignedPersonal || assignedPersonal.length === 0 ? (
+              <div className="text-sm text-gray-500">No hay personal asignado.</div>
+            ) : (
+              <ul className="text-sm text-gray-800 space-y-2">
+                {assignedPersonal.map((p) => (
+                  <li key={p.rut} className="flex items-center justify-between">
+                    <span>
+                      {(() => {
+                        if (p.nombre) return `${p.nombre} (${p.rut})`;
+                        const found: any | undefined = personOptions.find((x: any) => x?.rut === p.rut);
+                        if (found && (found.nombre || found.apellido)) {
+                          const nom = `${found.nombre || ''} ${found.apellido || ''}`.trim();
+                          return nom ? `${nom} (${p.rut})` : p.rut;
+                        }
+                        return p.rut;
+                      })()}
+                    </span>
+                    <button
+                      onClick={() => handleUnassign(p.rut)}
+                      disabled={unassigningRut === p.rut}
+                      className="px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200 disabled:opacity-50"
+                    >
+                      {unassigningRut === p.rut ? 'Quitando...' : 'Quitar'}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
         <div className="mb-4">
           <h2 className="text-lg font-semibold text-gray-900">
             {activeTab === 'carteras' ? 'Carteras' : 
@@ -429,7 +645,7 @@ export const ServiciosPage: React.FC = () => {
                         onClick={
                           activeTab === 'carteras' ? () => handleCarteraClick(item as Cartera) :
                           activeTab === 'clientes' ? () => handleClienteClick(item as Cliente) :
-                          undefined
+                          () => setSelectedNodo(item as Nodo)
                         }
                       >
                         {activeTab === 'carteras' ? (

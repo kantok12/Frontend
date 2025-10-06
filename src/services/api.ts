@@ -933,6 +933,67 @@ class ApiService {
     const response: AxiosResponse<ApiResponse<any>> = await this.api.get('/servicios/estadisticas');
     return response.data;
   }
+
+  // ==================== MÉTODOS PARA ASIGNACIONES ====================
+  // Base: http://192.168.10.194:3000/api/asignaciones (compartimos el mismo baseURL configurado)
+
+  // Obtener asignaciones por RUT
+  async getAsignacionesByRut(rut: string): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.get(`/asignaciones/persona/${rut}`);
+    return response.data;
+  }
+
+  // Crear asignación a cartera (idempotente)
+  async assignCarteraToPersona(rut: string, carteraId: number): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.post(`/asignaciones/persona/${rut}/carteras`, { cartera_id: carteraId });
+    return response.data;
+  }
+
+  // Eliminar asignación de cartera
+  async unassignCarteraFromPersona(rut: string, carteraId: number): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.delete(`/asignaciones/persona/${rut}/carteras/${carteraId}`);
+    return response.data;
+  }
+
+  // Crear asignación a cliente (idempotente)
+  async assignClienteToPersona(rut: string, clienteId: number): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.post(`/asignaciones/persona/${rut}/clientes`, { cliente_id: clienteId });
+    return response.data;
+  }
+
+  // Eliminar asignación de cliente
+  async unassignClienteFromPersona(rut: string, clienteId: number): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.delete(`/asignaciones/persona/${rut}/clientes/${clienteId}`);
+    return response.data;
+  }
+
+  // Crear asignación a nodo (idempotente)
+  async assignNodoToPersona(rut: string, nodoId: number): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.post(`/asignaciones/persona/${rut}/nodos`, { nodo_id: nodoId });
+    return response.data;
+  }
+
+  // Eliminar asignación de nodo
+  async unassignNodoFromPersona(rut: string, nodoId: number): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.delete(`/asignaciones/persona/${rut}/nodos/${nodoId}`);
+    return response.data;
+  }
+
+  // Listados inversos
+  async getPersonalByCartera(id: number): Promise<ApiResponse<any[]>> {
+    const response: AxiosResponse<ApiResponse<any[]>> = await this.api.get(`/asignaciones/carteras/${id}/personal`);
+    return response.data;
+  }
+
+  async getPersonalByCliente(id: number): Promise<ApiResponse<any[]>> {
+    const response: AxiosResponse<ApiResponse<any[]>> = await this.api.get(`/asignaciones/clientes/${id}/personal`);
+    return response.data;
+  }
+
+  async getPersonalByNodo(id: number): Promise<ApiResponse<any[]>> {
+    const response: AxiosResponse<ApiResponse<any[]>> = await this.api.get(`/asignaciones/nodos/${id}/personal`);
+    return response.data;
+  }
 }
 
 export const apiService = new ApiService();
