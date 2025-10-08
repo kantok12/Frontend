@@ -142,20 +142,73 @@ class ApiService {
   async getPersonal(page = 1, limit = 10, search = '', filters = ''): Promise<PaginatedResponse<Personal>> {
     const offset = (page - 1) * limit;
     
-    // Construir URL con parámetros
-    let url = `/personal-disponible?limit=${limit}&offset=${offset}`;
-    
-    // Agregar búsqueda si existe (usar parámetro 'q' que funciona en el backend)
+    // Si hay búsqueda, obtener TODOS los registros y filtrar en el frontend
     if (search && search.trim()) {
-      url += `&q=${encodeURIComponent(search.trim())}`;
+      console.log('🔍 Realizando búsqueda global obteniendo todos los registros:', search.trim());
+      try {
+        // Obtener TODOS los registros sin paginación para poder filtrar
+        const allPersonalResponse = await this.api.get(`/personal-disponible?limit=1000&offset=0`);
+        console.log('🔍 Todos los registros obtenidos:', allPersonalResponse.data);
+        
+        if (allPersonalResponse.data.success && allPersonalResponse.data.data) {
+          const allPersonal = allPersonalResponse.data.data;
+          const searchTerm = search.trim().toLowerCase();
+          
+          // Filtrar en el frontend por múltiples campos
+          const filteredPersonal = allPersonal.filter((persona: any) => {
+            const rut = (persona.rut || '').toLowerCase();
+            const nombres = (persona.nombres || '').toLowerCase();
+            const cargo = (persona.cargo || '').toLowerCase();
+            const zona = (persona.zona_geografica || '').toLowerCase();
+            
+            return rut.includes(searchTerm) || 
+                   nombres.includes(searchTerm) || 
+                   cargo.includes(searchTerm) || 
+                   zona.includes(searchTerm);
+          });
+          
+          console.log('🔍 Personal filtrado (total):', filteredPersonal.length);
+          console.log('🔍 Término de búsqueda:', searchTerm);
+          console.log('🔍 Resultados encontrados:', filteredPersonal.map((p: any) => ({ rut: p.rut, nombres: p.nombres })));
+          
+          // Aplicar paginación manual a los resultados filtrados
+          const startIndex = offset;
+          const endIndex = startIndex + limit;
+          const paginatedData = filteredPersonal.slice(startIndex, endIndex);
+          
+          console.log('🔍 Datos paginados:', {
+            total: filteredPersonal.length,
+            startIndex,
+            endIndex,
+            paginatedCount: paginatedData.length
+          });
+          
+          return {
+            success: true,
+            data: paginatedData,
+            pagination: {
+              total: filteredPersonal.length,
+              limit: limit,
+              offset: offset
+            }
+          };
+        }
+      } catch (error) {
+        console.warn('⚠️ Error en búsqueda global, continuando con búsqueda normal:', error);
+      }
     }
+    
+    // Búsqueda normal sin filtros o si falló la búsqueda global
+    let url = `/personal-disponible?limit=${limit}&offset=${offset}`;
     
     // Agregar filtros si existen
     if (filters && filters !== '{}') {
       url += `&filters=${encodeURIComponent(filters)}`;
     }
     
+    console.log('🌐 URL de búsqueda normal:', url);
     const response: AxiosResponse<PaginatedResponse<Personal>> = await this.api.get(url);
+    console.log('📊 Respuesta de búsqueda normal:', response.data);
     return response.data;
   }
 
@@ -511,11 +564,38 @@ class ApiService {
   // Los documentos se obtienen por persona y se filtran por tipo
 
   // Descargar documento
-  async downloadDocumento(id: number): Promise<Blob> {
-    const response = await this.api.get(`/documentos/${id}/descargar`, {
-      responseType: 'blob'
-    });
-    return response.data;
+  async downloadDocumento(id: number): Promise<{ blob: Blob; filename: string }> {
+    try {
+      console.log('🌐 Descargando documento ID:', id);
+      const response = await this.api.get(`/documentos/${id}/descargar`, {
+        responseType: 'blob',
+        headers: {
+          'Accept': 'application/octet-stream, application/pdf, */*'
+        }
+      });
+      
+      // Extraer nombre del archivo de los headers
+      const contentDisposition = response.headers['content-disposition'];
+      let filename = `documento_${id}.pdf`;
+      
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+        if (filenameMatch && filenameMatch[1]) {
+          filename = filenameMatch[1].replace(/['"]/g, '');
+        }
+      }
+      
+      console.log('📁 Nombre del archivo:', filename);
+      console.log('📦 Tamaño del blob:', response.data.size, 'bytes');
+      
+      return {
+        blob: response.data,
+        filename: filename
+      };
+    } catch (error) {
+      console.error('❌ Error en descarga del documento:', error);
+      throw error;
+    }
   }
 
   // Eliminar documento
@@ -956,8 +1036,10 @@ class ApiService {
   }
 
   // Crear asignación a cliente (idempotente)
-  async assignClienteToPersona(rut: string, clienteId: number): Promise<ApiResponse<any>> {
-    const response: AxiosResponse<ApiResponse<any>> = await this.api.post(`/asignaciones/persona/${rut}/clientes`, { cliente_id: clienteId });
+  async assignClienteToPersona(rut: string, clienteId: number, options?: { enforce?: boolean }): Promise<ApiResponse<any>> {
+    const payload: any = { cliente_id: clienteId };
+    if (options && typeof options.enforce !== 'undefined') payload.enforce = options.enforce;
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.post(`/asignaciones/persona/${rut}/clientes`, payload);
     return response.data;
   }
 
@@ -992,6 +1074,112 @@ class ApiService {
 
   async getPersonalByNodo(id: number): Promise<ApiResponse<any[]>> {
     const response: AxiosResponse<ApiResponse<any[]>> = await this.api.get(`/asignaciones/nodos/${id}/personal`);
+    return response.data;
+  }
+ 
+  // ==================== MÉTODOS PARA PRERREQUISITOS DE CLIENTE ====================
+  // GET /prerequisitos/clientes/:clienteId
+  async getClientePrerequisitos(clienteId: number): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.get(`/prerequisitos/clientes/${clienteId}`);
+    return response.data;
+  }
+
+  // POST /prerequisitos/clientes/:clienteId { requisitos: [...] }
+  async upsertClientePrerequisitos(clienteId: number, requisitos: Array<{ tipo_documento: string; obligatorio: boolean; dias_validez?: number }>): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.post(`/prerequisitos/clientes/${clienteId}`, { requisitos });
+    return response.data;
+  }
+
+  // GET /prerequisitos/clientes/:clienteId/match?rut=:rut
+  async matchPrerequisitosCliente(clienteId: number, rut: string): Promise<ApiResponse<any>> {
+    try {
+      const response: AxiosResponse<ApiResponse<any>> = await this.api.get(`/prerequisitos/clientes/${clienteId}/match`, { params: { rut } });
+      return response.data;
+    } catch (err: any) {
+      if (err?.response?.status === 404) {
+        // Fallback 1: algunos servidores aceptan el match como query sobre el recurso base
+        try {
+          const alt1: AxiosResponse<ApiResponse<any>> = await this.api.get(`/prerequisitos/clientes/${clienteId}`, { params: { rut, match: 1 } });
+          return alt1.data;
+        } catch (err2: any) {
+          // Fallback 2: ruta alternativa sin el prefijo /prerequisitos
+          try {
+            const alt2: AxiosResponse<ApiResponse<any>> = await this.api.get(`/clientes/${clienteId}/match`, { params: { rut } });
+            return alt2.data;
+          } catch (err3: any) {
+            throw err3;
+          }
+        }
+      }
+      throw err;
+    }
+  }
+
+  // ==================== MÉTODOS PARA PROGRAMACIÓN SEMANAL ====================
+  // GET /programacion?cartera_id=:id&semana=:fecha
+  async getProgramacionPorCartera(carteraId: number, semana?: string, fecha?: string): Promise<ApiResponse<any>> {
+    const params: any = { cartera_id: carteraId };
+    if (semana) params.semana = semana;
+    if (fecha) params.fecha = fecha;
+    
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.get('/programacion', { params });
+    return response.data;
+  }
+
+  // GET /programacion/persona/:rut?semanas=:num
+  async getProgramacionPersona(rut: string, semanas: number = 4): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.get(`/programacion/persona/${rut}?semanas=${semanas}`);
+    return response.data;
+  }
+
+  // POST /programacion
+  async crearProgramacion(programacion: any): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.post('/programacion', programacion);
+    return response.data;
+  }
+
+  // PUT /programacion/:id
+  async actualizarProgramacion(id: number, updates: any): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.put(`/programacion/${id}`, updates);
+    return response.data;
+  }
+
+  // DELETE /programacion/:id
+  async eliminarProgramacion(id: number): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.delete(`/programacion/${id}`);
+    return response.data;
+  }
+
+  // GET /programacion/semana/:fecha
+  async getProgramacionSemana(fecha: string): Promise<ApiResponse<any>> {
+    console.log('🔍 Obteniendo programación de toda la semana para fecha:', fecha);
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.get(`/programacion/semana/${fecha}`);
+    console.log('📊 Respuesta de programación semanal:', response.data);
+    return response.data;
+  }
+
+  // ==================== MÉTODOS PARA DOCUMENTOS VENCIDOS ====================
+  // GET /documentos/vencidos
+  async getDocumentosVencidos(): Promise<ApiResponse<any[]>> {
+    const response: AxiosResponse<ApiResponse<any[]>> = await this.api.get('/documentos/vencidos');
+    return response.data;
+  }
+
+  // GET /documentos/vencer
+  async getDocumentosPorVencer(): Promise<ApiResponse<any[]>> {
+    const response: AxiosResponse<ApiResponse<any[]>> = await this.api.get('/documentos/vencer');
+    return response.data;
+  }
+
+  // PUT /documentos/:id - Actualizar documento con fechas de validez
+  async actualizarDocumento(id: number, datos: {
+    fecha_emision?: string;
+    fecha_vencimiento?: string;
+    dias_validez?: number;
+    estado_documento?: string;
+    institucion_emisora?: string;
+  }): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.put(`/documentos/${id}`, datos);
     return response.data;
   }
 }

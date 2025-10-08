@@ -12,6 +12,7 @@ import { ExtendedRegisterPage } from './pages/auth/ExtendedRegisterPage';
 // Main Pages
 import { DashboardPage } from './pages/DashboardPage';
 import { PersonalPage } from './pages/PersonalPage';
+import { EstadoDocumentacionPage } from './pages/EstadoDocumentacionPage';
 import { CalendarioPage } from './pages/CalendarioPage';
 import { ServiciosPage } from './pages/ServiciosPage';
 
@@ -79,6 +80,15 @@ function App() {
         element={
           <ProtectedRoute>
             <PersonalPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/estado-documentacion"
+        element={
+          <ProtectedRoute>
+            <EstadoDocumentacionPage />
           </ProtectedRoute>
         }
       />

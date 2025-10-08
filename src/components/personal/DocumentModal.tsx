@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { X, Upload, FileText } from 'lucide-react';
+import { X, Upload, FileText, AlertTriangle } from 'lucide-react';
 import { useUploadDocumento, useTiposDocumentos, validateDocumentoData, createDocumentoFormData } from '../../hooks/useDocumentos';
 import { CreateDocumentoData } from '../../types';
+import { DocumentosVencidosModal } from './DocumentosVencidosModal';
 
 interface DocumentModalProps {
   isOpen: boolean;
@@ -24,8 +25,14 @@ const DocumentModal: React.FC<DocumentModalProps> = ({
     nombre_documento: '',
     tipo_documento: '',
     archivo: null as File | null,
+    fecha_emision: '',
+    fecha_vencimiento: '',
+    dias_validez: '',
+    estado_documento: '',
+    institucion_emisora: '',
   });
   const [errors, setErrors] = useState<string[]>([]);
+  const [showDocumentosVencidos, setShowDocumentosVencidos] = useState(false);
 
   const uploadMutation = useUploadDocumento();
   const { data: tiposDocumento, isLoading: loadingTipos } = useTiposDocumentos();
@@ -71,7 +78,12 @@ const DocumentModal: React.FC<DocumentModalProps> = ({
       personal_id: personalId || rutPersona, // Usar RUT si personalId no está disponible
       nombre_documento: formData.nombre_documento,
       tipo_documento: formData.tipo_documento,
-      archivo: formData.archivo
+      archivo: formData.archivo,
+      fecha_emision: formData.fecha_emision || undefined,
+      fecha_vencimiento: formData.fecha_vencimiento || undefined,
+      dias_validez: formData.dias_validez ? parseInt(formData.dias_validez) : undefined,
+      estado_documento: formData.estado_documento || undefined,
+      institucion_emisora: formData.institucion_emisora || undefined
     };
 
     const validationErrors = validateDocumentoData(documentoData);
@@ -92,6 +104,11 @@ const DocumentModal: React.FC<DocumentModalProps> = ({
           nombre_documento: '',
           tipo_documento: '',
           archivo: null,
+          fecha_emision: '',
+          fecha_vencimiento: '',
+          dias_validez: '',
+          estado_documento: '',
+          institucion_emisora: '',
         });
         setErrors([]);
         onClose();
@@ -124,6 +141,11 @@ const DocumentModal: React.FC<DocumentModalProps> = ({
       nombre_documento: '',
       tipo_documento: '',
       archivo: null,
+      fecha_emision: '',
+      fecha_vencimiento: '',
+      dias_validez: '',
+      estado_documento: '',
+      institucion_emisora: '',
     });
     setErrors([]);
     onClose();
@@ -138,12 +160,21 @@ const DocumentModal: React.FC<DocumentModalProps> = ({
           <h2 className="text-xl font-semibold text-gray-900">
             Subir Documento
           </h2>
-          <button
-            onClick={handleClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
-          >
-            <X className="h-6 w-6" />
-          </button>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setShowDocumentosVencidos(true)}
+              className="flex items-center px-3 py-2 text-sm bg-yellow-100 text-yellow-800 rounded-lg hover:bg-yellow-200 transition-colors"
+            >
+              <AlertTriangle className="h-4 w-4 mr-1" />
+              Documentos Vencidos
+            </button>
+            <button
+              onClick={handleClose}
+              className="text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <X className="h-6 w-6" />
+            </button>
+          </div>
         </div>
 
         <div className="mb-4 p-3 bg-blue-50 rounded-lg">
@@ -234,6 +265,99 @@ const DocumentModal: React.FC<DocumentModalProps> = ({
             )}
           </div>
 
+          {/* Información de Validez del Documento */}
+          <div className="border-t border-gray-200 pt-4">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Información de Validez</h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Fecha de Emisión */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Fecha de Emisión
+                </label>
+                <input
+                  type="date"
+                  value={formData.fecha_emision}
+                  onChange={(e) => handleInputChange('fecha_emision', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  disabled={isLoading}
+                />
+              </div>
+
+              {/* Fecha de Vencimiento */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Fecha de Vencimiento
+                </label>
+                <input
+                  type="date"
+                  value={formData.fecha_vencimiento}
+                  onChange={(e) => handleInputChange('fecha_vencimiento', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  disabled={isLoading}
+                />
+              </div>
+
+              {/* Días de Validez */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Días de Validez
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  value={formData.dias_validez}
+                  onChange={(e) => handleInputChange('dias_validez', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Ej: 365"
+                  disabled={isLoading}
+                />
+              </div>
+
+              {/* Estado del Documento */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Estado del Documento
+                </label>
+                <select
+                  value={formData.estado_documento}
+                  onChange={(e) => handleInputChange('estado_documento', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  disabled={isLoading}
+                >
+                  <option value="">Seleccionar estado</option>
+                  <option value="vigente">Vigente</option>
+                  <option value="vencido">Vencido</option>
+                  <option value="por_vencer">Por Vencer</option>
+                  <option value="sin_fecha">Sin Fecha</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Institución Emisora */}
+            <div className="mt-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Institución Emisora
+              </label>
+              <input
+                type="text"
+                value={formData.institucion_emisora}
+                onChange={(e) => handleInputChange('institucion_emisora', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Ej: Ministerio del Trabajo, SII, etc."
+                disabled={isLoading}
+              />
+            </div>
+
+            {/* Información adicional */}
+            <div className="mt-3 p-3 bg-blue-50 rounded-lg">
+              <p className="text-sm text-blue-800">
+                <strong>Nota:</strong> Los campos de validez son opcionales. Si no se especifican fechas, 
+                el documento se considerará sin fecha de vencimiento.
+              </p>
+            </div>
+          </div>
+
           {/* Botones */}
           <div className="flex gap-3 pt-4">
             <button
@@ -264,6 +388,12 @@ const DocumentModal: React.FC<DocumentModalProps> = ({
           </div>
         </form>
       </div>
+      
+      {/* Modal de Documentos Vencidos */}
+      <DocumentosVencidosModal
+        isOpen={showDocumentosVencidos}
+        onClose={() => setShowDocumentosVencidos(false)}
+      />
     </div>
   );
 };

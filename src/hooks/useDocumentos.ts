@@ -272,7 +272,35 @@ export const useDeleteDocumento = () => {
 // Hook para descargar documento
 export const useDownloadDocumento = () => {
   return useMutation({
-    mutationFn: (id: number) => apiService.downloadDocumento(id),
+    mutationFn: async (id: number) => {
+      try {
+        console.log('📥 Iniciando descarga del documento ID:', id);
+        const { blob, filename } = await apiService.downloadDocumento(id);
+        console.log('📦 Blob recibido:', blob);
+        console.log('📁 Nombre del archivo:', filename);
+        
+        // Crear URL temporal para el blob
+        const url = window.URL.createObjectURL(blob);
+        
+        // Crear elemento de descarga
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        
+        // Limpiar
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        
+        console.log('✅ Descarga completada para documento ID:', id, 'como:', filename);
+        return { blob, filename };
+      } catch (error) {
+        console.error('❌ Error en descarga del documento ID:', id, error);
+        throw error;
+      }
+    },
   });
 };
 
@@ -328,12 +356,38 @@ export const createDocumentoFormData = (data: CreateDocumentoData): FormData => 
     formData.append('descripcion', data.descripcion);
   }
   
+  // Agregar campos de validez si existen
+  if (data.fecha_emision) {
+    formData.append('fecha_emision', data.fecha_emision);
+  }
+  
+  if (data.fecha_vencimiento) {
+    formData.append('fecha_vencimiento', data.fecha_vencimiento);
+  }
+  
+  if (data.dias_validez) {
+    formData.append('dias_validez', data.dias_validez.toString());
+  }
+  
+  if (data.estado_documento) {
+    formData.append('estado_documento', data.estado_documento);
+  }
+  
+  if (data.institucion_emisora) {
+    formData.append('institucion_emisora', data.institucion_emisora);
+  }
+  
   // Debug: Log del FormData creado
   console.log('🔍 FormData creado según documentación de la API:', {
     rut_persona: data.personal_id,
     nombre_documento: data.nombre_documento,
     tipo_documento: data.tipo_documento,
     descripcion: data.descripcion || 'Sin descripción',
+    fecha_emision: data.fecha_emision || 'Sin fecha',
+    fecha_vencimiento: data.fecha_vencimiento || 'Sin fecha',
+    dias_validez: data.dias_validez || 'Sin especificar',
+    estado_documento: data.estado_documento || 'Sin estado',
+    institucion_emisora: data.institucion_emisora || 'Sin institución',
     archivo_name: data.archivo.name,
     archivo_size: formatBytes(data.archivo.size),
     archivo_type: data.archivo.type,

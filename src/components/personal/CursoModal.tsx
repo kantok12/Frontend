@@ -35,6 +35,12 @@ export const CursoModal: React.FC<CursoModalProps> = ({
     descripcion: '',
     tipo_documento: '',
     archivo: null as File | null,
+    // Campos de validez del documento
+    fecha_emision_documento: '',
+    fecha_vencimiento_documento: '',
+    dias_validez_documento: '',
+    estado_documento: '',
+    institucion_emisora: '',
   });
   const [errors, setErrors] = useState<string[]>([]);
 
@@ -60,6 +66,12 @@ export const CursoModal: React.FC<CursoModalProps> = ({
         descripcion: curso.descripcion || '',
         tipo_documento: '',
         archivo: null,
+        // Campos de validez del documento
+        fecha_emision_documento: '',
+        fecha_vencimiento_documento: '',
+        dias_validez_documento: '',
+        estado_documento: '',
+        institucion_emisora: '',
       });
     } else if (isOpen && !curso) {
       // Reset para nuevo curso
@@ -74,6 +86,12 @@ export const CursoModal: React.FC<CursoModalProps> = ({
         descripcion: '',
         tipo_documento: '',
         archivo: null,
+        // Campos de validez del documento
+        fecha_emision_documento: '',
+        fecha_vencimiento_documento: '',
+        dias_validez_documento: '',
+        estado_documento: '',
+        institucion_emisora: '',
       });
     }
     setErrors([]);
@@ -171,7 +189,12 @@ export const CursoModal: React.FC<CursoModalProps> = ({
           personal_id: personalId,
           nombre_documento: `${formData.nombre_curso} - ${formData.tipo_documento}`,
           tipo_documento: formData.tipo_documento,
-          archivo: formData.archivo
+          archivo: formData.archivo,
+          fecha_emision: formData.fecha_emision_documento || undefined,
+          fecha_vencimiento: formData.fecha_vencimiento_documento || undefined,
+          dias_validez: formData.dias_validez_documento ? parseInt(formData.dias_validez_documento) : undefined,
+          estado_documento: formData.estado_documento || undefined,
+          institucion_emisora: formData.institucion_emisora || undefined
         };
 
         const documentValidationErrors = validateDocumentoData(documentoData);
@@ -384,6 +407,99 @@ export const CursoModal: React.FC<CursoModalProps> = ({
                   </div>
                 )}
                 
+              </div>
+
+              {/* Información de Validez del Documento */}
+              <div className="border-t border-gray-200 pt-4">
+                <h4 className="text-md font-medium text-gray-900 mb-4">Información de Validez del Documento</h4>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Fecha de Emisión del Documento */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Fecha de Emisión del Documento
+                    </label>
+                    <input
+                      type="date"
+                      value={formData.fecha_emision_documento}
+                      onChange={(e) => handleInputChange('fecha_emision_documento', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      disabled={isLoading}
+                    />
+                  </div>
+
+                  {/* Fecha de Vencimiento del Documento */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Fecha de Vencimiento del Documento
+                    </label>
+                    <input
+                      type="date"
+                      value={formData.fecha_vencimiento_documento}
+                      onChange={(e) => handleInputChange('fecha_vencimiento_documento', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      disabled={isLoading}
+                    />
+                  </div>
+
+                  {/* Días de Validez del Documento */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Días de Validez del Documento
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={formData.dias_validez_documento}
+                      onChange={(e) => handleInputChange('dias_validez_documento', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      placeholder="Ej: 365"
+                      disabled={isLoading}
+                    />
+                  </div>
+
+                  {/* Estado del Documento */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Estado del Documento
+                    </label>
+                    <select
+                      value={formData.estado_documento}
+                      onChange={(e) => handleInputChange('estado_documento', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      disabled={isLoading}
+                    >
+                      <option value="">Seleccionar estado</option>
+                      <option value="vigente">Vigente</option>
+                      <option value="vencido">Vencido</option>
+                      <option value="por_vencer">Por Vencer</option>
+                      <option value="sin_fecha">Sin Fecha</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Institución Emisora del Documento */}
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Institución Emisora del Documento
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.institucion_emisora}
+                    onChange={(e) => handleInputChange('institucion_emisora', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                    placeholder="Ej: Ministerio del Trabajo, SII, etc."
+                    disabled={isLoading}
+                  />
+                </div>
+
+                {/* Información adicional sobre validez */}
+                <div className="mt-3 p-3 bg-blue-50 rounded-lg">
+                  <p className="text-sm text-blue-800">
+                    <strong>Nota:</strong> Los campos de validez del documento son opcionales. Si no se especifican fechas, 
+                    el documento se considerará sin fecha de vencimiento.
+                  </p>
+                </div>
               </div>
             </div>
 

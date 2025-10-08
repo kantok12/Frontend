@@ -411,6 +411,11 @@ export interface CreateDocumentoData {
   tipo_documento: string;
   archivo: File;
   descripcion?: string; // Campo opcional según documentación de la API
+  fecha_emision?: string;
+  fecha_vencimiento?: string;
+  dias_validez?: number;
+  estado_documento?: string;
+  institucion_emisora?: string;
 }
 
 export interface UpdateDocumentoData {
@@ -574,4 +579,182 @@ export interface ServiciosParams {
   search?: string;
   cartera_id?: number;
   cliente_id?: number;
+}
+
+// ==================== INTERFACES PARA PROGRAMACIÓN SEMANAL ====================
+
+export interface ProgramacionSemanal {
+  id: number;
+  rut: string;
+  nombre_persona: string;
+  cargo: string;
+  cartera_id: number;
+  nombre_cartera: string;
+  cliente_id?: number;
+  nombre_cliente?: string;
+  nodo_id?: number;
+  nombre_nodo?: string;
+  semana_inicio: string;
+  semana_fin: string;
+  lunes: boolean;
+  martes: boolean;
+  miercoles: boolean;
+  jueves: boolean;
+  viernes: boolean;
+  sabado: boolean;
+  domingo: boolean;
+  horas_estimadas: number;
+  observaciones?: string;
+  estado: string;
+  created_at: string;
+  updated_at: string;
+  created_by?: string;
+}
+
+export interface ProgramacionRequest {
+  rut: string;
+  cartera_id: number;
+  cliente_id?: number;
+  nodo_id?: number;
+  semana_inicio: string;
+  lunes?: boolean;
+  martes?: boolean;
+  miercoles?: boolean;
+  jueves?: boolean;
+  viernes?: boolean;
+  sabado?: boolean;
+  domingo?: boolean;
+  horas_estimadas?: number;
+  observaciones?: string;
+  estado?: string;
+}
+
+export interface ProgramacionResponse {
+  success: boolean;
+  data: {
+    cartera: {
+      id: number;
+      nombre: string;
+    };
+    semana: {
+      inicio: string;
+      fin: string;
+    };
+    programacion: ProgramacionSemanal[];
+  };
+  message?: string;
+}
+
+export interface ProgramacionPersonaResponse {
+  success: boolean;
+  data: {
+    persona: {
+      rut: string;
+      nombre: string;
+      cargo: string;
+    };
+    programacion: ProgramacionSemanal[];
+  };
+  message?: string;
+}
+
+export interface ProgramacionSemanaResponse {
+  success: boolean;
+  data: {
+    semana: {
+      inicio: string;
+      fin: string;
+    };
+    programacion: {
+      cartera: {
+        id: number;
+        nombre: string;
+      };
+      trabajadores: ProgramacionSemanal[];
+    }[];
+  };
+  message?: string;
+}
+
+export interface CreateProgramacionData {
+  rut: string;
+  cartera_id: number;
+  cliente_id?: number;
+  nodo_id?: number;
+  semana_inicio: string;
+  lunes?: boolean;
+  martes?: boolean;
+  miercoles?: boolean;
+  jueves?: boolean;
+  viernes?: boolean;
+  sabado?: boolean;
+  domingo?: boolean;
+  horas_estimadas?: number;
+  observaciones?: string;
+  estado?: string;
+}
+
+export interface UpdateProgramacionData {
+  cliente_id?: number;
+  nodo_id?: number;
+  lunes?: boolean;
+  martes?: boolean;
+  miercoles?: boolean;
+  jueves?: boolean;
+  viernes?: boolean;
+  sabado?: boolean;
+  domingo?: boolean;
+  horas_estimadas?: number;
+  observaciones?: string;
+  estado?: string;
+}
+
+export interface ProgramacionFilters {
+  cartera_id?: number;
+  semana?: string;
+  fecha?: string;
+  rut?: string;
+  semanas?: number;
+}
+
+// ==================== INTERFACES PARA DOCUMENTOS VENCIDOS ====================
+
+export interface DocumentoVencido {
+  id: number;
+  rut_persona: string;
+  nombre_documento: string;
+  tipo_documento: string;
+  nombre_archivo: string;
+  nombre_original: string;
+  tipo_mime: string;
+  tamaño_bytes: number;
+  ruta_archivo: string;
+  descripcion?: string;
+  fecha_subida: string;
+  subido_por: string;
+  fecha_emision?: string;
+  fecha_vencimiento?: string;
+  dias_validez?: number;
+  estado_documento?: string;
+  institucion_emisora?: string;
+  dias_restantes?: number;
+  personal?: {
+    rut: string;
+    nombres: string;
+    cargo: string;
+  };
+}
+
+export interface DocumentosVencidosResponse {
+  success: boolean;
+  data: DocumentoVencido[];
+  message?: string;
+}
+
+export interface UpdateDocumentoData {
+  fecha_emision?: string;
+  fecha_vencimiento?: string;
+  dias_validez?: number;
+  estado_documento?: string;
+  institucion_emisora?: string;
 }

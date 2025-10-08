@@ -41,6 +41,7 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
   const deleteCursoMutation = useDeleteCurso();
   const deleteDocumentoMutation = useDeleteDocumento();
 
+
   // Estados para modal de cursos
   const [showCursoModal, setShowCursoModal] = useState(false);
   const [editingCurso, setEditingCurso] = useState<any>(null);
@@ -55,7 +56,6 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
   // Hook para manejar imagen de perfil
   const { 
     profileImage, 
-    loading: profileImageLoading, 
     error: profileImageError, 
     uploadImage, 
     deleteImage, 
@@ -83,23 +83,23 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
   // Usar datos reales del backend en lugar de datos mock
   const { data: documentosData, isLoading: documentosLoading, refetch: refetchDocumentos } = useDocumentosByPersona(personal?.rut || '');
   
-  // Filtrar documentos de cursos desde los documentos generales
-  const courseDocuments = (documentosData?.data as any)?.documentos?.filter((doc: any) => 
-    doc.tipo_documento === 'certificado_curso' || 
-    doc.tipo_documento === 'diploma' ||
-    doc.tipo_documento === 'certificado_seguridad' ||
-    doc.tipo_documento === 'certificado_vencimiento'
-  ) || [];
+  // Filtrar documentos de cursos desde los documentos generales (comentado por no uso actual)
+  // const courseDocuments = (documentosData?.data as any)?.documentos?.filter((doc: any) => 
+  //   doc.tipo_documento === 'certificado_curso' || 
+  //   doc.tipo_documento === 'diploma' ||
+  //   doc.tipo_documento === 'certificado_seguridad' ||
+  //   doc.tipo_documento === 'certificado_vencimiento'
+  // ) || [];
   const downloadMutation = useDownloadDocumento();
   
   // Función utilitaria para descargar archivos
   const downloadFile = async (documentId: number, fileName: string) => {
     try {
-      const blob = await downloadMutation.mutateAsync(documentId);
+      const { blob, filename } = await downloadMutation.mutateAsync(documentId);
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = fileName;
+      link.download = filename || fileName;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -440,7 +440,7 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
               )}
               <button
                 onClick={onClose}
-                className="text-white hover:text-blue-200 transition-colors p-2 rounded-full hover:bg-white hover:bg-opacity-20"
+                    className="text-white hover:text-blue-200 transition-colors p-2 rounded-full hover:bg-white hover:bg-opacity-20"
               >
                 <X className="h-6 w-6" />
               </button>
@@ -773,26 +773,28 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                     Agregar
                   </button>
                 </div>
+
+                
                 {cursosLoading ? (
                   <div className="flex justify-center py-4"><LoadingSpinner /></div>
                 ) : (
                   <div className="space-y-3">
                     {(cursosData?.data as any)?.cursos && (cursosData?.data as any).cursos.length > 0 ? (
                       (cursosData?.data as any).cursos.map((curso: any) => (
-                        <div key={curso.id} className="bg-white rounded-lg border border-purple-200 p-3 hover:shadow-md transition-shadow">
-                          <div className="flex items-start justify-between">
+                          <div key={curso.id} className="bg-white rounded-lg border border-purple-200 p-3 hover:shadow-md transition-shadow">
+                            <div className="flex items-start justify-between">
                             <div className="flex-1 cursor-pointer" onClick={() => handleEditCurso(curso)} title="Hacer clic para editar">
-                              <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center justify-between mb-2">
                                 <h4 className="font-semibold text-purple-900 text-sm hover:text-purple-700">{curso.nombre_curso}</h4>
+                                </div>
                               </div>
-                            </div>
-                            <div className="flex flex-col space-y-1 ml-3">
+                              <div className="flex flex-col space-y-1 ml-3">
                               <button onClick={() => handleEditCurso(curso)} className="text-blue-500 hover:text-blue-700 p-1 rounded hover:bg-blue-50 transition-colors" title="Editar curso"><Edit className="h-3 w-3" /></button>
                               <button onClick={() => handleAddCourseDocument(curso)} className="text-green-500 hover:text-green-700 p-1 rounded hover:bg-green-50 transition-colors" title="Subir documento de curso"><Upload className="h-3 w-3" /></button>
                               <button onClick={() => handleDeleteCurso(curso)} className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50 transition-colors" title="Eliminar curso" disabled={deleteCursoMutation.isLoading}><Trash2 className="h-3 w-3" /></button>
+                              </div>
                             </div>
                           </div>
-                        </div>
                       ))
                     ) : (
                       <div className="text-center py-8">
@@ -824,6 +826,8 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                     Subir
                   </button>
                 </div>
+
+                
                 {documentosLoading ? (
                   <div className="flex justify-center py-4"><LoadingSpinner /></div>
                 ) : (documentosData?.data as any)?.documentos && (documentosData?.data as any).documentos.length > 0 ? (

@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { usePersonalList, useDeletePersonal } from '../hooks/usePersonal';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { PersonalForm } from '../components/personal/PersonalForm';
 import { PersonalDetailModal } from '../components/personal/PersonalDetailModal';
 import { ProfileImage } from '../components/common/ProfileImage';
-import { Search, Plus, Trash2, Eye, User, Mail, CheckCircle, XCircle, Activity } from 'lucide-react';
+import { Search, Plus, Trash2, Eye, User, Mail, CheckCircle, XCircle, Activity, FileText } from 'lucide-react';
 import { Personal } from '../types';
 
 // Estados de actividad (para UI, no relacionados con backend)
@@ -69,6 +70,7 @@ export const PersonalPage: React.FC = () => {
   // Debounce search para evitar demasiadas consultas
   React.useEffect(() => {
     const timer = setTimeout(() => {
+      console.log('🔍 Actualizando búsqueda debounced:', search);
       setDebouncedSearch(search);
       setPage(1); // Reset página cuando cambie búsqueda
     }, 300); // 300ms de delay
@@ -79,6 +81,8 @@ export const PersonalPage: React.FC = () => {
   // Usar el hook real para obtener datos del backend con búsqueda debounced
   const { data: personalData, isLoading, error, refetch } = usePersonalList(page, limit, debouncedSearch);
   const deletePersonalMutation = useDeletePersonal();
+
+
 
   // Extraer datos de la respuesta
   const personalList = personalData?.data?.items || [];
@@ -171,7 +175,16 @@ export const PersonalPage: React.FC = () => {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-6 fade-in">
-        <h1 className="text-3xl font-bold text-gray-900">Gestión de Personal</h1>
+        <div className="flex items-center space-x-4">
+          <h1 className="text-3xl font-bold text-gray-900">Gestión de Personal</h1>
+          <Link
+            to="/estado-documentacion"
+            className="flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
+          >
+            <FileText className="h-4 w-4 mr-2" />
+            Estado de Documentación
+          </Link>
+        </div>
         <button 
           onClick={() => setShowCreateModal(true)}
           className="btn-primary hover-grow"
@@ -180,6 +193,8 @@ export const PersonalPage: React.FC = () => {
           Nuevo Personal
         </button>
       </div>
+
+
 
       {/* Barra de búsqueda */}
       <div className="card hover-lift slide-up animate-delay-200 mb-4">
@@ -220,12 +235,39 @@ export const PersonalPage: React.FC = () => {
         <div className="mb-4">
           <h2 className="text-lg font-semibold text-gray-900">
             Personal ({total} registros)
+            {debouncedSearch && (
+              <span className="ml-2 text-sm font-normal text-blue-600">
+                - Filtrado por: "{debouncedSearch}"
+              </span>
+            )}
           </h2>
+          {search && search !== debouncedSearch && (
+            <div className="mt-2 flex items-center text-sm text-gray-600">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+              Buscando...
+            </div>
+          )}
         </div>
 
         {personalList.length === 0 ? (
           <div className="text-center py-8 text-gray-500">
-            {search ? 'No se encontró personal con esos criterios' : 'No hay personal registrado'}
+            {debouncedSearch ? (
+              <div>
+                <p className="text-lg font-medium mb-2">No se encontraron resultados</p>
+                <p className="text-sm">No hay personal que coincida con "{debouncedSearch}"</p>
+                <button
+                  onClick={() => {
+                    setSearch('');
+                    setPage(1);
+                  }}
+                  className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
+                >
+                  Limpiar búsqueda
+                </button>
+              </div>
+            ) : (
+              'No hay personal registrado'
+            )}
           </div>
         ) : (
           <>
@@ -503,6 +545,7 @@ export const PersonalPage: React.FC = () => {
         onClose={handleCloseDetailModal}
         onUpdate={refetch}
       />
+
     </div>
   );
 };

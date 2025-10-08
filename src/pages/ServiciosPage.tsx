@@ -22,6 +22,11 @@ export const ServiciosPage: React.FC = () => {
   const [personSearch, setPersonSearch] = useState('');
   const [assigning, setAssigning] = useState(false);
   const [unassigningRut, setUnassigningRut] = useState<string | null>(null);
+  const [showPrereqPanel, setShowPrereqPanel] = useState(false);
+  const [selectedRutForMatch, setSelectedRutForMatch] = useState('');
+  const [prereqLoading, setPrereqLoading] = useState(false);
+  const [prereqError, setPrereqError] = useState<string | null>(null);
+  const [prereqData, setPrereqData] = useState<any | null>(null);
 
   // Listado de personal para seleccionar (hasta 100, con búsqueda)
   const { data: personListData, isLoading: personListLoading } = usePersonalList(1, 100, personSearch);
@@ -163,6 +168,8 @@ export const ServiciosPage: React.FC = () => {
           const res = await apiService.getPersonalByCartera(selectedCartera.id);
           setAssignedPersonal(res.data as any);
         }
+        setShowPrereqPanel(false);
+        setPrereqData(null);
       } catch (e: any) {
         setAssignedError(e?.message || 'Error al cargar asignaciones');
       } finally {
@@ -214,6 +221,19 @@ export const ServiciosPage: React.FC = () => {
       if (selectedNodo) {
         await apiService.assignNodoToPersona(selectedRutToAssign.trim(), selectedNodo.id);
       } else if (selectedCliente) {
+        // 1) Verificar requisitos ANTES de asignar
+        const match = await apiService.matchPrerequisitosCliente(selectedCliente.id, selectedRutToAssign.trim());
+        const validacion = (match as any)?.data || match;
+        const faltantes = validacion?.faltantes || [];
+        if (faltantes.length > 0) {
+          // Bloquear y mostrar faltantes
+          setShowPrereqPanel(true);
+          setSelectedRutForMatch(selectedRutToAssign.trim());
+          setPrereqData(validacion);
+          setAssigning(false);
+          return;
+        }
+        // 2) Si no hay faltantes, proceder a asignar
         await apiService.assignClienteToPersona(selectedRutToAssign.trim(), selectedCliente.id);
       } else if (selectedCartera) {
         await apiService.assignCarteraToPersona(selectedRutToAssign.trim(), selectedCartera.id);
@@ -263,6 +283,22 @@ export const ServiciosPage: React.FC = () => {
       alert(e?.message || 'Error al desasignar');
     } finally {
       setUnassigningRut(null);
+    }
+  };
+
+  const loadPrerequisitosMatch = async (rut?: string) => {
+    const rutToUse = rut || selectedRutForMatch;
+    if (!selectedCliente || !rutToUse) return;
+    setPrereqLoading(true);
+    setPrereqError(null);
+    try {
+      const res = await apiService.matchPrerequisitosCliente(selectedCliente.id, rutToUse);
+      setPrereqData(res.data);
+      setSelectedRutForMatch(rutToUse);
+    } catch (e: any) {
+      setPrereqError(e?.message || 'Error al cargar prerrequisitos');
+    } finally {
+      setPrereqLoading(false);
     }
   };
 
@@ -471,6 +507,15 @@ export const ServiciosPage: React.FC = () => {
               <h3 className="text-lg font-semibold text-gray-900">
                 Personal asignado a {selectedNodo ? 'Nodo' : selectedCliente ? 'Cliente' : 'Cartera'}
               </h3>
+              {selectedCliente && (
+                <button
+                  onClick={() => setShowPrereqPanel((v) => !v)}
+                  className="px-3 py-2 text-sm rounded-md border hover:bg-gray-50"
+                  title="Ver prerrequisitos del cliente"
+                >
+                  {showPrereqPanel ? 'Ocultar Prerrequisitos' : 'Ver Prerrequisitos'}
+                </button>
+              )}
             </div>
             {/* Formulario de asignación: seleccionar personal de una lista */}
             <div className="flex items-center gap-2 mb-4">
@@ -538,6 +583,75 @@ export const ServiciosPage: React.FC = () => {
                   </li>
                 ))}
               </ul>
+            )}
+          </div>
+        )}
+
+        {/* Panel de Prerrequisitos por Cliente (match con RUT) */}
+        {showPrereqPanel && selectedCliente && (
+          <div className="mb-6 bg-white rounded-lg border border-blue-200 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-3">Prerrequisitos del Cliente</h3>
+            <div className="flex items-center gap-2 mb-4">
+              <select
+                value={selectedRutForMatch}
+                onChange={(e) => setSelectedRutForMatch(e.target.value)}
+                className="w-80 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              >
+                <option value="">Seleccionar trabajador asignado</option>
+                {(assignedPersonal || []).map((p) => (
+                  <option key={p.rut} value={p.rut}>{p.nombre ? `${p.nombre} (${p.rut})` : p.rut}</option>
+                ))}
+              </select>
+              <button
+                onClick={() => loadPrerequisitosMatch()}
+                disabled={!selectedRutForMatch || prereqLoading}
+                className="px-3 py-2 text-sm text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50"
+              >
+                {prereqLoading ? 'Cargando...' : 'Ver estado'}
+              </button>
+            </div>
+            {prereqError && <div className="text-sm text-red-600 mb-2">{prereqError}</div>}
+            {prereqLoading ? (
+              <div className="flex items-center text-gray-600 text-sm"><LoadingSpinner size="sm" /><span className="ml-2">Cargando...</span></div>
+            ) : prereqData ? (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
+                <div>
+                  <h4 className="font-medium text-gray-800 mb-2">Requisitos para trabajar a este cliente</h4>
+                  <ul className="list-disc pl-5 space-y-1">
+                    {(prereqData.requisitos || []).map((r: any, idx: number) => (
+                      <li key={idx}>{r.tipo_documento}{r.obligatorio ? ' (Obligatorio)' : ''}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <h4 className="font-medium text-green-700 mb-2">Cumplidos por el trabajador</h4>
+                  <ul className="list-disc pl-5 space-y-1 text-green-700">
+                    {(prereqData.cumplidos || []).map((r: any, idx: number) => (
+                      <li key={idx}>{r.tipo_documento}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <h4 className="font-medium text-red-700 mb-2">Faltantes para habilitar al trabajador</h4>
+                  <ul className="list-disc pl-5 space-y-1 text-red-700">
+                    {(prereqData.faltantes || []).map((r: any, idx: number) => (
+                      <li key={idx}>{r.tipo_documento}{r.obligatorio ? ' (Obligatorio)' : ''}</li>
+                    ))}
+                  </ul>
+                  {(prereqData.por_vencer || []).length > 0 && (
+                    <div className="mt-3">
+                      <h5 className="font-medium text-yellow-700 mb-1">Documentos por vencer</h5>
+                      <ul className="list-disc pl-5 space-y-1 text-yellow-700">
+                        {(prereqData.por_vencer || []).map((r: any, idx: number) => (
+                          <li key={idx}>{r.tipo_documento}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500">Selecciona un trabajador asignado y pulsa "Ver estado" para ver si cumple con los prerrequisitos del cliente.</p>
             )}
           </div>
         )}

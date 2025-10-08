@@ -193,9 +193,12 @@ const adaptPersonalData = (personalBackend: any): Personal => {
 
 // Hook para obtener lista de personal con paginación y filtros
 export const usePersonalList = (page = 1, limit = 10, search = '', filters: any = {}) => {
+  console.log('🔍 usePersonalList llamado con:', { page, limit, search, filters });
+  
   return useQuery({
     queryKey: ['personal', 'list', page, limit, search, filters],
     queryFn: async () => {
+      console.log('🔍 Ejecutando queryFn con búsqueda:', search);
       const response = await apiService.getPersonal(page, limit, search, JSON.stringify(filters));
       // Adaptar la estructura de respuesta del backend al frontend
       return {
