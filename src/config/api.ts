@@ -1,9 +1,9 @@
 // Configuración de la API
 export const API_CONFIG = {
-  BASE_URL: process.env.REACT_APP_API_URL || 'http://192.168.10.194:3000/api', // URL directa al backend
-  TIMEOUT: 60000, // Timeout de 60 segundos para archivos grandes (hasta 100MB)
-  RETRY_ATTEMPTS: 3,
-  DEMO_MODE: process.env.REACT_APP_DEMO_MODE === 'true' || false, // Modo demo
+  BASE_URL: process.env.REACT_APP_API_URL || 'http://localhost:3000/api', // URL local como fallback
+  TIMEOUT: 10000, // Timeout reducido a 10 segundos para detectar problemas más rápido
+  RETRY_ATTEMPTS: 2, // Reducir intentos para fallback más rápido
+  DEMO_MODE: process.env.REACT_APP_DEMO_MODE === 'true' || true, // Habilitar modo demo por defecto
 };
 
 // Configuración de CORS

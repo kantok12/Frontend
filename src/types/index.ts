@@ -758,3 +758,126 @@ export interface UpdateDocumentoData {
   estado_documento?: string;
   institucion_emisora?: string;
 }
+
+// ==================== INTERFACES PARA MÍNIMO PERSONAL ====================
+
+export interface MinimoPersonal {
+  id: number;
+  servicio_id: number;
+  cartera_id: number;
+  cliente_id?: number;
+  nodo_id?: number;
+  minimo_personal: number;
+  descripcion?: string;
+  activo: boolean;
+  created_at: string;
+  updated_at: string;
+  servicio?: {
+    id: number;
+    nombre: string;
+  };
+  cartera?: {
+    id: number;
+    nombre: string;
+  };
+  cliente?: {
+    id: number;
+    nombre: string;
+  };
+  nodo?: {
+    id: number;
+    nombre: string;
+  };
+}
+
+export interface CreateMinimoPersonalData {
+  servicio_id: number;
+  cartera_id: number;
+  cliente_id?: number;
+  nodo_id?: number;
+  minimo_personal: number;
+  descripcion?: string;
+  activo?: boolean;
+}
+
+export interface UpdateMinimoPersonalData {
+  servicio_id?: number;
+  cartera_id?: number;
+  cliente_id?: number;
+  nodo_id?: number;
+  minimo_personal?: number;
+  descripcion?: string;
+  activo?: boolean;
+}
+
+export interface MinimoPersonalCalculo {
+  id: number;
+  servicio_id: number;
+  cartera_id: number;
+  cliente_id?: number;
+  nodo_id?: number;
+  minimo_requerido: number;
+  personal_asignado: number;
+  personal_disponible: number;
+  cumple_minimo: boolean;
+  deficit?: number;
+  exceso?: number;
+  calculado_en: string;
+  detalles?: {
+    personal_por_cargo: { [cargo: string]: number };
+    personal_por_zona: { [zona: string]: number };
+  };
+}
+
+// ==================== INTERFACES PARA ACUERDOS ====================
+
+export interface Acuerdo {
+  id: number;
+  nombre: string;
+  descripcion?: string;
+  tipo_acuerdo: 'servicio' | 'personal' | 'cliente' | 'general';
+  fecha_inicio: string;
+  fecha_fin: string;
+  estado: 'activo' | 'inactivo' | 'vencido' | 'pendiente';
+  condiciones?: string;
+  observaciones?: string;
+  created_at: string;
+  updated_at: string;
+  created_by?: string;
+  activado_por?: string;
+  activado_en?: string;
+  desactivado_por?: string;
+  desactivado_en?: string;
+}
+
+export interface CreateAcuerdoData {
+  nombre: string;
+  descripcion?: string;
+  tipo_acuerdo: 'servicio' | 'personal' | 'cliente' | 'general';
+  fecha_inicio: string;
+  fecha_fin: string;
+  condiciones?: string;
+  observaciones?: string;
+  estado?: 'activo' | 'inactivo' | 'vencido' | 'pendiente';
+}
+
+export interface UpdateAcuerdoData {
+  nombre?: string;
+  descripcion?: string;
+  tipo_acuerdo?: 'servicio' | 'personal' | 'cliente' | 'general';
+  fecha_inicio?: string;
+  fecha_fin?: string;
+  condiciones?: string;
+  observaciones?: string;
+  estado?: 'activo' | 'inactivo' | 'vencido' | 'pendiente';
+}
+
+export interface AcuerdoVencer {
+  id: number;
+  nombre: string;
+  fecha_fin: string;
+  dias_restantes: number;
+  estado: 'activo' | 'inactivo' | 'vencido' | 'pendiente';
+  tipo_acuerdo: 'servicio' | 'personal' | 'cliente' | 'general';
+  alerta: 'critica' | 'advertencia' | 'normal';
+}

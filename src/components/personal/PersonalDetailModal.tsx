@@ -711,7 +711,7 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                     <div className="flex justify-between">
                       <span className="text-gray-600 font-medium">Fecha de Registro:</span>
                       <span className="text-gray-900 text-sm">
-                        {new Date(personal.created_at).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}
+                        {new Date(personal.created_at).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                       </span>
                     </div>
                   )}
@@ -719,7 +719,7 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                     <div className="flex justify-between">
                       <span className="text-gray-600 font-medium">Última Actualización:</span>
                       <span className="text-gray-900 text-sm">
-                        {new Date(personal.updated_at).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}
+                        {new Date(personal.updated_at).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                       </span>
                     </div>
                   )}

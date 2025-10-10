@@ -86,41 +86,46 @@ export const ServiciosDashboard: React.FC = () => {
         </button>
       </div>
 
-      {/* Estadísticas */}
+      {/* Estadísticas - Scorecards extendidos */}
       {estadisticas && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <div className="flex items-center">
-              <div className="p-3 rounded-lg bg-purple-500">
-                <Building2 className="h-6 w-6 text-white" />
+        <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
+          <div className="flex flex-col lg:flex-row items-center justify-between space-y-4 lg:space-y-0 lg:space-x-8">
+            {/* Carteras */}
+            <div className="flex items-center flex-1 w-full lg:w-auto">
+              <div className="p-4 rounded-lg bg-purple-500 mr-4">
+                <Building2 className="h-8 w-8 text-white" />
               </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Total Carteras</p>
-                <p className="text-3xl font-bold text-gray-900">{estadisticas.totales.carteras}</p>
-              </div>
-            </div>
-          </div>
-          
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <div className="flex items-center">
-              <div className="p-3 rounded-lg bg-indigo-500">
-                <Users className="h-6 w-6 text-white" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Total Clientes</p>
-                <p className="text-3xl font-bold text-gray-900">{estadisticas.totales.clientes}</p>
+              <div className="flex-1">
+                <p className="text-lg font-medium text-gray-600">Total Carteras</p>
+                <p className="text-4xl font-bold text-gray-900">{estadisticas.totales.carteras}</p>
               </div>
             </div>
-          </div>
-          
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <div className="flex items-center">
-              <div className="p-3 rounded-lg bg-orange-500">
-                <MapPin className="h-6 w-6 text-white" />
+            
+            {/* Separador vertical */}
+            <div className="hidden lg:block w-px h-16 bg-gray-200"></div>
+            
+            {/* Clientes */}
+            <div className="flex items-center flex-1 w-full lg:w-auto">
+              <div className="p-4 rounded-lg bg-indigo-500 mr-4">
+                <Users className="h-8 w-8 text-white" />
               </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Total Nodos</p>
-                <p className="text-3xl font-bold text-gray-900">{estadisticas.totales.nodos}</p>
+              <div className="flex-1">
+                <p className="text-lg font-medium text-gray-600">Total Clientes</p>
+                <p className="text-4xl font-bold text-gray-900">{estadisticas.totales.clientes}</p>
+              </div>
+            </div>
+            
+            {/* Separador vertical */}
+            <div className="hidden lg:block w-px h-16 bg-gray-200"></div>
+            
+            {/* Nodos */}
+            <div className="flex items-center flex-1 w-full lg:w-auto">
+              <div className="p-4 rounded-lg bg-orange-500 mr-4">
+                <MapPin className="h-8 w-8 text-white" />
+              </div>
+              <div className="flex-1">
+                <p className="text-lg font-medium text-gray-600">Total Nodos</p>
+                <p className="text-4xl font-bold text-gray-900">{estadisticas.totales.nodos}</p>
               </div>
             </div>
           </div>

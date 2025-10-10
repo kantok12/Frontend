@@ -39,7 +39,7 @@ const getEstadoVisual = (estadoNombre?: string) => {
 //   });
 // };
 
-// Función para formatear hora de actualización
+// Función para formatear fecha de actualización (sin hora)
 const formatUpdateTime = (dateString: string) => {
   const date = new Date(dateString);
   const now = new Date();
@@ -51,8 +51,12 @@ const formatUpdateTime = (dateString: string) => {
     const hours = Math.floor(diffInMinutes / 60);
     return `Hace ${hours} hora${hours > 1 ? 's' : ''}`;
   } else {
-    const days = Math.floor(diffInMinutes / 1440);
-    return `Hace ${days} día${days > 1 ? 's' : ''}`;
+    // Para fechas de más de un día, mostrar solo la fecha sin hora
+    return date.toLocaleDateString('es-CL', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
   }
 };
 

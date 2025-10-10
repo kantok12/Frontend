@@ -223,7 +223,7 @@ export const AgregarClienteModal: React.FC<AgregarClienteModalProps> = ({
                 <option value="">Seleccionar cartera...</option>
                 {carteras.map((cartera) => (
                   <option key={cartera.id} value={cartera.id}>
-                    {cartera.name.replace('_', ' ')} - {cartera.total_clientes} clientes
+                    {cartera.name?.replace('_', ' ') || cartera.nombre || 'Sin nombre'} - {cartera.total_clientes || 0} clientes
                   </option>
                 ))}
               </select>

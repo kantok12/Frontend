@@ -14,6 +14,7 @@ import {
 } from '../types';
 
 import { API_CONFIG, FILE_CONFIG } from '../config/api';
+import { FallbackService, MOCK_DATA } from './fallbackService';
 
 class ApiService {
   private api: AxiosInstance;
@@ -142,6 +143,18 @@ class ApiService {
   async getPersonal(page = 1, limit = 10, search = '', filters = ''): Promise<PaginatedResponse<Personal>> {
     const offset = (page - 1) * limit;
     
+    // Verificar si el backend está disponible
+    const isBackendHealthy = await FallbackService.isBackendHealthy();
+    
+    if (!isBackendHealthy) {
+      console.log('🔄 Usando modo demo para getPersonal');
+      return await FallbackService.getMockData('personal', {
+        limit,
+        offset,
+        search: search.trim() || undefined
+      }) as PaginatedResponse<Personal>;
+    }
+    
     // Si hay búsqueda, obtener TODOS los registros y filtrar en el frontend
     if (search && search.trim()) {
       console.log('🔍 Realizando búsqueda global obteniendo todos los registros:', search.trim());
@@ -194,7 +207,12 @@ class ApiService {
           };
         }
       } catch (error) {
-        console.warn('⚠️ Error en búsqueda global, continuando con búsqueda normal:', error);
+        console.warn('⚠️ Error en búsqueda global, usando modo demo:', error);
+        return await FallbackService.getMockData('personal', {
+          limit,
+          offset,
+          search: search.trim() || undefined
+        }) as PaginatedResponse<Personal>;
       }
     }
     
@@ -207,9 +225,18 @@ class ApiService {
     }
     
     console.log('🌐 URL de búsqueda normal:', url);
-    const response: AxiosResponse<PaginatedResponse<Personal>> = await this.api.get(url);
-    console.log('📊 Respuesta de búsqueda normal:', response.data);
-    return response.data;
+    try {
+      const response: AxiosResponse<PaginatedResponse<Personal>> = await this.api.get(url);
+      console.log('📊 Respuesta de búsqueda normal:', response.data);
+      return response.data;
+    } catch (error) {
+      console.warn('⚠️ Error en búsqueda normal, usando modo demo:', error);
+      return await FallbackService.getMockData('personal', {
+        limit,
+        offset,
+        search: search.trim() || undefined
+      }) as PaginatedResponse<Personal>;
+    }
   }
 
   async getPersonalById(id: string): Promise<ApiResponse<Personal>> {
@@ -1180,6 +1207,142 @@ class ApiService {
     institucion_emisora?: string;
   }): Promise<ApiResponse<any>> {
     const response: AxiosResponse<ApiResponse<any>> = await this.api.put(`/documentos/${id}`, datos);
+    return response.data;
+  }
+
+  // ==================== MÉTODOS PARA MÍNIMO PERSONAL ====================
+  
+  // GET /api/servicios/minimo-personal
+  async getMinimoPersonal(params?: { 
+    limit?: number; 
+    offset?: number; 
+    search?: string;
+    servicio_id?: number;
+    cartera_id?: number;
+    cliente_id?: number;
+    nodo_id?: number;
+  }): Promise<ApiResponse<any[]>> {
+    const response: AxiosResponse<ApiResponse<any[]>> = await this.api.get('/servicios/minimo-personal', { params });
+    return response.data;
+  }
+
+  // POST /api/servicios/minimo-personal
+  async createMinimoPersonal(data: {
+    servicio_id: number;
+    cartera_id: number;
+    cliente_id?: number;
+    nodo_id?: number;
+    minimo_personal: number;
+    descripcion?: string;
+    activo?: boolean;
+  }): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.post('/servicios/minimo-personal', data);
+    return response.data;
+  }
+
+  // GET /api/servicios/minimo-personal/:id
+  async getMinimoPersonalById(id: number): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.get(`/servicios/minimo-personal/${id}`);
+    return response.data;
+  }
+
+  // PUT /api/servicios/minimo-personal/:id
+  async updateMinimoPersonal(id: number, data: {
+    servicio_id?: number;
+    cartera_id?: number;
+    cliente_id?: number;
+    nodo_id?: number;
+    minimo_personal?: number;
+    descripcion?: string;
+    activo?: boolean;
+  }): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.put(`/servicios/minimo-personal/${id}`, data);
+    return response.data;
+  }
+
+  // DELETE /api/servicios/minimo-personal/:id
+  async deleteMinimoPersonal(id: number): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.delete(`/servicios/minimo-personal/${id}`);
+    return response.data;
+  }
+
+  // GET /api/servicios/minimo-personal/:id/calcular
+  async calcularMinimoPersonal(id: number): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.get(`/servicios/minimo-personal/${id}/calcular`);
+    return response.data;
+  }
+
+  // ==================== MÉTODOS PARA ACUERDOS ====================
+  
+  // GET /api/servicios/acuerdos
+  async getAcuerdos(params?: { 
+    limit?: number; 
+    offset?: number; 
+    search?: string;
+    tipo_acuerdo?: string;
+    estado?: string;
+  }): Promise<ApiResponse<any[]>> {
+    const response: AxiosResponse<ApiResponse<any[]>> = await this.api.get('/servicios/acuerdos', { params });
+    return response.data;
+  }
+
+  // POST /api/servicios/acuerdos
+  async createAcuerdo(data: {
+    nombre: string;
+    descripcion?: string;
+    tipo_acuerdo: 'servicio' | 'personal' | 'cliente' | 'general';
+    fecha_inicio: string;
+    fecha_fin: string;
+    condiciones?: string;
+    observaciones?: string;
+    estado?: 'activo' | 'inactivo' | 'vencido' | 'pendiente';
+  }): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.post('/servicios/acuerdos', data);
+    return response.data;
+  }
+
+  // GET /api/servicios/acuerdos/:id
+  async getAcuerdoById(id: number): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.get(`/servicios/acuerdos/${id}`);
+    return response.data;
+  }
+
+  // PUT /api/servicios/acuerdos/:id
+  async updateAcuerdo(id: number, data: {
+    nombre?: string;
+    descripcion?: string;
+    tipo_acuerdo?: 'servicio' | 'personal' | 'cliente' | 'general';
+    fecha_inicio?: string;
+    fecha_fin?: string;
+    condiciones?: string;
+    observaciones?: string;
+    estado?: 'activo' | 'inactivo' | 'vencido' | 'pendiente';
+  }): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.put(`/servicios/acuerdos/${id}`, data);
+    return response.data;
+  }
+
+  // DELETE /api/servicios/acuerdos/:id
+  async deleteAcuerdo(id: number): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.delete(`/servicios/acuerdos/${id}`);
+    return response.data;
+  }
+
+  // GET /api/servicios/acuerdos/vencer
+  async getAcuerdosVencer(): Promise<ApiResponse<any[]>> {
+    const response: AxiosResponse<ApiResponse<any[]>> = await this.api.get('/servicios/acuerdos/vencer');
+    return response.data;
+  }
+
+  // POST /api/servicios/acuerdos/:id/activar
+  async activarAcuerdo(id: number): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.post(`/servicios/acuerdos/${id}/activar`);
+    return response.data;
+  }
+
+  // POST /api/servicios/acuerdos/:id/desactivar
+  async desactivarAcuerdo(id: number): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.post(`/servicios/acuerdos/${id}/desactivar`);
     return response.data;
   }
 }

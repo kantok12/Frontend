@@ -4,12 +4,18 @@ import { Search, Plus, Settings, Users, Building2, MapPin, AlertCircle, ChevronR
 import { useServiciosPage } from '../hooks/useServicios';
 import { Tooltip } from '../components/common/Tooltip';
 import { Cartera, Cliente, Nodo } from '../types';
+import { AgregarClienteModal } from '../components/servicios/AgregarClienteModal';
+import { AgregarNodoModal } from '../components/servicios/AgregarNodoModal';
 import { usePersonalList } from '../hooks/usePersonal';
 import { apiService } from '../services/api';
 
 export const ServiciosPage: React.FC = () => {
   // Estado para la pestaña activa
   const [activeTab, setActiveTab] = useState<'carteras' | 'clientes' | 'nodos'>('carteras');
+  
+  // Estados para los modales
+  const [showAgregarClienteModal, setShowAgregarClienteModal] = useState(false);
+  const [showAgregarNodoModal, setShowAgregarNodoModal] = useState(false);
   
   // Estado para navegación jerárquica
   const [selectedCartera, setSelectedCartera] = useState<Cartera | null>(null);
@@ -322,8 +328,35 @@ export const ServiciosPage: React.FC = () => {
     <div className="p-6 max-w-7xl mx-auto">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Gestión de Servicios</h1>
-        <p className="text-gray-600">Administra carteras, clientes y nodos de servicios</p>
+        <div className="flex justify-between items-start mb-2">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Gestión de Servicios</h1>
+            <p className="text-gray-600 mt-1">Administra carteras, clientes y nodos de servicios</p>
+          </div>
+          
+          {/* Botones de acción según pestaña activa */}
+          <div className="flex gap-3">
+            {activeTab === 'clientes' && (
+              <button
+                onClick={() => setShowAgregarClienteModal(true)}
+                className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-medium transition-colors flex items-center shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+              >
+                <Plus className="h-5 w-5 mr-2" />
+                Agregar Cliente
+              </button>
+            )}
+            
+            {activeTab === 'nodos' && (
+              <button
+                onClick={() => setShowAgregarNodoModal(true)}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors flex items-center shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+              >
+                <Plus className="h-5 w-5 mr-2" />
+                Agregar Nodo
+              </button>
+            )}
+          </div>
+        </div>
         {!!error && (
           <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
             <div className="flex items-center">
@@ -460,43 +493,63 @@ export const ServiciosPage: React.FC = () => {
         </form>
       </div>
 
-      {/* Resumen dinámico según pestaña activa (solo tarjeta por pestaña) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 slide-up animate-delay-300">
-        {/* Estadísticas por Pestaña */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">
-              {activeTab === 'carteras' ? 'Carteras' : 
-               activeTab === 'clientes' ? 'Clientes' : 'Nodos'}
-            </h3>
-            <div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center">
-              {activeTab === 'carteras' ? <Building2 className="h-4 w-4 text-green-600" /> :
-               activeTab === 'clientes' ? <Users className="h-4 w-4 text-green-600" /> :
-               <MapPin className="h-4 w-4 text-green-600" />}
+      {/* Resumen sutil extendido según pestaña activa */}
+      <div className="mb-6 slide-up animate-delay-300">
+        <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
+          <div className="flex flex-col sm:flex-row items-center justify-between space-y-2 sm:space-y-0 sm:space-x-6">
+            {/* Información principal de la pestaña */}
+            <div className="flex items-center">
+              <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center mr-3">
+                {activeTab === 'carteras' ? <Building2 className="h-4 w-4 text-gray-600" /> :
+                 activeTab === 'clientes' ? <Users className="h-4 w-4 text-gray-600" /> :
+                 <MapPin className="h-4 w-4 text-gray-600" />}
+              </div>
+              <div>
+                <span className="text-sm text-gray-500">
+                  {activeTab === 'carteras' ? 'Carteras' : 
+                   activeTab === 'clientes' ? 'Clientes' : 'Nodos'}
+                </span>
+                <span className="ml-2 text-lg font-semibold text-gray-900">
+                  {isLoading ? '...' : currentData.length}
+                </span>
+              </div>
             </div>
-          </div>
-          <div className="space-y-3">
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Total:</span>
-              <span className="font-semibold text-blue-600">
-                {isLoading ? '...' : currentData.length}
-              </span>
+            
+            {/* Separador sutil */}
+            <div className="hidden sm:block w-px h-6 bg-gray-300"></div>
+            
+            {/* Estadísticas de paginación */}
+            <div className="flex items-center">
+              <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center mr-3">
+                <Users className="h-4 w-4 text-gray-600" />
+              </div>
+              <div>
+                <span className="text-sm text-gray-500">Mostrando</span>
+                <span className="ml-2 text-lg font-semibold text-gray-900">
+                  {isLoading ? '...' : paginatedData.length}
+                </span>
+              </div>
             </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Mostrando:</span>
-              <span className="font-semibold text-green-600">
-                {isLoading ? '...' : paginatedData.length}
-              </span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Página:</span>
-              <span className="font-semibold text-purple-600">
-                {isLoading ? '...' : `${page} de ${totalPages}`}
-              </span>
+            
+            {/* Separador sutil */}
+            <div className="hidden sm:block w-px h-6 bg-gray-300"></div>
+            
+            {/* Información de página */}
+            <div className="flex items-center">
+              <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center mr-3">
+                <MapPin className="h-4 w-4 text-gray-600" />
+              </div>
+              <div>
+                <span className="text-sm text-gray-500">Página</span>
+                <span className="ml-2 text-lg font-semibold text-gray-900">
+                  {isLoading ? '...' : `${page} de ${totalPages}`}
+                </span>
+              </div>
             </div>
           </div>
         </div>
       </div>
+
 
       {/* Tabla dinámica según pestaña activa */}
       <div className="slide-up animate-delay-300">
@@ -916,7 +969,28 @@ export const ServiciosPage: React.FC = () => {
         )}
       </div>
 
-      {/* Modales eliminados junto a acciones */}
+      {/* Modales */}
+      <AgregarClienteModal
+        isOpen={showAgregarClienteModal}
+        onClose={() => setShowAgregarClienteModal(false)}
+        onSuccess={(carteraId, clientes) => {
+          console.log('Clientes agregados:', { carteraId, clientes });
+          // Aquí podrías refrescar los datos o mostrar un mensaje de éxito
+          setShowAgregarClienteModal(false);
+        }}
+        carteras={carteras || []}
+      />
+
+      <AgregarNodoModal
+        isOpen={showAgregarNodoModal}
+        onClose={() => setShowAgregarNodoModal(false)}
+        onSuccess={(clienteId, nodos) => {
+          console.log('Nodos agregados:', { clienteId, nodos });
+          // Aquí podrías refrescar los datos o mostrar un mensaje de éxito
+          setShowAgregarNodoModal(false);
+        }}
+        clientes={clientes || []}
+      />
     </div>
   );
 };

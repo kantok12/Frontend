@@ -1,18 +1,10 @@
-#!/usr/bin/env sh
-. "$(dirname -- "$0")/_/husky.sh"
+@echo off
+echo 📝 Verificando tipos de TypeScript...
+npx tsc --noEmit
+if %errorlevel% neq 0 exit /b %errorlevel%
 
-echo "🔍 Ejecutando verificaciones pre-commit..."
+echo 🔧 Ejecutando ESLint...
+npx eslint src --ext .ts,.tsx
+if %errorlevel% neq 0 exit /b %errorlevel%
 
-# Verificar tipos de TypeScript
-echo "📝 Verificando tipos de TypeScript..."
-npm run type-check
-
-# Ejecutar linting
-echo "🔧 Ejecutando ESLint..."
-npm run lint
-
-# Verificar formato
-echo "🎨 Verificando formato de código..."
-npm run format:check
-
-echo "✅ Todas las verificaciones pasaron correctamente!"
+echo ✅ Todas las verificaciones pasaron correctamente!

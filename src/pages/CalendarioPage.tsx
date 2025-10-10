@@ -4,7 +4,9 @@ import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { useProgramacionSemanal } from '../hooks/useProgramacion';
 import { useCarteras } from '../hooks/useCarteras';
 import { usePersonalList } from '../hooks/usePersonal';
+import { ProgramacionCalendarioModal } from '../components/programacion/ProgramacionCalendarioModal';
 import { useClientesByCartera } from '../hooks/useCarteras';
+import { useClientes, useNodos } from '../hooks/useServicios';
 
 
 export const CalendarioPage: React.FC = () => {
@@ -21,6 +23,7 @@ export const CalendarioPage: React.FC = () => {
   // Estados para la integración con la API
   const [carteraSeleccionada, setCarteraSeleccionada] = useState<number | null>(null);
   const [showNuevaProgramacionModal, setShowNuevaProgramacionModal] = useState(false);
+  const [showProgramacionCalendarioModal, setShowProgramacionCalendarioModal] = useState(false);
   const [vistaTabla, setVistaTabla] = useState<'simple' | 'jerarquica'>('jerarquica');
   const [mostrarTodasCarteras, setMostrarTodasCarteras] = useState(true);
   
@@ -46,7 +49,9 @@ export const CalendarioPage: React.FC = () => {
   
   // Hooks para datos
   const { data: carterasData } = useCarteras();
-  const { data: clientesData } = useClientesByCartera(
+  const { data: clientesData } = useClientes({ limit: 1000 }); // Obtener todos los clientes
+  const { data: nodosData } = useNodos({ limit: 1000 }); // Obtener todos los nodos
+  const { data: clientesByCarteraData } = useClientesByCartera(
     asignacionForm.carteraId && asignacionForm.carteraId > 0 ? asignacionForm.carteraId.toString() : ''
   );
   const { data: personalData } = usePersonalList();
@@ -352,9 +357,8 @@ export const CalendarioPage: React.FC = () => {
           )}
           
           <button 
-            onClick={() => setShowNuevaProgramacionModal(true)}
-            disabled={mostrarTodasCarteras ? false : !carteraSeleccionada}
-            className="btn-primary hover-grow disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={() => setShowProgramacionCalendarioModal(true)}
+            className="btn-primary hover-grow"
           >
             <Plus className="h-4 w-4" />
             Agregar Programación
@@ -951,6 +955,21 @@ export const CalendarioPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Modal de Programación con Calendario */}
+      <ProgramacionCalendarioModal
+        isOpen={showProgramacionCalendarioModal}
+        onClose={() => setShowProgramacionCalendarioModal(false)}
+        onSuccess={(asignaciones) => {
+          console.log('Programación guardada:', asignaciones);
+          // Aquí podrías refrescar los datos o mostrar un mensaje de éxito
+          setShowProgramacionCalendarioModal(false);
+        }}
+        carteras={carterasData?.data || []}
+        clientes={clientesData?.data || []}
+        nodos={nodosData?.data || []}
+        personal={personalData?.data?.items || []}
+      />
 
     </div>
   );
