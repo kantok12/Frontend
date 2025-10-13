@@ -3,6 +3,7 @@ import { X, Plus, Calendar, Users, Building2, MapPin, Clock, Save, Trash2, Shiel
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { useProgramacionSemanal } from '../../hooks/useProgramacion';
 import { useQueryClient } from '@tanstack/react-query';
+import { usePersonalList } from '../../hooks/usePersonal';
 
 interface Servicio {
   id: number;
@@ -73,6 +74,17 @@ export const ProgramacionCalendarioModal: React.FC<ProgramacionCalendarioModalPr
   // Hook para crear programación
   const { crearProgramacion } = useProgramacionSemanal(carteraId, semanaInicio);
   const queryClient = useQueryClient();
+
+  // Hook para obtener personal con documentación
+  const { data: personalData, isLoading: isLoadingPersonal } = usePersonalList();
+  const personalConDocumentacion = personalData?.data 
+    ? (Array.isArray(personalData.data) 
+        ? personalData.data 
+        : personalData.data.items || [])
+    : [];
+  const cantidadConDocumentacion = personalConDocumentacion.length;
+  const totalPersonal = personalConDocumentacion.length;
+  const isLoadingPersonalConDocumentacion = isLoadingPersonal;
 
   // Función para calcular horas estimadas
   const calcularHorasEstimadas = (horaInicio: string, horaFin: string): number => {
@@ -458,7 +470,7 @@ export const ProgramacionCalendarioModal: React.FC<ProgramacionCalendarioModalPr
   };
 
   const getNombrePersonal = (personalId: string) => {
-    const persona = personalConDocumentacion.find(p => p.id === personalId);
+    const persona = personalConDocumentacion.find((p: Personal) => p.id === personalId);
     return persona ? `${persona.nombre} ${persona.apellido}` : 'Desconocido';
   };
 
@@ -613,7 +625,7 @@ export const ProgramacionCalendarioModal: React.FC<ProgramacionCalendarioModalPr
                             : `Seleccionar personal (${cantidadConDocumentacion} disponibles)...`
                         }
                       </option>
-                      {personalConDocumentacion.map((persona) => (
+                      {personalConDocumentacion.map((persona: Personal) => (
                         <option key={persona.id} value={persona.id}>
                           {persona.nombre} {persona.apellido} - {persona.rut}
                         </option>

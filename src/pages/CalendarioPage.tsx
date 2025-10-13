@@ -10,10 +10,11 @@ import { useClientesByCartera } from '../hooks/useCarteras';
 import { useClientes, useNodos, useServiciosPage } from '../hooks/useServicios';
 import { useAsignacionesResumen } from '../hooks/useAsignaciones';
 import { useQueryClient } from '@tanstack/react-query';
+import { exportarPlanificacionPDF } from '../utils/pdfExporter';
 
 
 export const CalendarioPage: React.FC = () => {
-  const [vistaCalendario, setVistaCalendario] = useState<'planificacion' | 'semana' | 'dia'>('planificacion');
+  const [vistaCalendario, setVistaCalendario] = useState<'planificacion' | 'semana' | 'dia' | 'semanal-completa'>('planificacion');
   const queryClient = useQueryClient();
   
   // Estados para la planificación semanal

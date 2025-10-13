@@ -17,7 +17,6 @@ import {
 } from '../types';
 
 import { API_CONFIG, FILE_CONFIG } from '../config/api';
-import { FallbackService } from './fallbackService';
 
 class ApiService {
   private api: AxiosInstance;
