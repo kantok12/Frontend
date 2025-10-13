@@ -10,11 +10,13 @@ import {
   DashboardStats,
   PersonalDisponible,
   CreatePersonalDisponibleData,
-  ExtendedRegisterForm
+  ExtendedRegisterForm,
+  Cliente,
+  Nodo,
+  Cartera
 } from '../types';
 
 import { API_CONFIG, FILE_CONFIG } from '../config/api';
-import { FallbackService, MOCK_DATA } from './fallbackService';
 
 class ApiService {
   private api: AxiosInstance;
@@ -48,11 +50,21 @@ class ApiService {
     this.api.interceptors.response.use(
       (response) => response,
       (error) => {
+        // Manejar errores 401 (no autorizado)
         if (error.response?.status === 401) {
           localStorage.removeItem('token');
           localStorage.removeItem('user');
           window.location.href = '/login';
         }
+        
+        // Filtrar errores 404 de imágenes de perfil para evitar spam en consola
+        if (error.response?.status === 404 && 
+            error.config?.url?.includes('/profile-image')) {
+          // No loguear estos errores ya que son esperados cuando no hay imagen
+          // Solo rechazar la promesa sin mostrar error en consola
+          return Promise.reject(error);
+        }
+        
         return Promise.reject(error);
       }
     );
@@ -143,18 +155,6 @@ class ApiService {
   async getPersonal(page = 1, limit = 10, search = '', filters = ''): Promise<PaginatedResponse<Personal>> {
     const offset = (page - 1) * limit;
     
-    // Verificar si el backend está disponible
-    const isBackendHealthy = await FallbackService.isBackendHealthy();
-    
-    if (!isBackendHealthy) {
-      console.log('🔄 Usando modo demo para getPersonal');
-      return await FallbackService.getMockData('personal', {
-        limit,
-        offset,
-        search: search.trim() || undefined
-      }) as PaginatedResponse<Personal>;
-    }
-    
     // Si hay búsqueda, obtener TODOS los registros y filtrar en el frontend
     if (search && search.trim()) {
       console.log('🔍 Realizando búsqueda global obteniendo todos los registros:', search.trim());
@@ -207,12 +207,8 @@ class ApiService {
           };
         }
       } catch (error) {
-        console.warn('⚠️ Error en búsqueda global, usando modo demo:', error);
-        return await FallbackService.getMockData('personal', {
-          limit,
-          offset,
-          search: search.trim() || undefined
-        }) as PaginatedResponse<Personal>;
+        console.warn('⚠️ Error en búsqueda global:', error);
+        throw error;
       }
     }
     
@@ -230,12 +226,8 @@ class ApiService {
       console.log('📊 Respuesta de búsqueda normal:', response.data);
       return response.data;
     } catch (error) {
-      console.warn('⚠️ Error en búsqueda normal, usando modo demo:', error);
-      return await FallbackService.getMockData('personal', {
-        limit,
-        offset,
-        search: search.trim() || undefined
-      }) as PaginatedResponse<Personal>;
+      console.warn('⚠️ Error en búsqueda normal:', error);
+      throw error;
     }
   }
 
@@ -822,8 +814,9 @@ class ApiService {
       const response: AxiosResponse<ApiResponse<any>> = await this.api.get(`/personal/${rut}/profile-image`);
       return response.data;
     } catch (error: any) {
-      // Si es un error 404, significa que no hay imagen de perfil, no es un error crítico
+      // Si es un error 404, significa que no hay imagen de perfil, esto es normal
       if (error.response?.status === 404) {
+        // No loguear este error ya que es esperado cuando no hay imagen
         return {
           success: false,
           message: 'No se encontró imagen de perfil',
@@ -831,12 +824,27 @@ class ApiService {
         };
       }
       // Para otros errores, los mostramos como warnings, no como errores críticos
-      console.warn('⚠️ No se pudo obtener imagen de perfil para RUT:', rut);
+      console.warn('⚠️ No se pudo obtener imagen de perfil para RUT:', rut, error.message);
       return {
         success: false,
         message: 'Error al obtener imagen de perfil',
         data: null
       };
+    }
+  }
+
+  // Verificar si existe imagen de perfil sin generar errores 404 en consola
+  async checkProfileImageExists(rut: string): Promise<boolean> {
+    try {
+      const response = await this.api.head(`/personal/${rut}/profile-image`);
+      return response.status === 200;
+    } catch (error: any) {
+      // Si es 404, no existe la imagen
+      if (error.response?.status === 404) {
+        return false;
+      }
+      // Para otros errores, asumir que no existe
+      return false;
     }
   }
 
@@ -1344,6 +1352,83 @@ class ApiService {
   async desactivarAcuerdo(id: number): Promise<ApiResponse<any>> {
     const response: AxiosResponse<ApiResponse<any>> = await this.api.post(`/servicios/acuerdos/${id}/desactivar`);
     return response.data;
+  }
+
+  // ==================== MÉTODOS DE BÚSQUEDA GLOBAL ====================
+
+  // GET /api/search/personal?q=query (búsqueda global de personal)
+  async searchPersonalGlobal(query: string): Promise<Personal[]> {
+    try {
+      const response: AxiosResponse<ApiResponse<Personal[]>> = await this.api.get(`/search/personal?q=${encodeURIComponent(query)}`);
+      return response.data.data || [];
+    } catch (error) {
+      console.error('Error buscando personal:', error);
+      return [];
+    }
+  }
+
+  // GET /api/search/clientes?q=query
+  async searchClientesGlobal(query: string): Promise<Cliente[]> {
+    try {
+      const response: AxiosResponse<ApiResponse<Cliente[]>> = await this.api.get(`/search/clientes?q=${encodeURIComponent(query)}`);
+      return response.data.data || [];
+    } catch (error) {
+      console.error('Error buscando clientes:', error);
+      return [];
+    }
+  }
+
+  // GET /api/search/nodos?q=query
+  async searchNodosGlobal(query: string): Promise<Nodo[]> {
+    try {
+      const response: AxiosResponse<ApiResponse<Nodo[]>> = await this.api.get(`/search/nodos?q=${encodeURIComponent(query)}`);
+      return response.data.data || [];
+    } catch (error) {
+      console.error('Error buscando nodos:', error);
+      return [];
+    }
+  }
+
+  // GET /api/search/carteras?q=query
+  async searchCarterasGlobal(query: string): Promise<Cartera[]> {
+    try {
+      const response: AxiosResponse<ApiResponse<Cartera[]>> = await this.api.get(`/search/carteras?q=${encodeURIComponent(query)}`);
+      return response.data.data || [];
+    } catch (error) {
+      console.error('Error buscando carteras:', error);
+      return [];
+    }
+  }
+
+  // GET /api/search/global?q=query (búsqueda unificada)
+  async searchGlobal(query: string): Promise<{
+    personal: Personal[];
+    clientes: Cliente[];
+    nodos: Nodo[];
+    carteras: Cartera[];
+  }> {
+    try {
+      const response: AxiosResponse<ApiResponse<{
+        personal: Personal[];
+        clientes: Cliente[];
+        nodos: Nodo[];
+        carteras: Cartera[];
+      }>> = await this.api.get(`/search/global?q=${encodeURIComponent(query)}`);
+      return response.data.data || {
+        personal: [],
+        clientes: [],
+        nodos: [],
+        carteras: []
+      };
+    } catch (error) {
+      console.error('Error en búsqueda global:', error);
+      return {
+        personal: [],
+        clientes: [],
+        nodos: [],
+        carteras: []
+      };
+    }
   }
 }
 

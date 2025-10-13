@@ -20,7 +20,7 @@ export const useProfileImage = (rut: string) => {
         return result;
       } catch (err: any) {
         if (err.response?.status === 404) {
-          // No hay imagen de perfil, esto es normal
+          // No hay imagen de perfil, esto es normal - no loguear error
           return null;
         }
         throw err;
@@ -28,8 +28,16 @@ export const useProfileImage = (rut: string) => {
     },
     enabled: !!rut,
     staleTime: 5 * 60 * 1000, // 5 minutos
-    retry: 1,
+    retry: (failureCount, error: any) => {
+      // No reintentar si es 404 (no hay imagen) o si ya hemos intentado 1 vez
+      if (error?.response?.status === 404 || failureCount >= 1) {
+        return false;
+      }
+      return true;
+    },
+    retryDelay: 1000,
     onError: (error: any) => {
+      // Solo loguear errores que no sean 404
       if (error.response?.status !== 404) {
         console.error('❌ Error al obtener imagen de perfil:', error);
       }

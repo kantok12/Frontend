@@ -85,56 +85,13 @@ export const PlanificacionModal: React.FC<PlanificacionModalProps> = ({
     { value: 'DOM', label: 'Domingo' }
   ];
 
-  // Cargar personal activo al abrir el modal
+  // Cargar datos reales al abrir el modal
   useEffect(() => {
     if (isOpen) {
-      // Simular carga de personal activo (en el futuro vendrá del backend)
-      const personalMock: Personal[] = [
-        { id: '1', rut: '12345678-9', nombre: 'Juan', apellido: 'Pérez', estado: 'Activo' },
-        { id: '2', rut: '98765432-1', nombre: 'María', apellido: 'González', estado: 'Activo' },
-        { id: '3', rut: '11223344-5', nombre: 'Carlos', apellido: 'López', estado: 'Activo' },
-        { id: '4', rut: '55667788-9', nombre: 'Ana', apellido: 'Martínez', estado: 'Activo' },
-        { id: '5', rut: '99887766-5', nombre: 'Luis', apellido: 'Rodríguez', estado: 'Activo' },
-        { id: '6', rut: '44332211-9', nombre: 'Carmen', apellido: 'Fernández', estado: 'Activo' },
-        { id: '7', rut: '77665544-3', nombre: 'Pedro', apellido: 'Sánchez', estado: 'Activo' },
-        { id: '8', rut: '22334455-7', nombre: 'Laura', apellido: 'García', estado: 'Activo' },
-      ];
-      setPersonalActivo(personalMock);
-
-      // Simular servicios disponibles (en el futuro vendrá del backend)
-      const serviciosMock: Servicio[] = [
-        {
-          id: '1',
-          nombre: 'Mantenimiento Sistema Lubricación',
-          descripcion: 'Mantenimiento preventivo del sistema de lubricación',
-          cartera: '6', // ID de cartera
-          cliente: '1',
-          lugar: 'Antofagasta',
-          duracion_horas: 4,
-          personalRequerido: 2
-        },
-        {
-          id: '2',
-          nombre: 'Inspección Equipos Mineros',
-          descripcion: 'Inspección general de equipos mineros',
-          cartera: '6',
-          cliente: '2',
-          lugar: 'Calama',
-          duracion_horas: 6,
-          personalRequerido: 3
-        },
-        {
-          id: '3',
-          nombre: 'Servicio Integral Industrial',
-          descripcion: 'Servicio integral para planta industrial',
-          cartera: '7',
-          cliente: '3',
-          lugar: 'Concepción',
-          duracion_horas: 8,
-          personalRequerido: 4
-        }
-      ];
-      setServicios(serviciosMock);
+      // TODO: Implementar carga de personal activo desde el backend
+      setPersonalActivo([]);
+      // TODO: Implementar carga de servicios desde el backend
+      setServicios([]);
     }
   }, [isOpen]);
 

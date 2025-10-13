@@ -13,6 +13,8 @@ import { LoadingSpinner } from '../common/LoadingSpinner';
 import { PersonalInfoModal } from './PersonalInfoModal';
 import { PersonalTrabajandoModal } from './PersonalTrabajandoModal';
 import { EventosModal } from './EventosModal';
+import { NodosInfoModal } from './NodosInfoModal';
+import { CarterasInfoModal } from './CarterasInfoModal';
 
 // Notas: se mantendrán solo datos de eventos mock hasta contar con endpoint real
 
@@ -29,7 +31,8 @@ const getProximosDias = () => {
 };
 
 const proximosDias = getProximosDias();
-const mockEventos = [
+// TODO: Implementar carga de eventos reales desde el backend
+const eventosReales = [
   { 
     id: '1', 
     fecha: proximosDias[0], 
@@ -175,9 +178,10 @@ const StatCard: React.FC<{
   icon: React.ReactNode;
   color: string;
   href?: string;
-}> = ({ title, value, icon, color, href }) => {
+  onClick?: () => void;
+}> = ({ title, value, icon, color, href, onClick }) => {
   const content = (
-    <div className={`p-6 rounded-lg border border-gray-200 bg-white hover:shadow-md transition-shadow ${href ? 'cursor-pointer' : ''}`}>
+    <div className={`p-6 rounded-lg border border-gray-200 bg-white hover:shadow-md transition-shadow ${(href || onClick) ? 'cursor-pointer' : ''}`}>
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm font-medium text-gray-600">{title}</p>
@@ -194,6 +198,10 @@ const StatCard: React.FC<{
     return <Link to={href}>{content}</Link>;
   }
 
+  if (onClick) {
+    return <div onClick={onClick}>{content}</div>;
+  }
+
   return content;
 };
 
@@ -202,6 +210,8 @@ export const DashboardStats: React.FC = () => {
   const [showPersonalModal, setShowPersonalModal] = useState(false);
   const [showPersonalTrabajandoModal, setShowPersonalTrabajandoModal] = useState(false);
   const [showEventosModal, setShowEventosModal] = useState(false);
+  const [showNodosModal, setShowNodosModal] = useState(false);
+  const [showCarterasModal, setShowCarterasModal] = useState(false);
 
   // Obtener datos reales del backend
   const { data: personalData, isLoading: personalLoading } = usePersonalList(1, 100, ''); // Obtener todos los registros
@@ -221,8 +231,8 @@ export const DashboardStats: React.FC = () => {
     p.activo && p.comentario_estado?.toLowerCase().includes('acreditación')
   ).length;
   
-  const totalEventos = mockEventos.length;
-  const eventosHoy = mockEventos.filter(e => {
+  const totalEventos = eventosReales.length;
+  const eventosHoy = eventosReales.filter(e => {
     const hoy = new Date().toISOString().split('T')[0];
     return e.fecha === hoy;
   }).length;
@@ -346,7 +356,7 @@ export const DashboardStats: React.FC = () => {
             value={dashboardStats.total_servicios}
             icon={<Settings className="h-6 w-6 text-white" />}
             color="bg-orange-500"
-            href="/servicios"
+            onClick={() => setShowNodosModal(true)}
           />
         </div>
       </div>
@@ -359,7 +369,7 @@ export const DashboardStats: React.FC = () => {
             value={dashboardStats.total_carteras}
             icon={<Users className="h-6 w-6 text-white" />}
             color="bg-purple-500"
-            href="/servicios"
+            onClick={() => setShowCarterasModal(true)}
           />
         </div>
         <div className="stagger-item animate-delay-600">
@@ -418,7 +428,21 @@ export const DashboardStats: React.FC = () => {
       <EventosModal
         isOpen={showEventosModal}
         onClose={() => setShowEventosModal(false)}
-        eventos={mockEventos}
+        eventos={eventosReales}
+      />
+
+      {/* Modal de información de nodos */}
+      <NodosInfoModal
+        isOpen={showNodosModal}
+        onClose={() => setShowNodosModal(false)}
+        totalNodos={dashboardStats.total_servicios}
+      />
+
+      {/* Modal de información de carteras */}
+      <CarterasInfoModal
+        isOpen={showCarterasModal}
+        onClose={() => setShowCarterasModal(false)}
+        totalCarteras={dashboardStats.total_carteras}
       />
     </>
   );

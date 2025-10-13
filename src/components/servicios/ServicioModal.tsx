@@ -78,21 +78,11 @@ export const ServicioModal: React.FC<ServicioModalProps> = ({
   };
 
 
-  // Cargar personal activo al abrir el modal
+  // Cargar datos reales al abrir el modal
   useEffect(() => {
     if (isOpen) {
-      // Simular carga de personal activo
-      const personalMock: Personal[] = [
-        { id: '1', rut: '12345678-9', nombre: 'Juan', apellido: 'Pérez', estado: 'Activo' },
-        { id: '2', rut: '98765432-1', nombre: 'María', apellido: 'González', estado: 'Activo' },
-        { id: '3', rut: '11223344-5', nombre: 'Carlos', apellido: 'López', estado: 'Activo' },
-        { id: '4', rut: '55667788-9', nombre: 'Ana', apellido: 'Martínez', estado: 'Activo' },
-        { id: '5', rut: '99887766-5', nombre: 'Luis', apellido: 'Rodríguez', estado: 'Activo' },
-        { id: '6', rut: '44332211-9', nombre: 'Carmen', apellido: 'Fernández', estado: 'Activo' },
-        { id: '7', rut: '77665544-3', nombre: 'Pedro', apellido: 'Sánchez', estado: 'Activo' },
-        { id: '8', rut: '22334455-7', nombre: 'Laura', apellido: 'García', estado: 'Activo' },
-      ];
-      setPersonalActivo(personalMock);
+      // TODO: Implementar carga de personal activo desde el backend
+      setPersonalActivo([]);
     }
   }, [isOpen]);
 

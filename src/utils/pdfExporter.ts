@@ -1,28 +1,99 @@
 // Función para exportar la planificación semanal a PDF
-export const exportarPlanificacionPDF = (
+export const exportarPlanificacionPDF = async (
   fechaInicio: Date,
   asignaciones: any[]
 ) => {
-  // Crear contenido HTML para el PDF
-  const contenidoHTML = generarHTMLPlanificacion(fechaInicio, asignaciones);
-  
-  // Crear ventana nueva para imprimir
-  const ventanaImpresion = window.open('', '_blank');
-  if (ventanaImpresion) {
-    ventanaImpresion.document.write(contenidoHTML);
-    ventanaImpresion.document.close();
+  try {
+    // Debug: Log de datos recibidos
+    console.log('🔍 PDF Exporter - Fecha inicio:', fechaInicio);
+    console.log('🔍 PDF Exporter - Asignaciones recibidas:', asignaciones);
+    console.log('🔍 PDF Exporter - Total asignaciones:', asignaciones.length);
     
-    // Esperar a que se cargue el contenido y luego imprimir
-    ventanaImpresion.onload = () => {
-      setTimeout(() => {
-        ventanaImpresion.print();
-        ventanaImpresion.close();
-      }, 250);
-    };
+    // Importar jsPDF dinámicamente
+    const { default: jsPDF } = await import('jspdf');
+    const { default: html2canvas } = await import('html2canvas');
+    
+    // Crear contenido HTML para el PDF
+    const contenidoHTML = generarHTMLPlanificacion(fechaInicio, asignaciones);
+    console.log('🔍 PDF Exporter - HTML generado:', contenidoHTML.substring(0, 500) + '...');
+    
+    // Crear un elemento temporal para renderizar el HTML
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = contenidoHTML;
+    tempDiv.style.position = 'absolute';
+    tempDiv.style.left = '-9999px';
+    tempDiv.style.top = '-9999px';
+    tempDiv.style.width = '210mm'; // A4 width
+    tempDiv.style.backgroundColor = 'white';
+    document.body.appendChild(tempDiv);
+    
+    // Convertir HTML a canvas
+    const canvas = await html2canvas(tempDiv, {
+      scale: 2,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: '#ffffff'
+    });
+    
+    // Crear PDF
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const imgData = canvas.toDataURL('image/png');
+    
+    // Calcular dimensiones para ajustar al A4
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = pdf.internal.pageSize.getHeight();
+    const imgWidth = canvas.width;
+    const imgHeight = canvas.height;
+    const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
+    const imgX = (pdfWidth - imgWidth * ratio) / 2;
+    const imgY = 0;
+    
+    // Agregar imagen al PDF
+    pdf.addImage(imgData, 'PNG', imgX, imgY, imgWidth * ratio, imgHeight * ratio);
+    
+    // Generar nombre del archivo con fecha
+    const fechaFormateada = fechaInicio.toLocaleDateString('es-CL', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).replace(/\//g, '-');
+    
+    // Descargar PDF
+    pdf.save(`Planificacion_Semanal_${fechaFormateada}.pdf`);
+    
+    // Limpiar elemento temporal
+    document.body.removeChild(tempDiv);
+    
+  } catch (error) {
+    console.error('Error al generar PDF:', error);
+    
+    // Fallback: descargar como HTML
+    const contenidoHTML = generarHTMLPlanificacion(fechaInicio, asignaciones);
+    const blob = new Blob([contenidoHTML], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    
+    const link = document.createElement('a');
+    link.href = url;
+    const fechaFormateada = fechaInicio.toLocaleDateString('es-CL', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).replace(/\//g, '-');
+    
+    link.download = `Planificacion_Semanal_${fechaFormateada}.html`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    alert('Error al generar PDF. Se ha descargado como archivo HTML. Puedes abrirlo e imprimirlo como PDF.');
   }
 };
 
 const generarHTMLPlanificacion = (fechaInicio: Date, asignaciones: any[]) => {
+  console.log('🔍 GenerarHTML - Fecha inicio:', fechaInicio);
+  console.log('🔍 GenerarHTML - Asignaciones:', asignaciones);
+  
   const diasSemana = [
     { value: 'LUN', label: 'Lunes' },
     { value: 'MAR', label: 'Martes' },
@@ -45,24 +116,29 @@ const generarHTMLPlanificacion = (fechaInicio: Date, asignaciones: any[]) => {
   };
 
   const fechasSemana = getFechasSemana(fechaInicio);
+  console.log('🔍 GenerarHTML - Fechas semana:', fechasSemana);
 
   // Obtener personal único
   const getPersonalUnico = () => {
     const personalSet = new Set(asignaciones.map((a: any) => a.personalId));
-    return Array.from(personalSet).map(personalId => {
+    const personalUnico = Array.from(personalSet).map(personalId => {
       const asignacion = asignaciones.find((a: any) => a.personalId === personalId);
       return {
         id: personalId,
         nombre: asignacion?.personalNombre || 'Personal no encontrado'
       };
     });
+    console.log('🔍 GenerarHTML - Personal único:', personalUnico);
+    return personalUnico;
   };
 
   const personalUnico = getPersonalUnico();
 
   // Obtener asignaciones por día
   const getAsignacionesPorDia = (dia: string) => {
-    return asignaciones.filter((asignacion: any) => asignacion.dia === dia);
+    const asignacionesDia = asignaciones.filter((asignacion: any) => asignacion.dia === dia);
+    console.log(`🔍 GenerarHTML - Asignaciones para ${dia}:`, asignacionesDia);
+    return asignacionesDia;
   };
 
   return `

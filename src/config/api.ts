@@ -3,7 +3,7 @@ export const API_CONFIG = {
   BASE_URL: process.env.REACT_APP_API_URL || 'http://localhost:3000/api', // URL local como fallback
   TIMEOUT: 10000, // Timeout reducido a 10 segundos para detectar problemas más rápido
   RETRY_ATTEMPTS: 2, // Reducir intentos para fallback más rápido
-  DEMO_MODE: process.env.REACT_APP_DEMO_MODE === 'true' || true, // Habilitar modo demo por defecto
+  DEMO_MODE: false, // Solo datos reales del backend
 };
 
 // Configuración de CORS
@@ -24,7 +24,7 @@ export const AUTH_CONFIG = {
 
 // Configuración del modo demo
 export const DEMO_CONFIG = {
-  ENABLED: true, // Cambiar a false cuando tengas backend
+  ENABLED: false, // Solo datos reales del backend
   MOCK_DELAY: 500, // Simular delay de red
 };
 

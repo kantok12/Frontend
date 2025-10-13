@@ -54,6 +54,9 @@ export const ProfileImage: React.FC<ProfileImageProps> = ({
               parent.appendChild(icon);
             }
           }}
+          onLoad={() => {
+            // Imagen cargada exitosamente, no hacer nada
+          }}
         />
       ) : (
         <User className={`${iconSizes[size]} text-primary-600`} />

@@ -41,17 +41,7 @@ export const useCreateCartera = () => {
 export const useClientes = (params?: { limit?: number; offset?: number; search?: string; cartera_id?: number }) => {
   return useQuery({
     queryKey: ['clientes', params],
-    queryFn: async () => {
-      console.log('🔍 useClientes: Obteniendo clientes con params:', params);
-      try {
-        const result = await apiService.getClientes(params);
-        console.log('✅ useClientes: Datos obtenidos:', result);
-        return result;
-      } catch (error) {
-        console.error('❌ useClientes: Error obteniendo clientes:', error);
-        throw error;
-      }
-    },
+    queryFn: () => apiService.getClientes(params),
     select: (data) => data,
     staleTime: 5 * 60 * 1000,
     retry: 2,
@@ -88,17 +78,7 @@ export const useCreateCliente = () => {
 export const useNodos = (params?: { limit?: number; offset?: number; search?: string; cliente_id?: number; cartera_id?: number }) => {
   return useQuery({
     queryKey: ['nodos', params],
-    queryFn: async () => {
-      console.log('🔍 useNodos: Obteniendo nodos con params:', params);
-      try {
-        const result = await apiService.getNodos(params);
-        console.log('✅ useNodos: Datos obtenidos:', result);
-        return result;
-      } catch (error) {
-        console.error('❌ useNodos: Error obteniendo nodos:', error);
-        throw error;
-      }
-    },
+    queryFn: () => apiService.getNodos(params),
     select: (data) => data,
     staleTime: 5 * 60 * 1000,
     retry: 2,

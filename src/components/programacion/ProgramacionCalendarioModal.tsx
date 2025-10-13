@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Calendar, Users, Building2, MapPin, Clock, Save, Trash2 } from 'lucide-react';
+import { X, Plus, Calendar, Users, Building2, MapPin, Clock, Save, Trash2, Shield, AlertTriangle } from 'lucide-react';
 import { LoadingSpinner } from '../common/LoadingSpinner';
+import { usePersonalConDocumentacion } from '../../hooks/usePersonalConDocumentacion';
 
 interface Servicio {
   id: number;
@@ -37,7 +38,7 @@ interface ProgramacionCalendarioModalProps {
   carteras: any[];
   clientes: any[];
   nodos: any[];
-  personal: Personal[];
+  personal: Personal[]; // Mantener para compatibilidad, pero se usará el filtrado
 }
 
 export const ProgramacionCalendarioModal: React.FC<ProgramacionCalendarioModalProps> = ({
@@ -64,6 +65,14 @@ export const ProgramacionCalendarioModal: React.FC<ProgramacionCalendarioModalPr
   const [errors, setErrors] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
+  // Obtener personal con documentación completa y vigente
+  const { 
+    data: personalConDocumentacion, 
+    isLoading: isLoadingPersonalConDocumentacion,
+    totalPersonal,
+    personalConDocumentacion: cantidadConDocumentacion
+  } = usePersonalConDocumentacion();
+
   // Días de la semana
   const diasSemana = [
     { key: 'lunes', label: 'Lunes' },
@@ -82,7 +91,9 @@ export const ProgramacionCalendarioModal: React.FC<ProgramacionCalendarioModalPr
       console.log('📊 Carteras:', carteras);
       console.log('👥 Clientes:', clientes);
       console.log('📍 Nodos:', nodos);
-      console.log('👤 Personal:', personal);
+      console.log('👤 Personal total:', totalPersonal);
+      console.log('✅ Personal con documentación completa:', cantidadConDocumentacion);
+      console.log('📋 Personal disponible para programación:', personalConDocumentacion);
       
       setAsignaciones([]);
       setNuevaAsignacion({
@@ -256,7 +267,7 @@ export const ProgramacionCalendarioModal: React.FC<ProgramacionCalendarioModalPr
   };
 
   const getNombrePersonal = (personalId: string) => {
-    const persona = personal.find(p => p.id === personalId);
+    const persona = personalConDocumentacion.find(p => p.id === personalId);
     return persona ? `${persona.nombre} ${persona.apellido}` : 'Desconocido';
   };
 
@@ -325,6 +336,41 @@ export const ProgramacionCalendarioModal: React.FC<ProgramacionCalendarioModalPr
 
             {showFormulario && (
               <div className="bg-white rounded-lg p-4 border border-gray-200">
+                {/* Información sobre documentación */}
+                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-center">
+                    <Shield className="h-5 w-5 text-blue-600 mr-2" />
+                    <div>
+                      <h4 className="text-sm font-medium text-blue-800">
+                        Personal con Documentación Completa
+                      </h4>
+                      <p className="text-xs text-blue-600 mt-1">
+                        Solo se muestra personal con documentación personal completa y vigente
+                      </p>
+                      <p className="text-xs text-blue-600">
+                        Disponibles: {cantidadConDocumentacion} de {totalPersonal} personas
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Advertencia si no hay personal disponible */}
+                {!isLoadingPersonalConDocumentacion && cantidadConDocumentacion === 0 && (
+                  <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <div className="flex items-center">
+                      <AlertTriangle className="h-5 w-5 text-yellow-600 mr-2" />
+                      <div>
+                        <h4 className="text-sm font-medium text-yellow-800">
+                          No hay personal disponible para programación
+                        </h4>
+                        <p className="text-xs text-yellow-600 mt-1">
+                          Todos los personal deben tener documentación completa y vigente para ser asignados a servicios.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {/* Personal */}
                   <div>
@@ -335,10 +381,18 @@ export const ProgramacionCalendarioModal: React.FC<ProgramacionCalendarioModalPr
                       name="personalId"
                       value={nuevaAsignacion.personalId}
                       onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      disabled={isLoadingPersonalConDocumentacion}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
                     >
-                      <option value="">Seleccionar personal...</option>
-                      {personal.map((persona) => (
+                      <option value="">
+                        {isLoadingPersonalConDocumentacion 
+                          ? 'Cargando personal con documentación...' 
+                          : cantidadConDocumentacion === 0
+                            ? 'No hay personal con documentación completa'
+                            : `Seleccionar personal (${cantidadConDocumentacion} disponibles)...`
+                        }
+                      </option>
+                      {personalConDocumentacion.map((persona) => (
                         <option key={persona.id} value={persona.id}>
                           {persona.nombre} {persona.apellido} - {persona.rut}
                         </option>
@@ -486,7 +540,8 @@ export const ProgramacionCalendarioModal: React.FC<ProgramacionCalendarioModalPr
                   <button
                     type="button"
                     onClick={handleAgregarAsignacion}
-                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center"
+                    disabled={cantidadConDocumentacion === 0}
+                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Plus className="h-4 w-4 mr-1" />
                     Agregar Asignación

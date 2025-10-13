@@ -56,6 +56,21 @@ export const ServiciosPage: React.FC = () => {
   } = useServiciosPage(search, activeTab);
   
 
+  // Funciones helper para obtener nombres por ID
+  const getCarteraNombre = (carteraId: number) => {
+    const cartera = carteras.find((c: Cartera) => c.id === carteraId);
+    return cartera ? cartera.nombre : `Cartera ID: ${carteraId}`;
+  };
+
+  const getClienteNombre = (clienteId: number) => {
+    const cliente = clientes.find((c: Cliente) => c.id === clienteId);
+    return cliente ? cliente.nombre : `Cliente ID: ${clienteId}`;
+  };
+
+  const getNodosCliente = (clienteId: number) => {
+    return nodos.filter((n: Nodo) => n.cliente_id === clienteId);
+  };
+
   // Obtener datos filtrados según la pestaña activa y selección jerárquica
   const getCurrentData = () => {
     switch (activeTab) {
@@ -870,14 +885,44 @@ export const ServiciosPage: React.FC = () => {
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <div className="text-sm text-gray-900">
-                                Cartera ID: {(item as Cliente).cartera_id}
+                                {getCarteraNombre((item as Cliente).cartera_id)}
                               </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="flex items-center text-sm text-gray-900">
-                                <Settings className="h-4 w-4 mr-1 text-blue-500" />
-                                {(item as Cliente).total_nodos} nodos
-                              </div>
+                              <Tooltip
+                                content={
+                                  <div className="max-w-xs">
+                                    <div className="font-semibold text-white mb-2">
+                                      Nodos del Cliente
+                                    </div>
+                                    {(() => {
+                                      const nodosCliente = getNodosCliente((item as Cliente).id);
+                                      if (nodosCliente.length === 0) {
+                                        return (
+                                          <div className="text-gray-300 text-sm">
+                                            No hay nodos asignados
+                                          </div>
+                                        );
+                                      }
+                                      return (
+                                        <div className="space-y-1">
+                                          {nodosCliente.map((nodo: Nodo) => (
+                                            <div key={nodo.id} className="text-sm text-gray-200">
+                                              • {nodo.nombre}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      );
+                                    })()}
+                                  </div>
+                                }
+                                position="top"
+                              >
+                                <div className="flex items-center text-sm text-gray-900 cursor-help">
+                                  <Settings className="h-4 w-4 mr-1 text-blue-500" />
+                                  {(item as Cliente).total_nodos} nodos
+                                </div>
+                              </Tooltip>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <div className="text-sm text-gray-900">
@@ -905,12 +950,12 @@ export const ServiciosPage: React.FC = () => {
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <div className="text-sm text-gray-900">
-                                Cliente ID: {(item as Nodo).cliente_id}
+                                {getClienteNombre((item as Nodo).cliente_id)}
                               </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <div className="text-sm text-gray-900">
-                                Cartera ID: {(item as Nodo).cartera_id}
+                                {getCarteraNombre((item as Nodo).cartera_id || 0)}
                               </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
