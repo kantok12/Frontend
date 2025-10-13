@@ -153,17 +153,16 @@ export const useServiciosDashboard = () => {
 export const useServiciosPage = (searchTerm: string = '', activeTab: 'carteras' | 'clientes' | 'nodos' = 'carteras') => {
   const { data: estadisticas, isLoading: estadisticasLoading, error: estadisticasError } = useEstadisticasServicios();
   const { data: estructura, isLoading: estructuraLoading, error: estructuraError } = useEstructura();
+  
+  // Cargar todos los datos sin filtros para búsqueda local
   const { data: carteras, isLoading: carterasLoading, error: carterasError } = useCarteras({ 
-    limit: 100, 
-    search: searchTerm || undefined 
+    limit: 1000 // Aumentar límite para tener todos los datos
   });
   const { data: clientes, isLoading: clientesLoading, error: clientesError } = useClientes({ 
-    limit: 100, 
-    search: searchTerm || undefined 
+    limit: 1000 // Aumentar límite para tener todos los datos
   });
   const { data: nodos, isLoading: nodosLoading, error: nodosError } = useNodos({ 
-    limit: 100, 
-    search: searchTerm || undefined 
+    limit: 1000 // Aumentar límite para tener todos los datos
   });
 
   const isLoading = estadisticasLoading || estructuraLoading || carterasLoading || clientesLoading || nodosLoading;
@@ -179,6 +178,7 @@ export const useServiciosPage = (searchTerm: string = '', activeTab: 'carteras' 
     error: hasError
   };
 };
+
 
 // ==================== RE-EXPORTAR HOOKS DE NUEVOS ENDPOINTS ====================
 

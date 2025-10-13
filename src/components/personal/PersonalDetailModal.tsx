@@ -83,13 +83,28 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
   // Usar datos reales del backend en lugar de datos mock
   const { data: documentosData, isLoading: documentosLoading, refetch: refetchDocumentos } = useDocumentosByPersona(personal?.rut || '');
   
-  // Filtrar documentos de cursos desde los documentos generales (comentado por no uso actual)
-  // const courseDocuments = (documentosData?.data as any)?.documentos?.filter((doc: any) => 
-  //   doc.tipo_documento === 'certificado_curso' || 
-  //   doc.tipo_documento === 'diploma' ||
-  //   doc.tipo_documento === 'certificado_seguridad' ||
-  //   doc.tipo_documento === 'certificado_vencimiento'
-  // ) || [];
+  // Filtrar documentos por categorías
+  const todosDocumentos = (documentosData?.data as any)?.documentos || [];
+  
+  // Documentos de cursos y certificados
+  const courseDocuments = todosDocumentos.filter((doc: any) => 
+    doc.tipo_documento === 'certificado_curso' || 
+    doc.tipo_documento === 'diploma' ||
+    doc.tipo_documento === 'certificado_seguridad' ||
+    doc.tipo_documento === 'certificado_vencimiento'
+  );
+  
+  // Documentos personales (carnet, exámenes, licencias, etc.)
+  const personalDocuments = todosDocumentos.filter((doc: any) => 
+    doc.tipo_documento === 'carnet_identidad' ||
+    doc.tipo_documento === 'examenes_preocupacionales' ||
+    doc.tipo_documento === 'licencia_conducir' ||
+    doc.tipo_documento === 'certificado_medico' ||
+    doc.tipo_documento === 'certificado_laboral' ||
+    doc.tipo_documento === 'contrato_trabajo' ||
+    doc.tipo_documento === 'fotografia_personal' ||
+    doc.tipo_documento === 'otro'
+  );
   const downloadMutation = useDownloadDocumento();
   
   // Función utilitaria para descargar archivos
@@ -315,10 +330,15 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
               <div className="relative">
                 <div className="h-16 w-16 rounded-full bg-white bg-opacity-20 flex items-center justify-center overflow-hidden">
                   {profileImage ? (
-                    <img 
-                      src={profileImage} 
-                      alt="Foto de perfil" 
-                      className="h-full w-full object-cover rounded-full"
+                    <div 
+                      className="h-full w-full rounded-full"
+                      style={{
+                        backgroundImage: `url(${profileImage})`,
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center',
+                        backgroundRepeat: 'no-repeat'
+                      }}
+                      title="Foto de perfil"
                     />
                   ) : (
                     <User className="h-8 w-8 text-white" />
@@ -556,8 +576,8 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                         <input
                           type="number"
                           value={editData.edad || getAge(personal.fecha_nacimiento).toString()}
-                          onChange={(e) => handleInputChange('edad', e.target.value)}
-                          className="w-20 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          readOnly
+                          className="w-20 px-2 py-1 text-sm border border-gray-300 rounded bg-gray-50 text-gray-700 cursor-not-allowed"
                           min="0"
                           max="120"
                         />
@@ -763,10 +783,8 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center">
                     <GraduationCap className="h-5 w-5 mr-2 text-purple-600" />
-                    <h3 className="text-lg font-semibold text-purple-900">Cursos y Certificaciones</h3>
-                    {cursosData?.data && (cursosData.data as any)?.cursos && (
-                      <span className="ml-2 bg-purple-200 text-purple-800 text-xs px-2 py-1 rounded-full">{(cursosData.data as any).cursos.length} curso{(cursosData.data as any).cursos.length !== 1 ? 's' : ''}</span>
-                    )}
+                    <h3 className="text-lg font-semibold text-purple-900">Cursos y Certificados</h3>
+                    <span className="ml-2 bg-purple-200 text-purple-800 text-xs px-2 py-1 rounded-full">{courseDocuments.length} documento{courseDocuments.length !== 1 ? 's' : ''}</span>
                   </div>
                   <button onClick={handleAddCurso} className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded-lg text-sm font-medium transition-colors flex items-center" title="Agregar curso">
                     <Plus className="h-4 w-4 mr-1" />
@@ -775,40 +793,51 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                 </div>
 
                 
-                {cursosLoading ? (
+                {documentosLoading ? (
                   <div className="flex justify-center py-4"><LoadingSpinner /></div>
-                ) : (
+                ) : courseDocuments.length > 0 ? (
                   <div className="space-y-3">
-                    {(cursosData?.data as any)?.cursos && (cursosData?.data as any).cursos.length > 0 ? (
-                      (cursosData?.data as any).cursos.map((curso: any) => (
-                          <div key={curso.id} className="bg-white rounded-lg border border-purple-200 p-3 hover:shadow-md transition-shadow">
-                            <div className="flex items-start justify-between">
-                            <div className="flex-1 cursor-pointer" onClick={() => handleEditCurso(curso)} title="Hacer clic para editar">
-                                <div className="flex items-center justify-between mb-2">
-                                <h4 className="font-semibold text-purple-900 text-sm hover:text-purple-700">{curso.nombre_curso}</h4>
-                                </div>
+                    {courseDocuments.map((documento: any) => (
+                      <div key={documento.id} className="bg-white rounded-lg border border-purple-200 p-3 hover:shadow-md transition-shadow">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center">
+                                <span className="text-lg mr-2">{getDocumentIcon(documento.tipo_documento)}</span>
+                                <h4 className="font-semibold text-purple-900 text-sm">{documento.nombre_documento}</h4>
+                                <span className={`ml-2 text-xs px-2 py-1 rounded-full border ${getDocumentColor(documento.tipo_documento)}`}>{documento.tipo_documento}</span>
                               </div>
-                              <div className="flex flex-col space-y-1 ml-3">
-                              <button onClick={() => handleEditCurso(curso)} className="text-blue-500 hover:text-blue-700 p-1 rounded hover:bg-blue-50 transition-colors" title="Editar curso"><Edit className="h-3 w-3" /></button>
-                              <button onClick={() => handleAddCourseDocument(curso)} className="text-green-500 hover:text-green-700 p-1 rounded hover:bg-green-50 transition-colors" title="Subir documento de curso"><Upload className="h-3 w-3" /></button>
-                              <button onClick={() => handleDeleteCurso(curso)} className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50 transition-colors" title="Eliminar curso" disabled={deleteCursoMutation.isLoading}><Trash2 className="h-3 w-3" /></button>
-                              </div>
+                              <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-800">Activo</span>
+                            </div>
+                            <div className="space-y-1">
+                              <p className="text-xs text-purple-600"><span className="font-medium">Archivo:</span> {documento.nombre_original}</p>
+                              <p className="text-xs text-gray-500"><span className="font-medium">Subido:</span> {new Date(documento.fecha_subida).toLocaleDateString('es-CL', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
                             </div>
                           </div>
-                      ))
-                    ) : (
-                      <div className="text-center py-8">
-                        <GraduationCap className="h-16 w-16 text-purple-300 mx-auto mb-4" />
-                        <h4 className="text-purple-700 font-medium mb-2">Sin cursos registrados</h4>
-                        <p className="text-purple-600 text-sm mb-4">{personal.nombre || 'Sin nombre'} {personal.apellido || 'Sin apellido'} no tiene cursos o certificaciones registradas</p>
-                        <div className="flex justify-center">
-                          <button onClick={handleAddCurso} className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
-                            <Plus className="h-4 w-4 mr-1 inline" />
-                            Agregar primer curso
-                          </button>
+                          <div className="flex flex-col space-y-1 ml-3">
+                            <button 
+                              onClick={() => downloadFile(documento.id, documento.nombre_original)}
+                              className="text-blue-500 hover:text-blue-700 p-1 rounded hover:bg-blue-50 transition-colors" 
+                              title="Descargar documento"
+                            >
+                              <Download className="h-3 w-3" />
+                            </button>
+                          </div>
                         </div>
                       </div>
-                    )}
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <GraduationCap className="h-16 w-16 text-purple-300 mx-auto mb-4" />
+                    <h4 className="text-purple-700 font-medium mb-2">Sin documentos de cursos</h4>
+                    <p className="text-purple-600 text-sm mb-4">{personal.nombre || 'Sin nombre'} {personal.apellido || 'Sin apellido'} no tiene documentos de cursos o certificaciones</p>
+                    <div className="flex justify-center">
+                      <button onClick={handleAddCurso} className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                        <Plus className="h-4 w-4 mr-1 inline" />
+                        Agregar curso
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -819,7 +848,7 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                   <div className="flex items-center">
                     <FileText className="h-5 w-5 mr-2 text-orange-600" />
                     <h3 className="text-lg font-semibold text-orange-900">Documentación Personal</h3>
-                    <span className="ml-2 bg-orange-200 text-orange-800 text-xs px-2 py-1 rounded-full">{(documentosData?.data as any)?.documentos?.length || 0} documento{(((documentosData?.data as any)?.documentos?.length || 0) !== 1) ? 's' : ''}</span>
+                    <span className="ml-2 bg-orange-200 text-orange-800 text-xs px-2 py-1 rounded-full">{personalDocuments.length} documento{personalDocuments.length !== 1 ? 's' : ''}</span>
                   </div>
                   <button onClick={handleAddDocument} className="bg-orange-600 hover:bg-orange-700 text-white px-3 py-1 rounded-lg text-sm font-medium transition-colors flex items-center" title="Agregar documento">
                     <Upload className="h-4 w-4 mr-1" />
@@ -830,9 +859,9 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                 
                 {documentosLoading ? (
                   <div className="flex justify-center py-4"><LoadingSpinner /></div>
-                ) : (documentosData?.data as any)?.documentos && (documentosData?.data as any).documentos.length > 0 ? (
+                ) : personalDocuments.length > 0 ? (
                   <div className="space-y-3">
-                    {(documentosData?.data as any).documentos.map((documento: any) => (
+                    {personalDocuments.map((documento: any) => (
                       <div key={documento.id} className="bg-white rounded-lg border border-orange-200 p-3 hover:shadow-md transition-shadow">
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
@@ -864,8 +893,8 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                 ) : (
                   <div className="text-center py-8">
                     <FileText className="h-16 w-16 text-orange-300 mx-auto mb-4" />
-                    <h4 className="text-orange-700 font-medium mb-2">Sin documentos registrados</h4>
-                    <p className="text-orange-600 text-sm mb-4">{personal.nombre || 'Sin nombre'} {personal.apellido || 'Sin apellido'} no tiene documentos subidos</p>
+                    <h4 className="text-orange-700 font-medium mb-2">Sin documentos personales</h4>
+                    <p className="text-orange-600 text-sm mb-4">{personal.nombre || 'Sin nombre'} {personal.apellido || 'Sin apellido'} no tiene documentos personales subidos</p>
                     <button onClick={handleAddDocument} className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
                       <Upload className="h-4 w-4 mr-1 inline" />
                       Subir primer documento

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Plus, MapPin, Building, User, Save } from 'lucide-react';
 import { LoadingSpinner } from '../common/LoadingSpinner';
+import { apiService } from '../../services/api';
 
 interface Nodo {
   id?: string;
@@ -140,13 +141,30 @@ export const AgregarNodoModal: React.FC<AgregarNodoModalProps> = ({
     setErrors([]);
 
     try {
-      // Simular llamada a API
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Crear nodos uno por uno en el backend
+      const nodosCreados = [];
+      for (const nodo of nodos) {
+        const nodoData = {
+          nombre: nodo.nombre,
+          cliente_id: parseInt(clienteSeleccionado),
+          // Agregar campos adicionales si el backend los acepta
+          descripcion: nodo.descripcion,
+          ubicacion: nodo.ubicacion,
+          tipo: nodo.tipo
+        };
+        
+        const response = await apiService.createNodo(nodoData);
+        if (response.success) {
+          nodosCreados.push(response.data);
+        } else {
+          throw new Error(`Error al crear nodo ${nodo.nombre}: ${response.message || 'Error desconocido'}`);
+        }
+      }
 
-      onSuccess(clienteSeleccionado, nodos);
+      onSuccess(clienteSeleccionado, nodosCreados);
       onClose();
-    } catch (error) {
-      setErrors(['Error al agregar los nodos']);
+    } catch (error: any) {
+      setErrors([error.message || 'Error al agregar los nodos']);
     } finally {
       setIsLoading(false);
     }

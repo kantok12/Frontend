@@ -108,14 +108,21 @@ export const useDocumentosByPersona = (rut: string) => {
 
 // Tipos de documentos por defecto (según documentación de la API)
 const TIPOS_DOCUMENTOS_DEFAULT = [
-  { label: 'Certificado de Curso', value: 'certificado_curso' },
-  { label: 'Diploma', value: 'diploma' },
-  { label: 'Certificado Laboral', value: 'certificado_laboral' },
-  { label: 'Certificado Médico', value: 'certificado_medico' },
-  { label: 'Licencia de Conducir', value: 'licencia_conducir' },
-  { label: 'Certificado de Seguridad', value: 'certificado_seguridad' },
-  { label: 'Certificado de Vencimiento', value: 'certificado_vencimiento' },
-  { label: 'Otro', value: 'otro' }
+  // Documentos de Cursos y Certificados
+  { label: 'Certificado de Curso', value: 'certificado_curso', categoria: 'cursos' },
+  { label: 'Diploma', value: 'diploma', categoria: 'cursos' },
+  { label: 'Certificado de Seguridad', value: 'certificado_seguridad', categoria: 'cursos' },
+  { label: 'Certificado de Vencimiento', value: 'certificado_vencimiento', categoria: 'cursos' },
+  
+  // Documentos Personales
+  { label: 'Carnet de Identidad', value: 'carnet_identidad', categoria: 'personal' },
+  { label: 'Exámenes Preocupacionales', value: 'examenes_preocupacionales', categoria: 'personal' },
+  { label: 'Licencia de Conducir', value: 'licencia_conducir', categoria: 'personal' },
+  { label: 'Certificado Médico', value: 'certificado_medico', categoria: 'personal' },
+  { label: 'Certificado Laboral', value: 'certificado_laboral', categoria: 'personal' },
+  { label: 'Contrato de Trabajo', value: 'contrato_trabajo', categoria: 'personal' },
+  { label: 'Fotografía Personal', value: 'fotografia_personal', categoria: 'personal' },
+  { label: 'Otro', value: 'otro', categoria: 'personal' }
 ];
 
 // Tipos de archivo soportados según la documentación
@@ -456,4 +463,13 @@ export const getFileTypeFromExtension = (filename: string): string => {
     default:
       return 'application/octet-stream';
   }
+};
+
+// Funciones para obtener tipos de documentos por categoría
+export const getTiposDocumentosCursos = () => {
+  return TIPOS_DOCUMENTOS_DEFAULT.filter(tipo => tipo.categoria === 'cursos');
+};
+
+export const getTiposDocumentosPersonal = () => {
+  return TIPOS_DOCUMENTOS_DEFAULT.filter(tipo => tipo.categoria === 'personal');
 };

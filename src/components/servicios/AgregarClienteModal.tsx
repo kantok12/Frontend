@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus, User, Building, MapPin, Phone, Mail, Save } from 'lucide-react';
+import { X, Plus, User, Building, MapPin, Phone, Mail, Save, Users } from 'lucide-react';
 import { LoadingSpinner } from '../common/LoadingSpinner';
+import { apiService } from '../../services/api';
+import { useCreateMinimoPersonal } from '../../hooks/useMinimoPersonal';
 
 interface Cliente {
   id?: string;
@@ -12,6 +14,10 @@ interface Cliente {
   tipo: 'Empresa' | 'Persona';
   ubicacion?: string;
   seccion?: string;
+  minimoPersonal?: {
+    minimo_personal: number;
+    descripcion?: string;
+  };
 }
 
 interface AgregarClienteModalProps {
@@ -27,6 +33,8 @@ export const AgregarClienteModal: React.FC<AgregarClienteModalProps> = ({
   onSuccess,
   carteras
 }) => {
+  const createMinimoPersonal = useCreateMinimoPersonal();
+  
   const [carteraSeleccionada, setCarteraSeleccionada] = useState('');
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [nuevoCliente, setNuevoCliente] = useState<Cliente>({
@@ -37,7 +45,11 @@ export const AgregarClienteModal: React.FC<AgregarClienteModalProps> = ({
     direccion: '',
     tipo: 'Empresa',
     ubicacion: '',
-    seccion: ''
+    seccion: '',
+    minimoPersonal: {
+      minimo_personal: 1,
+      descripcion: ''
+    }
   });
 
   const [errors, setErrors] = useState<string[]>([]);
@@ -57,7 +69,11 @@ export const AgregarClienteModal: React.FC<AgregarClienteModalProps> = ({
         direccion: '',
         tipo: 'Empresa',
         ubicacion: '',
-        seccion: ''
+        seccion: '',
+        minimoPersonal: {
+          minimo_personal: 1,
+          descripcion: ''
+        }
       });
       setErrors([]);
       setShowClienteForm(false);
@@ -117,10 +133,22 @@ export const AgregarClienteModal: React.FC<AgregarClienteModalProps> = ({
 
   const handleClienteInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setNuevoCliente(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    
+    if (name.startsWith('minimoPersonal.')) {
+      const field = name.split('.')[1];
+      setNuevoCliente(prev => ({
+        ...prev,
+        minimoPersonal: {
+          ...prev.minimoPersonal!,
+          [field]: field === 'minimo_personal' ? parseInt(value) || 1 : value
+        }
+      }));
+    } else {
+      setNuevoCliente(prev => ({
+        ...prev,
+        [name]: value
+      }));
+    }
   };
 
   const handleAddCliente = () => {
@@ -151,7 +179,11 @@ export const AgregarClienteModal: React.FC<AgregarClienteModalProps> = ({
       direccion: '',
       tipo: 'Empresa',
       ubicacion: '',
-      seccion: ''
+      seccion: '',
+      minimoPersonal: {
+        minimo_personal: 1,
+        descripcion: ''
+      }
     });
     setShowClienteForm(false);
     setErrors([]);
@@ -174,13 +206,52 @@ export const AgregarClienteModal: React.FC<AgregarClienteModalProps> = ({
     setErrors([]);
 
     try {
-      // Simular llamada a API
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Crear clientes uno por uno en el backend
+      const clientesCreados = [];
+      for (const cliente of clientes) {
+        const clienteData = {
+          nombre: cliente.nombre,
+          cartera_id: parseInt(carteraSeleccionada),
+          // Agregar campos adicionales si el backend los acepta
+          rut: cliente.rut,
+          email: cliente.email,
+          telefono: cliente.telefono,
+          direccion: cliente.direccion,
+          tipo: cliente.tipo,
+          ubicacion: cliente.ubicacion,
+          seccion: cliente.seccion
+        };
+        
+        const response = await apiService.createCliente(clienteData);
+        if (response.success) {
+          const clienteCreado = response.data;
+          clientesCreados.push(clienteCreado);
+          
+          // Crear mínimo personal si está definido
+          if (cliente.minimoPersonal && cliente.minimoPersonal.minimo_personal > 0) {
+            try {
+              await createMinimoPersonal.mutateAsync({
+                servicio_id: 1, // TODO: Obtener el servicio_id correcto
+                cartera_id: parseInt(carteraSeleccionada),
+                cliente_id: clienteCreado.id,
+                minimo_personal: cliente.minimoPersonal.minimo_personal,
+                descripcion: cliente.minimoPersonal.descripcion || `Mínimo personal para ${cliente.nombre}`,
+                activo: true
+              });
+            } catch (minimoError) {
+              console.warn(`Error al crear mínimo personal para ${cliente.nombre}:`, minimoError);
+              // No fallar la creación del cliente por error en mínimo personal
+            }
+          }
+        } else {
+          throw new Error(`Error al crear cliente ${cliente.nombre}: ${response.message || 'Error desconocido'}`);
+        }
+      }
 
-      onSuccess(carteraSeleccionada, clientes);
+      onSuccess(carteraSeleccionada, clientesCreados);
       onClose();
-    } catch (error) {
-      setErrors(['Error al agregar los clientes']);
+    } catch (error: any) {
+      setErrors([error.message || 'Error al agregar los clientes']);
     } finally {
       setIsLoading(false);
     }
@@ -367,6 +438,44 @@ export const AgregarClienteModal: React.FC<AgregarClienteModalProps> = ({
                     </div>
                   </div>
 
+                  {/* Sección de Mínimo Personal */}
+                  <div className="mt-6 pt-4 border-t border-gray-200">
+                    <h5 className="text-md font-semibold text-gray-900 mb-3 flex items-center">
+                      <Users className="h-4 w-4 mr-2 text-blue-600" />
+                      Mínimo Personal
+                    </h5>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Cantidad Mínima *
+                        </label>
+                        <input
+                          type="number"
+                          name="minimoPersonal.minimo_personal"
+                          value={nuevoCliente.minimoPersonal?.minimo_personal || 1}
+                          onChange={handleClienteInputChange}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          placeholder="1"
+                          min="1"
+                          max="100"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Descripción
+                        </label>
+                        <input
+                          type="text"
+                          name="minimoPersonal.descripcion"
+                          value={nuevoCliente.minimoPersonal?.descripcion || ''}
+                          onChange={handleClienteInputChange}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          placeholder="Descripción del mínimo personal"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="flex justify-end space-x-3 mt-4">
                     <button
                       type="button"
@@ -427,6 +536,18 @@ export const AgregarClienteModal: React.FC<AgregarClienteModalProps> = ({
                               {cliente.seccion}
                             </div>
                           </div>
+                          {cliente.minimoPersonal && cliente.minimoPersonal.minimo_personal > 0 && (
+                            <div className="mt-2 pt-2 border-t border-gray-100">
+                              <div className="flex items-center text-sm text-blue-600">
+                                <Users className="h-4 w-4 mr-1" />
+                                <span className="font-medium">Mínimo Personal:</span>
+                                <span className="ml-1">{cliente.minimoPersonal.minimo_personal} personas</span>
+                                {cliente.minimoPersonal.descripcion && (
+                                  <span className="ml-2 text-gray-500">- {cliente.minimoPersonal.descripcion}</span>
+                                )}
+                              </div>
+                            </div>
+                          )}
                         </div>
                         <button
                           type="button"

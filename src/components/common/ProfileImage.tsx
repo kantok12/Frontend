@@ -38,25 +38,15 @@ export const ProfileImage: React.FC<ProfileImageProps> = ({
           <User className={`${iconSizes[size]} text-primary-600`} />
         </div>
       ) : profileImage ? (
-        <img 
-          src={profileImage} 
-          alt={`Foto de ${nombre} ${apellido}`}
-          className="h-full w-full object-cover rounded-full"
-          onError={(e) => {
-            // Si la imagen falla al cargar, ocultar y mostrar el ícono por defecto
-            const target = e.target as HTMLImageElement;
-            target.style.display = 'none';
-            const parent = target.parentElement;
-            if (parent) {
-              const icon = document.createElement('div');
-              icon.className = `flex items-center justify-center h-full w-full`;
-              icon.innerHTML = `<svg class="${iconSizes[size]} text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>`;
-              parent.appendChild(icon);
-            }
+        <div 
+          className="h-full w-full rounded-full"
+          style={{
+            backgroundImage: `url(${profileImage})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat'
           }}
-          onLoad={() => {
-            // Imagen cargada exitosamente, no hacer nada
-          }}
+          title={`Foto de ${nombre} ${apellido}`}
         />
       ) : (
         <User className={`${iconSizes[size]} text-primary-600`} />

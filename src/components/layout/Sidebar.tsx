@@ -85,22 +85,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {/* Header */}
           <div className={`relative border-b border-gray-100 ${isCollapsed ? 'p-3' : 'p-6'}`}>
             <div className="flex items-center justify-between">
-              <div className={`flex items-center ${isCollapsed ? 'justify-center w-full' : 'space-x-3'}`}>
+              <div className="flex items-center justify-center w-full">
                 {/* Logo de la empresa */}
-                <div className={`bg-white rounded-xl flex items-center justify-center shadow-lg border border-gray-200 ${
-                  isCollapsed ? 'w-14 h-14' : 'w-24 h-24'
+                <div className={`flex items-center justify-center ${
+                  isCollapsed ? 'w-16 h-16' : 'w-32 h-32'
                 }`}>
                   <img 
                     src={require('../../assets/logo.png')} 
                     alt="Logo Empresa" 
-                    className={`object-contain ${isCollapsed ? 'w-10 h-10' : 'w-20 h-20'}`}
+                    className={`object-contain ${isCollapsed ? 'w-14 h-14' : 'w-30 h-30'}`}
                   />
                 </div>
-                {!isCollapsed && (
-                  <div>
-                    <h1 className="text-sm font-semibold text-gray-900">Sistema Integral de Servicios Internos</h1>
-                  </div>
-                )}
               </div>
               <div className="flex items-center space-x-2">
                 {/* Botón de colapsar (solo desktop) */}

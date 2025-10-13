@@ -352,17 +352,12 @@ export const PersonalForm: React.FC<PersonalFormProps> = ({
                   type="number"
                   name="edad"
                   value={formData.edad}
-                  onChange={handleInputChange}
+                  readOnly
                   min="0"
                   max="120"
-                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                    errors.edad ? 'border-red-500' : 'border-gray-300'
-                  }`}
+                  className="w-full px-3 py-2 border rounded-md bg-gray-50 text-gray-700 cursor-not-allowed border-gray-300"
                   placeholder="Se calcula automáticamente"
                 />
-                {errors.edad && (
-                  <p className="mt-1 text-xs text-red-600">{errors.edad}</p>
-                )}
                 <p className="mt-1 text-xs text-gray-500">
                   Se calcula automáticamente al cambiar la fecha de nacimiento
                 </p>

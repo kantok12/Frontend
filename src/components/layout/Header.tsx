@@ -25,11 +25,8 @@ export const Header: React.FC<HeaderProps> = ({ onMenuToggle }) => {
           {/* Desktop title */}
           <div className="hidden lg:block">
             <h1 className="text-xl font-bold text-white tracking-tight">
-              Sistema Integral de Gestión
+              Sistema Integral de Servicios Internos
             </h1>
-            <p className="text-sm text-blue-100 mt-0.5">
-              Plataforma de administración empresarial
-            </p>
           </div>
         </div>
 

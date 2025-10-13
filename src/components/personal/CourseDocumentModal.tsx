@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, Upload, FileText, GraduationCap } from 'lucide-react';
-import { useUploadDocumento, useTiposDocumentos, validateDocumentoData, createDocumentoFormData } from '../../hooks/useDocumentos';
+import { useUploadDocumento, useTiposDocumentos, validateDocumentoData, createDocumentoFormData, getTiposDocumentosCursos } from '../../hooks/useDocumentos';
 import { CreateDocumentoData } from '../../types';
 
 interface CourseDocumentModalProps {
@@ -31,6 +31,9 @@ const CourseDocumentModal: React.FC<CourseDocumentModalProps> = ({
 
   const uploadMutation = useUploadDocumento();
   const { data: tiposDocumento, isLoading: loadingTipos } = useTiposDocumentos();
+  
+  // Filtrar solo tipos de documentos de cursos
+  const tiposDocumentosCursos = getTiposDocumentosCursos();
 
   const isLoading = uploadMutation.isLoading || loadingTipos;
 
@@ -192,10 +195,10 @@ const CourseDocumentModal: React.FC<CourseDocumentModalProps> = ({
               disabled={isLoading}
               required
             >
-              <option value="">Seleccionar tipo de documento</option>
-              {tiposDocumento?.data?.map((tipo: any) => (
-                <option key={tipo.value || tipo.id} value={tipo.value || tipo.nombre}>
-                  {tipo.label || tipo.nombre}
+              <option value="">Seleccionar tipo de certificado</option>
+              {tiposDocumentosCursos.map((tipo: any) => (
+                <option key={tipo.value} value={tipo.value}>
+                  {tipo.label}
                 </option>
               ))}
             </select>

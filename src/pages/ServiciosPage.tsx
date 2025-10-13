@@ -2,14 +2,18 @@ import React, { useEffect, useState } from 'react';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { Search, Plus, Settings, Users, Building2, MapPin, AlertCircle, ChevronRight } from 'lucide-react';
 import { useServiciosPage } from '../hooks/useServicios';
+import { useMinimoPersonal } from '../hooks/useMinimoPersonal';
 import { Tooltip } from '../components/common/Tooltip';
 import { Cartera, Cliente, Nodo } from '../types';
 import { AgregarClienteModal } from '../components/servicios/AgregarClienteModal';
 import { AgregarNodoModal } from '../components/servicios/AgregarNodoModal';
 import { usePersonalList } from '../hooks/usePersonal';
 import { apiService } from '../services/api';
+import { useQueryClient } from '@tanstack/react-query';
 
 export const ServiciosPage: React.FC = () => {
+  const queryClient = useQueryClient();
+  
   // Estado para la pestaña activa
   const [activeTab, setActiveTab] = useState<'carteras' | 'clientes' | 'nodos'>('carteras');
   
@@ -44,7 +48,7 @@ export const ServiciosPage: React.FC = () => {
   const [limit] = useState(10);
   const [showModal, setShowModal] = useState(false);
   
-  // Obtener datos reales del backend
+  // Obtener datos reales del backend (sin búsqueda para evitar bloqueos)
   const { 
     estadisticas, 
     estructura, 
@@ -53,7 +57,11 @@ export const ServiciosPage: React.FC = () => {
     nodos, 
     isLoading, 
     error 
-  } = useServiciosPage(search, activeTab);
+  } = useServiciosPage('', activeTab);
+
+  // Obtener mínimos de personal
+  const { data: minimoPersonalData } = useMinimoPersonal({ limit: 1000 });
+  const minimosPersonal = minimoPersonalData?.data || [];
   
 
   // Funciones helper para obtener nombres por ID
@@ -69,6 +77,11 @@ export const ServiciosPage: React.FC = () => {
 
   const getNodosCliente = (clienteId: number) => {
     return nodos.filter((n: Nodo) => n.cliente_id === clienteId);
+  };
+
+  const getMinimoPersonalCliente = (clienteId: number) => {
+    const minimo = minimosPersonal.find((mp: any) => mp.cliente_id === clienteId);
+    return minimo ? minimo.minimo_personal : null;
   };
 
   // Obtener datos filtrados según la pestaña activa y selección jerárquica
@@ -794,6 +807,9 @@ export const ServiciosPage: React.FC = () => {
                             Nodos
                           </th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Mín. Personal
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Fecha Creación
                           </th>
                           {/* Sin acciones */}
@@ -925,6 +941,15 @@ export const ServiciosPage: React.FC = () => {
                               </Tooltip>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="flex items-center text-sm text-gray-900">
+                                <Users className="h-4 w-4 mr-1 text-green-500" />
+                                {(() => {
+                                  const minimoPersonal = getMinimoPersonalCliente((item as Cliente).id);
+                                  return minimoPersonal ? `${minimoPersonal} personas` : 'No definido';
+                                })()}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
                               <div className="text-sm text-gray-900">
                                 {new Date((item as Cliente).created_at).toLocaleDateString()}
                               </div>
@@ -1020,7 +1045,12 @@ export const ServiciosPage: React.FC = () => {
         onClose={() => setShowAgregarClienteModal(false)}
         onSuccess={(carteraId, clientes) => {
           console.log('Clientes agregados:', { carteraId, clientes });
-          // Aquí podrías refrescar los datos o mostrar un mensaje de éxito
+          // Invalidar cache para refrescar los datos
+          queryClient.invalidateQueries({ queryKey: ['clientes'] });
+          queryClient.invalidateQueries({ queryKey: ['carteras'] });
+          queryClient.invalidateQueries({ queryKey: ['minimo-personal'] });
+          queryClient.invalidateQueries({ queryKey: ['estructura'] });
+          queryClient.invalidateQueries({ queryKey: ['estadisticas'] });
           setShowAgregarClienteModal(false);
         }}
         carteras={carteras || []}
@@ -1031,7 +1061,12 @@ export const ServiciosPage: React.FC = () => {
         onClose={() => setShowAgregarNodoModal(false)}
         onSuccess={(clienteId, nodos) => {
           console.log('Nodos agregados:', { clienteId, nodos });
-          // Aquí podrías refrescar los datos o mostrar un mensaje de éxito
+          // Invalidar cache para refrescar los datos
+          queryClient.invalidateQueries({ queryKey: ['nodos'] });
+          queryClient.invalidateQueries({ queryKey: ['clientes'] });
+          queryClient.invalidateQueries({ queryKey: ['carteras'] });
+          queryClient.invalidateQueries({ queryKey: ['estructura'] });
+          queryClient.invalidateQueries({ queryKey: ['estadisticas'] });
           setShowAgregarNodoModal(false);
         }}
         clientes={clientes || []}

@@ -811,7 +811,10 @@ class ApiService {
   // Obtener imagen de perfil
   async getProfileImage(rut: string): Promise<ApiResponse<any>> {
     try {
-      const response: AxiosResponse<ApiResponse<any>> = await this.api.get(`/personal/${rut}/profile-image`);
+      const url = `/personal/${rut}/profile-image`;
+      console.log('🖼️ API - getProfileImage URL:', url, 'Base URL:', this.api.defaults.baseURL);
+      const response: AxiosResponse<ApiResponse<any>> = await this.api.get(url);
+      console.log('🖼️ API - getProfileImage response:', response.data);
       return response.data;
     } catch (error: any) {
       // Si es un error 404, significa que no hay imagen de perfil, esto es normal
@@ -1037,6 +1040,7 @@ class ApiService {
     const response: AxiosResponse<ApiResponse<any>> = await this.api.post('/servicios/nodos', data);
     return response.data;
   }
+
 
   // Estructura y Estadísticas
   async getEstructura(params?: { cartera_id?: number; cliente_id?: number }): Promise<ApiResponse<any>> {

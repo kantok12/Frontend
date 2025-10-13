@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, GraduationCap, Calendar, Save, Upload, FileText } from 'lucide-react';
 import { useCreateCurso, useUpdateCurso, validateCursoData } from '../../hooks/useCursos';
-import { useUploadDocumento, useTiposDocumentos, validateDocumentoData, createDocumentoFormData } from '../../hooks/useDocumentos';
+import { useUploadDocumento, useTiposDocumentos, validateDocumentoData, createDocumentoFormData, getTiposDocumentosCursos } from '../../hooks/useDocumentos';
 import { Curso, CreateCursoData, UpdateCursoData, CreateDocumentoData } from '../../types';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 
@@ -48,6 +48,9 @@ export const CursoModal: React.FC<CursoModalProps> = ({
   const updateMutation = useUpdateCurso();
   const uploadMutation = useUploadDocumento();
   const { data: tiposDocumento, isLoading: loadingTipos } = useTiposDocumentos();
+  
+  // Filtrar solo tipos de documentos de cursos
+  const tiposDocumentosCursos = getTiposDocumentosCursos();
 
   const isEditing = !!curso;
   const isLoading = createMutation.isLoading || updateMutation.isLoading || uploadMutation.isLoading || loadingTipos;
@@ -355,10 +358,10 @@ export const CursoModal: React.FC<CursoModalProps> = ({
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                   disabled={isLoading}
                 >
-                  <option key="default" value="">Seleccionar tipo de documento</option>
-                  {tiposDocumento?.data && Array.isArray(tiposDocumento.data) && tiposDocumento.data.map((tipo: any) => (
-                    <option key={tipo.value || tipo.id} value={tipo.value || tipo.nombre}>
-                      {tipo.label || tipo.nombre}
+                  <option key="default" value="">Seleccionar tipo de certificado</option>
+                  {tiposDocumentosCursos.map((tipo: any) => (
+                    <option key={tipo.value} value={tipo.value}>
+                      {tipo.label}
                     </option>
                   ))}
                 </select>

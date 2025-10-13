@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, Upload, FileText, AlertTriangle } from 'lucide-react';
-import { useUploadDocumento, useTiposDocumentos, validateDocumentoData, createDocumentoFormData } from '../../hooks/useDocumentos';
+import { useUploadDocumento, useTiposDocumentos, validateDocumentoData, createDocumentoFormData, getTiposDocumentosPersonal } from '../../hooks/useDocumentos';
 import { CreateDocumentoData } from '../../types';
 import { DocumentosVencidosModal } from './DocumentosVencidosModal';
 
@@ -36,6 +36,9 @@ const DocumentModal: React.FC<DocumentModalProps> = ({
 
   const uploadMutation = useUploadDocumento();
   const { data: tiposDocumento, isLoading: loadingTipos } = useTiposDocumentos();
+  
+  // Filtrar solo tipos de documentos personales
+  const tiposDocumentosPersonal = getTiposDocumentosPersonal();
 
   const isLoading = uploadMutation.isLoading || loadingTipos;
 
@@ -226,10 +229,10 @@ const DocumentModal: React.FC<DocumentModalProps> = ({
               disabled={isLoading}
               required
             >
-              <option value="">Seleccionar tipo de documento</option>
-              {tiposDocumento?.data?.map((tipo: any) => (
-                <option key={tipo.value || tipo.id} value={tipo.value || tipo.nombre}>
-                  {tipo.label || tipo.nombre}
+              <option value="">Seleccionar tipo de documento personal</option>
+              {tiposDocumentosPersonal.map((tipo: any) => (
+                <option key={tipo.value} value={tipo.value}>
+                  {tipo.label}
                 </option>
               ))}
             </select>
