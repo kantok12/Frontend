@@ -17,6 +17,7 @@ import {
 } from '../types';
 
 import { API_CONFIG, FILE_CONFIG } from '../config/api';
+import { FallbackService } from './fallbackService';
 
 class ApiService {
   private api: AxiosInstance;
@@ -1168,6 +1169,18 @@ class ApiService {
   // GET /programacion/persona/:rut?semanas=:num
   async getProgramacionPersona(rut: string, semanas: number = 4): Promise<ApiResponse<any>> {
     const response: AxiosResponse<ApiResponse<any>> = await this.api.get(`/programacion/persona/${rut}?semanas=${semanas}`);
+    return response.data;
+  }
+
+  // GET /programacion/verificar - Verificar si existe programación
+  async verificarProgramacion(rut: string, carteraId: number, semanaInicio: string): Promise<ApiResponse<any>> {
+    const params = new URLSearchParams({
+      rut,
+      cartera_id: carteraId.toString(),
+      semana_inicio: semanaInicio
+    });
+    
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.get(`/programacion/verificar?${params}`);
     return response.data;
   }
 
