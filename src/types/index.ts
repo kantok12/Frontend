@@ -524,6 +524,7 @@ export interface Cliente {
   region_id?: number;
   cartera_nombre?: string;
   total_nodos: number;
+  minimo_personal?: number;
   nodos?: Nodo[];
 }
 

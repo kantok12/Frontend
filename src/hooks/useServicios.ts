@@ -1,5 +1,7 @@
+import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '../services/api';
+import { useMinimoPersonal } from './useMinimoPersonal';
 
 // ==================== HOOKS PARA CARTERAS ====================
 
@@ -185,16 +187,76 @@ export const useServiciosPage = (searchTerm: string = '', activeTab: 'carteras' 
     limit: 100, 
     search: searchTerm || undefined 
   });
+  const { data: minimoPersonal, isLoading: minimoPersonalLoading, error: minimoPersonalError } = useMinimoPersonal({ 
+    limit: 1000 
+  });
 
-  const isLoading = estadisticasLoading || estructuraLoading || carterasLoading || clientesLoading || nodosLoading;
-  const hasError = estadisticasError || estructuraError || carterasError || clientesError || nodosError;
+  const isLoading = estadisticasLoading || estructuraLoading || carterasLoading || clientesLoading || nodosLoading || minimoPersonalLoading;
+  const hasError = estadisticasError || estructuraError || carterasError || clientesError || nodosError || minimoPersonalError;
+
+  // Enriquecer datos de clientes con nombres de carteras y mínimo personal
+  const clientesEnriquecidos = React.useMemo(() => {
+    if (!clientes?.data || !carteras?.data || !minimoPersonal?.data) {
+      return clientes?.data || [];
+    }
+
+    return clientes.data.map((cliente: any) => {
+      // Buscar el nombre de la cartera
+      const cartera = carteras.data.find((c: any) => c.id === cliente.cartera_id);
+      const carteraNombre = cartera?.nombre || `Cartera ID: ${cliente.cartera_id}`;
+
+      // Buscar el mínimo personal para este cliente
+      const minimoCliente = minimoPersonal.data.find((mp: any) => 
+        mp.cliente_id === cliente.id && mp.activo
+      );
+      const minimoPersonalCliente = minimoCliente?.minimo_personal || 0;
+
+      return {
+        ...cliente,
+        cartera_nombre: carteraNombre,
+        minimo_personal: minimoPersonalCliente
+      };
+    });
+  }, [clientes?.data, carteras?.data, minimoPersonal?.data]);
+
+  // Enriquecer datos de nodos con nombres de clientes y carteras
+  const nodosEnriquecidos = React.useMemo(() => {
+    if (!nodos?.data || !clientes?.data || !carteras?.data) {
+      return nodos?.data || [];
+    }
+
+    return nodos.data.map((nodo: any) => {
+      // Buscar el nombre del cliente
+      const cliente = clientes.data.find((c: any) => c.id === nodo.cliente_id);
+      const clienteNombre = cliente?.nombre || `Cliente ID: ${nodo.cliente_id}`;
+
+      // Buscar el nombre de la cartera (puede venir del nodo o del cliente)
+      let carteraNombre = '';
+      if (nodo.cartera_id) {
+        const cartera = carteras.data.find((c: any) => c.id === nodo.cartera_id);
+        carteraNombre = cartera?.nombre || `Cartera ID: ${nodo.cartera_id}`;
+      } else if (cliente?.cartera_id) {
+        const cartera = carteras.data.find((c: any) => c.id === cliente.cartera_id);
+        carteraNombre = cartera?.nombre || `Cartera ID: ${cliente.cartera_id}`;
+      } else {
+        carteraNombre = 'Sin cartera';
+      }
+
+      return {
+        ...nodo,
+        cliente_nombre: clienteNombre,
+        cartera_nombre: carteraNombre
+      };
+    });
+  }, [nodos?.data, clientes?.data, carteras?.data]);
 
   return {
     estadisticas: estadisticas?.data,
     estructura: estructura?.data,
     carteras: carteras?.data || [],
-    clientes: clientes?.data || [],
-    nodos: nodos?.data || [],
+    clientes: clientesEnriquecidos,
+    nodos: nodosEnriquecidos,
+    minimoPersonal: minimoPersonal?.data || [],
     isLoading,
     error: hasError
   };

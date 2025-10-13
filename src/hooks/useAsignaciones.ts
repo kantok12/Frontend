@@ -1,7 +1,50 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '../services/api';
-import { ApiResponse } from '../types';
+import type { ApiResponse } from '../types';
 
+// Resumen: carteras, personal por cartera y asignaciones por RUT (solo lectura)
+export const useAsignacionesResumen = (params?: { carteraId?: number; rut?: string }) => {
+  const { carteraId, rut } = params || {};
+
+  // Carteras disponibles
+  const carterasQuery = useQuery({
+    queryKey: ['asignaciones', 'carteras'],
+    queryFn: () => apiService.getCarteras(),
+  });
+
+  // Personal asignado a una cartera específica
+  const personalPorCarteraQuery = useQuery({
+    queryKey: ['asignaciones', 'cartera', carteraId],
+    queryFn: async () => {
+      if (!carteraId || carteraId <= 0) return { success: true, data: [] } as any;
+      return apiService.getPersonalByCartera(carteraId);
+    },
+    enabled: !!carteraId && carteraId > 0,
+  });
+
+  // Asignaciones de una persona por RUT
+  const asignacionesPorRutQuery = useQuery({
+    queryKey: ['asignaciones', 'persona', rut],
+    queryFn: async () => {
+      if (!rut) return { success: true, data: null } as any;
+      return apiService.getAsignacionesByRut(rut);
+    },
+    enabled: !!rut,
+  });
+
+  return {
+    carteras: carterasQuery.data?.data || [],
+    isLoadingCarteras: carterasQuery.isLoading,
+    personalAsignadoCartera: personalPorCarteraQuery.data?.data || [],
+    isLoadingPersonalAsignado: personalPorCarteraQuery.isLoading,
+    asignacionesPersona: asignacionesPorRutQuery.data?.data || null,
+    isLoadingAsignacionesPersona: asignacionesPorRutQuery.isLoading,
+    refetchCarteras: carterasQuery.refetch,
+    refetchPersonalAsignado: personalPorCarteraQuery.refetch,
+    refetchAsignacionesPersona: asignacionesPorRutQuery.refetch,
+  };
+};
+ 
 export interface AsignacionesPersonaResponse {
   success: boolean;
   data: {
@@ -12,6 +55,7 @@ export interface AsignacionesPersonaResponse {
   message?: string;
 }
 
+// Detalle y mutaciones para una persona por RUT
 export const useAsignaciones = (rut: string) => {
   const queryClient = useQueryClient();
 

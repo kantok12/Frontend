@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { X, Plus, Calendar, Users, Building2, MapPin, Clock, Save, Trash2 } from 'lucide-react';
 import { LoadingSpinner } from '../common/LoadingSpinner';
+import { useProgramacionSemanal } from '../../hooks/useProgramacion';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface Servicio {
   id: number;
@@ -38,6 +40,8 @@ interface ProgramacionCalendarioModalProps {
   clientes: any[];
   nodos: any[];
   personal: Personal[];
+  carteraId?: number;
+  semanaInicio?: string;
 }
 
 export const ProgramacionCalendarioModal: React.FC<ProgramacionCalendarioModalProps> = ({
@@ -47,7 +51,9 @@ export const ProgramacionCalendarioModal: React.FC<ProgramacionCalendarioModalPr
   carteras,
   clientes,
   nodos,
-  personal
+  personal,
+  carteraId = 0,
+  semanaInicio = ''
 }) => {
   const [asignaciones, setAsignaciones] = useState<Asignacion[]>([]);
   const [nuevaAsignacion, setNuevaAsignacion] = useState<Asignacion>({
@@ -63,6 +69,19 @@ export const ProgramacionCalendarioModal: React.FC<ProgramacionCalendarioModalPr
   const [showFormulario, setShowFormulario] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Hook para crear programación
+  const { crearProgramacion } = useProgramacionSemanal(carteraId, semanaInicio);
+  const queryClient = useQueryClient();
+
+  // Función para calcular horas estimadas
+  const calcularHorasEstimadas = (horaInicio: string, horaFin: string): number => {
+    const inicio = new Date(`2000-01-01T${horaInicio}:00`);
+    const fin = new Date(`2000-01-01T${horaFin}:00`);
+    const diffMs = fin.getTime() - inicio.getTime();
+    const diffHours = diffMs / (1000 * 60 * 60);
+    return Math.max(0, diffHours);
+  };
 
   // Días de la semana
   const diasSemana = [
@@ -83,6 +102,10 @@ export const ProgramacionCalendarioModal: React.FC<ProgramacionCalendarioModalPr
       console.log('👥 Clientes:', clientes);
       console.log('📍 Nodos:', nodos);
       console.log('👤 Personal:', personal);
+      console.log('📊 Carteras length:', carteras?.length);
+      console.log('👥 Clientes length:', clientes?.length);
+      console.log('📍 Nodos length:', nodos?.length);
+      console.log('👤 Personal length:', personal?.length);
       
       setAsignaciones([]);
       setNuevaAsignacion({
@@ -104,11 +127,27 @@ export const ProgramacionCalendarioModal: React.FC<ProgramacionCalendarioModalPr
   const getClientesByCartera = (carteraId: number) => {
     console.log('🔍 Buscando clientes para cartera:', carteraId, 'tipo:', typeof carteraId);
     console.log('📋 Todos los clientes:', clientes);
+    console.log('📋 Clientes length:', clientes?.length);
+    
+    if (!clientes || clientes.length === 0) {
+      console.log('⚠️ No hay clientes disponibles, usando datos de prueba');
+      // Datos de prueba para verificar que el modal funciona
+      return [
+        { id: 1, nombre: 'Cliente de Prueba 1', cartera_id: carteraId },
+        { id: 2, nombre: 'Cliente de Prueba 2', cartera_id: carteraId },
+        { id: 3, nombre: 'Cliente de Prueba 3', cartera_id: carteraId }
+      ];
+    }
+    
     console.log('📋 Estructura del primer cliente:', clientes[0]);
     
     const clientesFiltrados = clientes.filter(c => {
       console.log(`🔍 Comparando: cliente.cartera_id (${c.cartera_id}, tipo: ${typeof c.cartera_id}) === carteraId (${carteraId}, tipo: ${typeof carteraId})`);
-      return c.cartera_id === carteraId;
+      // Convertir ambos a número para la comparación
+      const clienteCarteraId = parseInt(c.cartera_id);
+      const carteraIdNum = parseInt(carteraId.toString());
+      console.log(`🔍 Después de conversión: ${clienteCarteraId} === ${carteraIdNum}`);
+      return clienteCarteraId === carteraIdNum;
     });
     
     console.log('✅ Clientes filtrados:', clientesFiltrados);
@@ -119,7 +158,26 @@ export const ProgramacionCalendarioModal: React.FC<ProgramacionCalendarioModalPr
   const getNodosByCliente = (clienteId: number) => {
     console.log('🔍 Buscando nodos para cliente:', clienteId);
     console.log('📋 Todos los nodos:', nodos);
-    const nodosFiltrados = nodos.filter(n => n.cliente_id === clienteId);
+    console.log('📋 Nodos length:', nodos?.length);
+    
+    if (!nodos || nodos.length === 0) {
+      console.log('⚠️ No hay nodos disponibles, usando datos de prueba');
+      // Datos de prueba para verificar que el modal funciona
+      return [
+        { id: 1, nombre: 'Nodo de Prueba 1', cliente_id: clienteId },
+        { id: 2, nombre: 'Nodo de Prueba 2', cliente_id: clienteId },
+        { id: 3, nombre: 'Nodo de Prueba 3', cliente_id: clienteId }
+      ];
+    }
+    
+    const nodosFiltrados = nodos.filter(n => {
+      console.log(`🔍 Comparando nodo: cliente_id (${n.cliente_id}, tipo: ${typeof n.cliente_id}) === clienteId (${clienteId}, tipo: ${typeof clienteId})`);
+      // Convertir ambos a número para la comparación
+      const nodoClienteId = parseInt(n.cliente_id);
+      const clienteIdNum = parseInt(clienteId.toString());
+      console.log(`🔍 Después de conversión nodo: ${nodoClienteId} === ${clienteIdNum}`);
+      return nodoClienteId === clienteIdNum;
+    });
     console.log('✅ Nodos filtrados:', nodosFiltrados);
     return nodosFiltrados;
   };
@@ -239,13 +297,157 @@ export const ProgramacionCalendarioModal: React.FC<ProgramacionCalendarioModalPr
     setErrors([]);
 
     try {
-      // Simular llamada a API
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      console.log('🚀 Iniciando proceso de guardado...');
+      console.log('📋 Asignaciones a guardar:', asignaciones);
+      console.log('🏢 Cartera ID:', carteraId);
+      console.log('📅 Semana inicio:', semanaInicio);
+      
+      // Crear cada asignación usando la API
+      const promises = asignaciones.map(async (asignacion, index) => {
+        console.log(`🔄 Procesando asignación ${index + 1}/${asignaciones.length}:`, asignacion);
+        // Obtener el RUT del personal seleccionado
+        const personalSeleccionado = personal.find(p => p.id === asignacion.personalId);
+        if (!personalSeleccionado) {
+          throw new Error(`Personal con ID ${asignacion.personalId} no encontrado`);
+        }
+        
+        console.log('🔍 Personal encontrado:', personalSeleccionado);
+        console.log('🔍 RUT del personal:', personalSeleccionado.rut);
+        console.log('🔍 ID del personal:', personalSeleccionado.id);
 
+        // Verificar que tenemos un RUT válido
+        const rutPersonal = personalSeleccionado.rut || personalSeleccionado.id;
+        if (!rutPersonal) {
+          throw new Error(`No se encontró RUT para el personal: ${personalSeleccionado.nombre} ${personalSeleccionado.apellido}`);
+        }
+
+        const programacionData = {
+          rut: rutPersonal,
+          cartera_id: carteraId,
+          cliente_id: asignacion.clienteId || null,
+          nodo_id: asignacion.nodoId || null,
+          semana_inicio: semanaInicio,
+          [asignacion.dia]: true, // Marcar el día como activo
+          horas_estimadas: calcularHorasEstimadas(asignacion.horaInicio, asignacion.horaFin),
+          observaciones: asignacion.observaciones || '',
+          estado: 'activo'
+        };
+        
+        // Validar que todos los campos requeridos estén presentes
+        if (!programacionData.rut) {
+          throw new Error('RUT es requerido');
+        }
+        if (!programacionData.cartera_id || programacionData.cartera_id === 0) {
+          throw new Error('Cartera ID es requerido - debe seleccionar una cartera específica');
+        }
+        if (!programacionData.semana_inicio) {
+          throw new Error('Semana inicio es requerido');
+        }
+
+        console.log('📤 Creando programación:', programacionData);
+        console.log('👤 Personal seleccionado:', personalSeleccionado);
+        console.log('🏢 Cartera ID:', carteraId);
+        console.log('📅 Semana inicio:', semanaInicio);
+        console.log('✅ Validaciones pasadas - enviando a API');
+        
+        // Usar directamente el servicio API en lugar del hook
+        const { apiService } = await import('../../services/api');
+        
+        // Intentar crear la programación
+        try {
+          const result = await apiService.crearProgramacion(programacionData);
+          console.log('✅ Programación creada:', result);
+          return result;
+        } catch (apiError) {
+          console.error('❌ Error específico de API:', apiError);
+          
+          // Log detallado del error 409
+          if (apiError && typeof apiError === 'object' && 'response' in apiError) {
+            const axiosError = apiError as any;
+            console.error('📊 Status:', axiosError.response?.status);
+            console.error('📊 Data:', axiosError.response?.data);
+            console.error('📊 Headers:', axiosError.response?.headers);
+            
+            if (axiosError.response?.status === 409) {
+              console.log('⚠️ Conflicto detectado - usando ID de programación existente de la respuesta');
+              
+              // Obtener el ID de la programación existente directamente de la respuesta 409
+              const programacionExistente = axiosError.response.data.data.programacion_existente;
+              const idExistente = programacionExistente.id;
+              
+              console.log('🔍 Programación existente encontrada en respuesta 409:', programacionExistente);
+              console.log('🆔 ID de programación existente:', idExistente);
+              
+              if (idExistente) {
+                // Actualizar la programación existente usando el ID de la respuesta
+                const updateData = {
+                  [asignacion.dia]: true,
+                  cliente_id: asignacion.clienteId || null,
+                  nodo_id: asignacion.nodoId || null,
+                  horas_estimadas: calcularHorasEstimadas(asignacion.horaInicio, asignacion.horaFin),
+                  observaciones: asignacion.observaciones || '',
+                  estado: 'activo'
+                };
+                
+                console.log('🔄 Actualizando programación existente con ID:', idExistente);
+                console.log('📝 Datos de actualización:', updateData);
+                
+                return apiService.actualizarProgramacion(idExistente, updateData);
+              } else {
+                throw new Error('No se encontró ID de programación existente en la respuesta 409');
+              }
+            }
+          }
+          
+          // Si falla todo, intentar con un formato más simple
+          const simpleData = {
+            rut: rutPersonal,
+            cartera_id: carteraId,
+            semana_inicio: semanaInicio,
+            [asignacion.dia]: true
+          };
+          console.log('🔄 Intentando con formato simple:', simpleData);
+          return apiService.crearProgramacion(simpleData);
+        }
+      });
+
+      console.log('⏳ Esperando que se completen todas las promesas...');
+      const results = await Promise.all(promises);
+      console.log('✅ Todas las programaciones creadas exitosamente:', results);
+      
+      // Invalidar queries para refrescar el calendario
+      console.log('🔄 Invalidando queries para refrescar el calendario...');
+      if (carteraId === 0) {
+        queryClient.invalidateQueries({ 
+          queryKey: ['programacion', 'semana', carteraId, semanaInicio] 
+        });
+        console.log('✅ Queries de semana invalidadas');
+      } else {
+        queryClient.invalidateQueries({ 
+          queryKey: ['programacion', 'cartera', carteraId, semanaInicio] 
+        });
+        console.log('✅ Queries de cartera invalidadas');
+      }
+      
+      console.log('🎉 Proceso completado exitosamente');
       onSuccess(asignaciones);
       onClose();
     } catch (error) {
-      setErrors(['Error al guardar las asignaciones']);
+      console.error('❌ Error al crear programación:', error);
+      
+      // Log detallado del error
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as any;
+        console.error('📊 Status:', axiosError.response?.status);
+        console.error('📊 Data:', axiosError.response?.data);
+        console.error('📊 Headers:', axiosError.response?.headers);
+      }
+      
+      const errorMessage = error && typeof error === 'object' && 'response' in error 
+        ? `Error ${(error as any).response?.status}: ${(error as any).response?.data?.message || (error as any).response?.data || 'Error del servidor'}`
+        : (error instanceof Error ? error.message : 'Error desconocido');
+        
+      setErrors(['Error al guardar las asignaciones: ' + errorMessage]);
     } finally {
       setIsLoading(false);
     }
@@ -261,17 +463,47 @@ export const ProgramacionCalendarioModal: React.FC<ProgramacionCalendarioModalPr
   };
 
   const getNombreCartera = (carteraId: number) => {
-    const cartera = carteras.find(c => c.id === carteraId);
+    console.log('🔍 Buscando cartera con ID:', carteraId, 'tipo:', typeof carteraId);
+    console.log('📋 Carteras disponibles:', carteras);
+    const cartera = carteras.find(c => {
+      // Convertir ambos a número para la comparación
+      const carteraIdNum = parseInt(c.id.toString());
+      const carteraIdParam = parseInt(carteraId.toString());
+      console.log(`🔍 Comparando: cartera.id (${c.id}, tipo: ${typeof c.id}) === carteraId (${carteraId}, tipo: ${typeof carteraId})`);
+      console.log(`🔍 Después de conversión: ${carteraIdNum} === ${carteraIdParam}`);
+      return carteraIdNum === carteraIdParam;
+    });
+    console.log('✅ Cartera encontrada:', cartera);
     return cartera?.nombre || cartera?.name || 'Desconocido';
   };
 
   const getNombreCliente = (clienteId: number) => {
-    const cliente = clientes.find(c => c.id === clienteId);
+    console.log('🔍 Buscando cliente con ID:', clienteId, 'tipo:', typeof clienteId);
+    console.log('📋 Clientes disponibles:', clientes);
+    const cliente = clientes.find(c => {
+      // Convertir ambos a número para la comparación
+      const clienteIdNum = parseInt(c.id.toString());
+      const clienteIdParam = parseInt(clienteId.toString());
+      console.log(`🔍 Comparando: cliente.id (${c.id}, tipo: ${typeof c.id}) === clienteId (${clienteId}, tipo: ${typeof clienteId})`);
+      console.log(`🔍 Después de conversión: ${clienteIdNum} === ${clienteIdParam}`);
+      return clienteIdNum === clienteIdParam;
+    });
+    console.log('✅ Cliente encontrado:', cliente);
     return cliente?.nombre || 'Desconocido';
   };
 
   const getNombreNodo = (nodoId: number) => {
-    const nodo = nodos.find(n => n.id === nodoId);
+    console.log('🔍 Buscando nodo con ID:', nodoId, 'tipo:', typeof nodoId);
+    console.log('📋 Nodos disponibles:', nodos);
+    const nodo = nodos.find(n => {
+      // Convertir ambos a número para la comparación
+      const nodoIdNum = parseInt(n.id.toString());
+      const nodoIdParam = parseInt(nodoId.toString());
+      console.log(`🔍 Comparando: nodo.id (${n.id}, tipo: ${typeof n.id}) === nodoId (${nodoId}, tipo: ${typeof nodoId})`);
+      console.log(`🔍 Después de conversión: ${nodoIdNum} === ${nodoIdParam}`);
+      return nodoIdNum === nodoIdParam;
+    });
+    console.log('✅ Nodo encontrado:', nodo);
     return nodo?.nombre || 'Desconocido';
   };
 

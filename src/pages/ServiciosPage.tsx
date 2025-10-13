@@ -776,6 +776,9 @@ export const ServiciosPage: React.FC = () => {
                             Cartera
                           </th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Personal Mínimo
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Nodos
                           </th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -870,7 +873,13 @@ export const ServiciosPage: React.FC = () => {
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <div className="text-sm text-gray-900">
-                                Cartera ID: {(item as Cliente).cartera_id}
+                                {(item as Cliente).cartera_nombre || `Cartera ID: ${(item as Cliente).cartera_id}`}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="flex items-center text-sm text-gray-900">
+                                <Users className="h-4 w-4 mr-1 text-orange-500" />
+                                {(item as Cliente).minimo_personal || 0} personas
                               </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
@@ -905,12 +914,12 @@ export const ServiciosPage: React.FC = () => {
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <div className="text-sm text-gray-900">
-                                Cliente ID: {(item as Nodo).cliente_id}
+                                {(item as Nodo).cliente_nombre || `Cliente ID: ${(item as Nodo).cliente_id}`}
                               </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <div className="text-sm text-gray-900">
-                                Cartera ID: {(item as Nodo).cartera_id}
+                                {(item as Nodo).cartera_nombre || `Cartera ID: ${(item as Nodo).cartera_id}`}
                               </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">

@@ -315,6 +315,12 @@ export const useProgramacionSemanal = (carteraId: number, semanaInicio: string) 
     return Array.from(trabajadores.values());
   };
 
+  // Logs detallados para diagnosticar
+  console.log('🔍 useProgramacionSemanal - data completa:', data);
+  console.log('🔍 useProgramacionSemanal - data.data:', data?.data);
+  console.log('🔍 useProgramacionSemanal - data.data.programacion:', data?.data?.programacion);
+  console.log('🔍 useProgramacionSemanal - programacion length:', data?.data?.programacion?.length);
+
   return {
     // Datos
     programacion: data?.data?.programacion || [],
