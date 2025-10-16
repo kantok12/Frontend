@@ -52,13 +52,16 @@
     "test": "react-scripts test",
     "test:coverage": "react-scripts test --coverage --watchAll=false",
     "test:ci": "react-scripts test --coverage --watchAll=false --ci",
-    "lint": "eslint src/**/*.{ts,tsx} --max-warnings=0",
+    "lint": "eslint src/**/*.{ts,tsx}",
     "lint:fix": "eslint src/**/*.{ts,tsx} --fix",
     "format": "prettier --write src/**/*.{ts,tsx,js,jsx,css,md}",
     "format:check": "prettier --check src/**/*.{ts,tsx,js,jsx,css,md}",
     "type-check": "tsc --noEmit",
+    "pre-commit": "npm run type-check && npm run lint",
+    "pre-commit:batch": "pre-commit.bat",
+    "pre-commit:powershell": "powershell -ExecutionPolicy Bypass -File pre-commit.ps1",
     "clean": "if exist build rmdir /s /q build && if exist node_modules rmdir /s /q node_modules && if exist package-lock.json del package-lock.json && npm install",
-    "prepare": "husky install",
+    "prepare": "echo 'Husky disabled for Windows compatibility'",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {

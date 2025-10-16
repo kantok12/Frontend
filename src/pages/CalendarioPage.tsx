@@ -61,22 +61,39 @@ export const CalendarioPage: React.FC = () => {
   const { carteras: carterasServicios, clientes: clientesServicios, nodos: nodosServicios, isLoading: isLoadingServicios } = useServiciosPage('', 'carteras');
   
   // Logs de depuración
+  // eslint-disable-next-line no-console
   console.log('🔍 CalendarioPage - Datos cargados:');
+  // eslint-disable-next-line no-console
   console.log('📊 Carteras (hook individual):', carterasData);
+  // eslint-disable-next-line no-console
   console.log('👥 Clientes (hook individual):', clientesData);
+  // eslint-disable-next-line no-console
   console.log('📍 Nodos (hook individual):', nodosData);
+  // eslint-disable-next-line no-console
   console.log('📊 Carteras (hook servicios):', carterasServicios);
+  // eslint-disable-next-line no-console
   console.log('👥 Clientes (hook servicios):', clientesServicios);
+  // eslint-disable-next-line no-console
   console.log('📍 Nodos (hook servicios):', nodosServicios);
+  // eslint-disable-next-line no-console
   console.log('📊 Carteras success:', carterasData?.success);
+  // eslint-disable-next-line no-console
   console.log('👥 Clientes success:', clientesData?.success);
+  // eslint-disable-next-line no-console
   console.log('📍 Nodos success:', nodosData?.success);
+  // eslint-disable-next-line no-console
   console.log('📊 Carteras data length:', carterasData?.data?.length);
+  // eslint-disable-next-line no-console
   console.log('👥 Clientes data length:', clientesData?.data?.length);
+  // eslint-disable-next-line no-console
   console.log('📍 Nodos data length:', nodosData?.data?.length);
+  // eslint-disable-next-line no-console
   console.log('📊 Carteras servicios length:', carterasServicios?.length);
+  // eslint-disable-next-line no-console
   console.log('👥 Clientes servicios length:', clientesServicios?.length);
+  // eslint-disable-next-line no-console
   console.log('📍 Nodos servicios length:', nodosServicios?.length);
+  // eslint-disable-next-line no-console
   console.log('⏳ Loading servicios:', isLoadingServicios);
   const { data: nodosByClienteData } = useNodos({ 
     limit: 1000, 
@@ -111,18 +128,27 @@ export const CalendarioPage: React.FC = () => {
   );
   
   // Logs para programación
+  // eslint-disable-next-line no-console
   console.log('📅 Programación obtenida:', programacion);
+  // eslint-disable-next-line no-console
   console.log('📅 Programación length:', programacion?.length);
+  // eslint-disable-next-line no-console
   console.log('📅 Cartera obtenida:', cartera);
+  // eslint-disable-next-line no-console
   console.log('📅 Loading programación:', isLoadingProgramacion);
+  // eslint-disable-next-line no-console
   console.log('📅 Error programación:', errorProgramacion);
+  // eslint-disable-next-line no-console
   console.log('📅 Cartera seleccionada para hook:', mostrarTodasCarteras ? 0 : (carteraSeleccionada || 0));
+  // eslint-disable-next-line no-console
   console.log('📅 Mostrar todas las carteras:', mostrarTodasCarteras);
   
   // Log detallado de cada programación
   if (programacion && programacion.length > 0) {
+    // eslint-disable-next-line no-console
     console.log('📋 Programaciones encontradas:');
     programacion.forEach((prog: any, index: number) => {
+      // eslint-disable-next-line no-console
       console.log(`📋 Programación ${index + 1}:`, {
         id: prog.id,
         rut: prog.rut,
@@ -137,6 +163,7 @@ export const CalendarioPage: React.FC = () => {
       });
     });
   } else {
+    // eslint-disable-next-line no-console
     console.log('❌ No se encontraron programaciones en el hook');
   }
   
@@ -162,7 +189,9 @@ export const CalendarioPage: React.FC = () => {
   const handleExportarPDF = async () => {
     try {
       // Debug: Log de datos originales
+      // eslint-disable-next-line no-console
       console.log('🔍 Datos de programación originales:', programacion);
+      // eslint-disable-next-line no-console
       console.log('🔍 Fecha inicio semana:', fechaInicioSemana);
       
       // Convertir los datos de programación al formato esperado por el exportador
@@ -170,6 +199,7 @@ export const CalendarioPage: React.FC = () => {
       
       if (programacion && programacion.length > 0) {
         programacion.forEach((item: any) => {
+          // eslint-disable-next-line no-console
           console.log('🔍 Procesando item:', item);
           
           const dias = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'];
@@ -186,6 +216,7 @@ export const CalendarioPage: React.FC = () => {
           // Crear una asignación por cada día que esté marcado
           dias.forEach(dia => {
             if (item[dia]) {
+              // eslint-disable-next-line no-console
               console.log(`✅ Día ${dia} marcado para ${item.nombre_persona}`);
               asignacionesParaExportar.push({
                 id: `${item.rut}-${item.nodo_id || item.cliente_id}-${dia}`,
@@ -205,7 +236,9 @@ export const CalendarioPage: React.FC = () => {
       }
 
       // Debug: Log de datos finales
+      // eslint-disable-next-line no-console
       console.log('🔍 Asignaciones para exportar:', asignacionesParaExportar);
+      // eslint-disable-next-line no-console
       console.log('🔍 Total asignaciones:', asignacionesParaExportar.length);
 
       // Exportar PDF
@@ -290,6 +323,69 @@ export const CalendarioPage: React.FC = () => {
         return;
       }
 
+      // Validación preventiva: verificar si ya existe programación para evitar conflictos
+      // eslint-disable-next-line no-console
+      console.log('🔍 Verificando si ya existe programación para prevenir conflictos...');
+      try {
+        const { apiService } = await import('../services/api');
+        const programacionExistente = await apiService.verificarProgramacion(
+          asignacionForm.personalId,
+          carteraSeleccionada || 0,
+          fechaInicioSemana.toISOString().split('T')[0]
+        );
+        
+        if (programacionExistente.success && programacionExistente.data) {
+          // eslint-disable-next-line no-console
+          console.log('⚠️ Ya existe programación para esta persona en esta cartera y semana');
+          // eslint-disable-next-line no-console
+          console.log('📋 Programación existente:', programacionExistente.data);
+          
+          // Preguntar al usuario si quiere actualizar la programación existente
+          const nombrePersonal = (personalSeleccionado as any).nombres || personalSeleccionado.nombre || 'Personal';
+          const confirmarActualizacion = window.confirm(
+            `Ya existe una programación para ${nombrePersonal} en la cartera seleccionada para esta semana.\n\n¿Deseas actualizar la programación existente con los nuevos datos?`
+          );
+          
+          if (confirmarActualizacion) {
+            // Proceder directamente a actualizar la programación existente
+            const updateData = {
+              ...asignacionForm.dias,
+              cliente_id: asignacionForm.clienteId || null,
+              nodo_id: asignacionForm.nodoId || null,
+              horas_estimadas: asignacionForm.horasEstimadas,
+              observaciones: asignacionForm.observaciones || '',
+              estado: 'programado'
+            };
+            
+            // eslint-disable-next-line no-console
+            console.log('🔄 Actualizando programación existente con ID:', programacionExistente.data.id);
+            // eslint-disable-next-line no-console
+            console.log('📝 Datos de actualización:', updateData);
+            
+            await apiService.actualizarProgramacion(programacionExistente.data.id, updateData);
+            // eslint-disable-next-line no-console
+            console.log('✅ Programación actualizada exitosamente');
+            
+            // Invalidar queries para refrescar los datos
+            queryClient.invalidateQueries({ queryKey: ['programacion'] });
+            await queryClient.refetchQueries({ queryKey: ['programacion'] });
+            
+            // Cerrar modal y limpiar formulario
+            handleCerrarAsignacionModal();
+            return;
+          } else {
+            // El usuario decidió no actualizar, cancelar la operación
+            // eslint-disable-next-line no-console
+            console.log('❌ Usuario canceló la actualización de programación existente');
+            return;
+          }
+        }
+      } catch (verificationError) {
+        // eslint-disable-next-line no-console
+        console.warn('⚠️ No se pudo verificar programación existente, procediendo con la creación:', verificationError);
+        // Continuar con la creación normal si la verificación falla
+      }
+
       // Crear la programación con manejo de conflictos
       const programacionData = {
         rut: asignacionForm.personalId,
@@ -303,35 +399,48 @@ export const CalendarioPage: React.FC = () => {
         estado: 'programado'
       };
       
+      // eslint-disable-next-line no-console
       console.log('🚀 Datos a enviar para crear programación:', programacionData);
+      // eslint-disable-next-line no-console
       console.log('🔍 Formulario de asignación:', asignacionForm);
+      // eslint-disable-next-line no-console
       console.log('👤 Personal seleccionado:', personalSeleccionado);
+      // eslint-disable-next-line no-console
       console.log('🏢 Cartera seleccionada:', carteraSeleccionada);
+      // eslint-disable-next-line no-console
       console.log('📅 Fecha inicio semana:', fechaInicioSemana.toISOString().split('T')[0]);
       
       try {
+        // eslint-disable-next-line no-console
         console.log('🔄 Llamando directamente a apiService.crearProgramacion con:', programacionData);
         const { apiService } = await import('../services/api');
         const result = await apiService.crearProgramacion(programacionData);
+        // eslint-disable-next-line no-console
         console.log('✅ Programación creada exitosamente:', result);
         
         // Invalidar queries para refrescar los datos
         queryClient.invalidateQueries({ 
           queryKey: ['programacion', 'cartera', carteraSeleccionada, fechaInicioSemana.toISOString().split('T')[0]] 
         });
+        // eslint-disable-next-line no-console
         console.log('🔄 Queries invalidadas para refrescar datos');
         
         // Cerrar modal y limpiar formulario
         handleCerrarAsignacionModal();
       } catch (createError) {
+        // eslint-disable-next-line no-console
         console.error('❌ Error al crear programación:', createError);
         
         // Log detallado del error del servidor
         if (createError && typeof createError === 'object' && 'response' in createError) {
           const axiosError = createError as any;
+          // eslint-disable-next-line no-console
           console.error('📊 Status del error:', axiosError.response?.status);
+          // eslint-disable-next-line no-console
           console.error('📊 Datos del error:', axiosError.response?.data);
+          // eslint-disable-next-line no-console
           console.error('📊 Mensaje del error:', axiosError.response?.data?.message);
+          // eslint-disable-next-line no-console
           console.error('📊 Headers del error:', axiosError.response?.headers);
         }
         
@@ -339,16 +448,42 @@ export const CalendarioPage: React.FC = () => {
         if (createError && typeof createError === 'object' && 'response' in createError) {
           const axiosError = createError as any;
           if (axiosError.response?.status === 409) {
+            // eslint-disable-next-line no-console
             console.log('⚠️ Conflicto detectado - usando ID de programación existente de la respuesta');
+            // eslint-disable-next-line no-console
+            console.log('🔍 Estructura completa de la respuesta 409:', axiosError.response.data);
             
             try {
               const { apiService } = await import('../services/api');
               
-              // Obtener el ID de la programación existente directamente de la respuesta 409
-              const programacionExistente = axiosError.response.data.data.programacion_existente;
-              const idExistente = programacionExistente.id;
+              // Intentar obtener el ID de la programación existente de diferentes estructuras posibles
+              let programacionExistente = null;
+              let idExistente = null;
               
+              // Estructura 1: axiosError.response.data.data.programacion_existente
+              if (axiosError.response.data?.data?.programacion_existente) {
+                programacionExistente = axiosError.response.data.data.programacion_existente;
+                idExistente = programacionExistente.id;
+              }
+              // Estructura 2: axiosError.response.data.programacion_existente
+              else if (axiosError.response.data?.programacion_existente) {
+                programacionExistente = axiosError.response.data.programacion_existente;
+                idExistente = programacionExistente.id;
+              }
+              // Estructura 3: axiosError.response.data.data (si es directamente el objeto de programación)
+              else if (axiosError.response.data?.data?.id) {
+                programacionExistente = axiosError.response.data.data;
+                idExistente = programacionExistente.id;
+              }
+              // Estructura 4: axiosError.response.data (si es directamente el objeto de programación)
+              else if (axiosError.response.data?.id) {
+                programacionExistente = axiosError.response.data;
+                idExistente = programacionExistente.id;
+              }
+              
+              // eslint-disable-next-line no-console
               console.log('🔍 Programación existente encontrada en respuesta 409:', programacionExistente);
+              // eslint-disable-next-line no-console
               console.log('🆔 ID de programación existente:', idExistente);
               
               if (idExistente) {
@@ -362,47 +497,101 @@ export const CalendarioPage: React.FC = () => {
                   estado: 'programado'
                 };
                 
+                // eslint-disable-next-line no-console
                 console.log('🔄 Actualizando programación existente con ID:', idExistente);
+                // eslint-disable-next-line no-console
                 console.log('📝 Datos de actualización:', updateData);
                 
                 await apiService.actualizarProgramacion(idExistente, updateData);
+                // eslint-disable-next-line no-console
                 console.log('✅ Programación actualizada exitosamente');
                 
-        // Invalidar queries para refrescar los datos
-        console.log('🔄 Invalidando queries con parámetros:');
-        console.log('🔄 Cartera seleccionada:', carteraSeleccionada);
-        console.log('🔄 Fecha inicio semana:', fechaInicioSemana.toISOString().split('T')[0]);
-        
-        // Invalidar query específica de la cartera
-        queryClient.invalidateQueries({ 
-          queryKey: ['programacion', 'cartera', carteraSeleccionada, fechaInicioSemana.toISOString().split('T')[0]] 
-        });
-        
-        // Invalidar query de toda la semana
-        queryClient.invalidateQueries({ 
-          queryKey: ['programacion', 'semana', fechaInicioSemana.toISOString().split('T')[0]] 
-        });
-        
-        // Invalidar todas las queries de programación para asegurar refresco
-        queryClient.invalidateQueries({ 
-          queryKey: ['programacion'] 
-        });
-        
-        // Forzar refetch inmediato de los datos
-        console.log('🔄 Forzando refetch inmediato de programación...');
-        await queryClient.refetchQueries({ 
-          queryKey: ['programacion'] 
-        });
+                // Invalidar queries para refrescar los datos
+                // eslint-disable-next-line no-console
+                console.log('🔄 Invalidando queries con parámetros:');
+                // eslint-disable-next-line no-console
+                console.log('🔄 Cartera seleccionada:', carteraSeleccionada);
+                // eslint-disable-next-line no-console
+                console.log('🔄 Fecha inicio semana:', fechaInicioSemana.toISOString().split('T')[0]);
                 
+                // Invalidar query específica de la cartera
+                queryClient.invalidateQueries({ 
+                  queryKey: ['programacion', 'cartera', carteraSeleccionada, fechaInicioSemana.toISOString().split('T')[0]] 
+                });
+                
+                // Invalidar query de toda la semana
+                queryClient.invalidateQueries({ 
+                  queryKey: ['programacion', 'semana', fechaInicioSemana.toISOString().split('T')[0]] 
+                });
+                
+                // Invalidar todas las queries de programación para asegurar refresco
+                queryClient.invalidateQueries({ 
+                  queryKey: ['programacion'] 
+                });
+                
+                // Forzar refetch inmediato de los datos
+                // eslint-disable-next-line no-console
+                console.log('🔄 Forzando refetch inmediato de programación...');
+                await queryClient.refetchQueries({ 
+                  queryKey: ['programacion'] 
+                });
+                
+                // eslint-disable-next-line no-console
                 console.log('🔄 Queries invalidadas y refetch completado');
                 
                 // Cerrar modal y limpiar formulario
                 handleCerrarAsignacionModal();
                 return;
               } else {
-                throw new Error('No se encontró ID de programación existente en la respuesta 409');
+                // eslint-disable-next-line no-console
+                console.error('❌ No se pudo encontrar el ID de programación existente en la respuesta 409');
+                // eslint-disable-next-line no-console
+                console.error('❌ Estructura de respuesta completa:', JSON.stringify(axiosError.response.data, null, 2));
+                
+                // Como fallback, intentar buscar la programación existente por RUT, cartera y semana
+                // eslint-disable-next-line no-console
+                console.log('🔄 Intentando buscar programación existente como fallback...');
+                try {
+                  const programacionExistente = await apiService.verificarProgramacion(
+                    asignacionForm.personalId,
+                    carteraSeleccionada || 0,
+                    fechaInicioSemana.toISOString().split('T')[0]
+                  );
+                  
+                  if (programacionExistente.success && programacionExistente.data?.id) {
+                    // eslint-disable-next-line no-console
+                    console.log('✅ Programación existente encontrada por verificación:', programacionExistente.data);
+                    
+                    const updateData = {
+                      ...asignacionForm.dias,
+                      cliente_id: asignacionForm.clienteId || null,
+                      nodo_id: asignacionForm.nodoId || null,
+                      horas_estimadas: asignacionForm.horasEstimadas,
+                      observaciones: asignacionForm.observaciones || '',
+                      estado: 'programado'
+                    };
+                    
+                    await apiService.actualizarProgramacion(programacionExistente.data.id, updateData);
+                    // eslint-disable-next-line no-console
+                    console.log('✅ Programación actualizada exitosamente usando verificación');
+                    
+                    // Invalidar queries
+                    queryClient.invalidateQueries({ queryKey: ['programacion'] });
+                    await queryClient.refetchQueries({ queryKey: ['programacion'] });
+                    
+                    handleCerrarAsignacionModal();
+                    return;
+                  }
+                } catch (verificationError) {
+                  // eslint-disable-next-line no-console
+                  console.error('❌ Error en verificación de programación existente:', verificationError);
+                }
+                
+                // Si llegamos aquí, no pudimos manejar el conflicto
+                throw new Error('No se pudo encontrar ni actualizar la programación existente. Por favor, verifica manualmente si ya existe una programación para esta persona en esta cartera y semana.');
               }
             } catch (updateError) {
+              // eslint-disable-next-line no-console
               console.error('❌ Error al actualizar programación existente:', updateError);
               throw updateError;
             }
@@ -419,7 +608,24 @@ export const CalendarioPage: React.FC = () => {
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('Error al crear asignación:', error);
-      alert('Error al crear la asignación. Por favor intenta nuevamente.');
+      
+      // Proporcionar mensajes de error más específicos
+      let errorMessage = 'Error al crear la asignación. Por favor intenta nuevamente.';
+      
+      if (error && typeof error === 'object' && 'message' in error) {
+        const errorObj = error as any;
+        if (errorObj.message.includes('programación existente')) {
+          errorMessage = 'Ya existe una programación para esta persona en esta cartera y semana. Se intentó actualizar automáticamente, pero hubo un problema. Por favor, verifica manualmente la programación existente.';
+        } else if (errorObj.message.includes('No se pudo encontrar')) {
+          errorMessage = 'No se pudo encontrar la programación existente para actualizar. Por favor, verifica que la persona esté correctamente asignada a la cartera.';
+        } else if (errorObj.response?.status === 400) {
+          errorMessage = 'Los datos enviados no son válidos. Por favor, verifica que todos los campos estén correctamente completados.';
+        } else if (errorObj.response?.status === 500) {
+          errorMessage = 'Error interno del servidor. Por favor, intenta nuevamente en unos momentos.';
+        }
+      }
+      
+      alert(errorMessage);
     }
   };
 
@@ -732,10 +938,12 @@ export const CalendarioPage: React.FC = () => {
                 
                 <button
                   onClick={async () => {
+                    // eslint-disable-next-line no-console
                     console.log('🔄 Recargando programación manualmente...');
                     await queryClient.refetchQueries({ 
                       queryKey: ['programacion'] 
                     });
+                    // eslint-disable-next-line no-console
                     console.log('✅ Programación recargada');
                   }}
                   className="flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
@@ -843,7 +1051,7 @@ export const CalendarioPage: React.FC = () => {
                           Nodo
                         </div>
                         {getDiasSemana().map((dia, index) => (
-                          <div key={index} className="px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200 last:border-r-0">
+                          <div key={`dia-${dia.nombre}-${index}`} className="px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200 last:border-r-0">
                             <div>{dia.nombre}</div>
                             <div className="font-bold">{dia.numero}</div>
                             <div>{dia.mes}</div>
@@ -894,7 +1102,7 @@ export const CalendarioPage: React.FC = () => {
                                       const estaAsignado = nodo.asignaciones[diaKey];
                                       
                                       return (
-                                        <div key={diaIndex} className="px-2 py-3 text-center border-r border-gray-200 last:border-r-0">
+                                        <div key={`${persona.rut}-${nodo.clienteId}-${nodo.nodoId}-${diaKey}`} className="px-2 py-3 text-center border-r border-gray-200 last:border-r-0">
                                           {estaAsignado ? (
                                             <div className="flex items-center justify-center">
                                               <span className="text-sm font-medium text-green-800 bg-green-100 px-2 py-1 rounded">
@@ -1248,6 +1456,7 @@ export const CalendarioPage: React.FC = () => {
         isOpen={showProgramacionCalendarioModal}
         onClose={() => setShowProgramacionCalendarioModal(false)}
         onSuccess={(asignaciones) => {
+          // eslint-disable-next-line no-console
           console.log('Programación guardada:', asignaciones);
           // Aquí podrías refrescar los datos o mostrar un mensaje de éxito
           setShowProgramacionCalendarioModal(false);

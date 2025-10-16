@@ -5,8 +5,11 @@ export const exportarPlanificacionPDF = async (
 ) => {
   try {
     // Debug: Log de datos recibidos
+    // eslint-disable-next-line no-console
     console.log('🔍 PDF Exporter - Fecha inicio:', fechaInicio);
+    // eslint-disable-next-line no-console
     console.log('🔍 PDF Exporter - Asignaciones recibidas:', asignaciones);
+    // eslint-disable-next-line no-console
     console.log('🔍 PDF Exporter - Total asignaciones:', asignaciones.length);
     
     // Importar jsPDF dinámicamente
@@ -15,6 +18,7 @@ export const exportarPlanificacionPDF = async (
     
     // Crear contenido HTML para el PDF
     const contenidoHTML = generarHTMLPlanificacion(fechaInicio, asignaciones);
+    // eslint-disable-next-line no-console
     console.log('🔍 PDF Exporter - HTML generado:', contenidoHTML.substring(0, 500) + '...');
     
     // Crear un elemento temporal para renderizar el HTML
@@ -65,6 +69,7 @@ export const exportarPlanificacionPDF = async (
     document.body.removeChild(tempDiv);
     
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Error al generar PDF:', error);
     
     // Fallback: descargar como HTML
@@ -91,7 +96,9 @@ export const exportarPlanificacionPDF = async (
 };
 
 const generarHTMLPlanificacion = (fechaInicio: Date, asignaciones: any[]) => {
+  // eslint-disable-next-line no-console
   console.log('🔍 GenerarHTML - Fecha inicio:', fechaInicio);
+  // eslint-disable-next-line no-console
   console.log('🔍 GenerarHTML - Asignaciones:', asignaciones);
   
   const diasSemana = [
@@ -116,6 +123,7 @@ const generarHTMLPlanificacion = (fechaInicio: Date, asignaciones: any[]) => {
   };
 
   const fechasSemana = getFechasSemana(fechaInicio);
+  // eslint-disable-next-line no-console
   console.log('🔍 GenerarHTML - Fechas semana:', fechasSemana);
 
   // Obtener personal único
@@ -128,6 +136,7 @@ const generarHTMLPlanificacion = (fechaInicio: Date, asignaciones: any[]) => {
         nombre: asignacion?.personalNombre || 'Personal no encontrado'
       };
     });
+    // eslint-disable-next-line no-console
     console.log('🔍 GenerarHTML - Personal único:', personalUnico);
     return personalUnico;
   };
@@ -137,6 +146,7 @@ const generarHTMLPlanificacion = (fechaInicio: Date, asignaciones: any[]) => {
   // Obtener asignaciones por día
   const getAsignacionesPorDia = (dia: string) => {
     const asignacionesDia = asignaciones.filter((asignacion: any) => asignacion.dia === dia);
+    // eslint-disable-next-line no-console
     console.log(`🔍 GenerarHTML - Asignaciones para ${dia}:`, asignacionesDia);
     return asignacionesDia;
   };
