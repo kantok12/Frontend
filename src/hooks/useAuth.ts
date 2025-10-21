@@ -31,15 +31,33 @@ export const useAuth = () => {
   const loginMutation = useMutation({
     mutationFn: (credentials: LoginForm) => apiService.login(credentials),
     onSuccess: (response) => {
-      if (response.success && response.data) {
-        loginStore(response.data.user, response.data.token);
-        localStorage.setItem('token', response.data.token);
-        localStorage.setItem('user', JSON.stringify(response.data.user));
+      console.log('Login response:', response);
+      console.log('Response type:', typeof response);
+      console.log('Response keys:', Object.keys(response));
+      console.log('Response.user:', response.user);
+      console.log('Response.token:', response.token);
+      
+      // El backend devuelve directamente: { user: User, token: string, message: string }
+      // No está envuelto en ApiResponse
+      if (response.user && response.token) {
+        console.log('Login exitoso, guardando datos...');
+        loginStore(response.user, response.token);
+        localStorage.setItem('token', response.token);
+        localStorage.setItem('user', JSON.stringify(response.user));
+        setLoading(false);
         navigate('/dashboard');
+      } else {
+        console.error('Respuesta del servidor inválida:', response);
+        console.error('User:', response.user);
+        console.error('Token:', response.token);
+        setError('Respuesta inválida del servidor');
+        setLoading(false);
       }
     },
     onError: (error: any) => {
+      console.error('Error en login:', error);
       setError(error.response?.data?.message || 'Error al iniciar sesión');
+      setLoading(false);
     },
   });
 
@@ -47,15 +65,21 @@ export const useAuth = () => {
   const registerMutation = useMutation({
     mutationFn: (userData: RegisterForm) => apiService.register(userData),
     onSuccess: (response) => {
-      if (response.success && response.data) {
-        loginStore(response.data.user, response.data.token);
-        localStorage.setItem('token', response.data.token);
-        localStorage.setItem('user', JSON.stringify(response.data.user));
+      // El backend devuelve directamente: { user: User, token: string, message: string }
+      if (response.user && response.token) {
+        loginStore(response.user, response.token);
+        localStorage.setItem('token', response.token);
+        localStorage.setItem('user', JSON.stringify(response.user));
+        setLoading(false);
         navigate('/dashboard');
+      } else {
+        setError('Respuesta inválida del servidor');
+        setLoading(false);
       }
     },
     onError: (error: any) => {
       setError(error.response?.data?.message || 'Error al registrar usuario');
+      setLoading(false);
     },
   });
 

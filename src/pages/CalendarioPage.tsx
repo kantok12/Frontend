@@ -233,7 +233,7 @@ export const CalendarioPage: React.FC = () => {
         <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-3xl font-bold">{getTrabajadoresUnicos()}</div>
+              <div className="text-3xl font-bold">{getTrabajadoresUnicos().length}</div>
               <div className="text-green-100 text-sm font-medium">Personal Único</div>
             </div>
             <div className="bg-green-400 bg-opacity-30 rounded-full p-3">

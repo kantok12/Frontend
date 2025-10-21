@@ -57,12 +57,24 @@ const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 function App() {
   return (
     <Routes>
-      {/* Public Routes - Demo Mode: Redirect to Dashboard */}
-      <Route path="/login" element={<Navigate to="/dashboard" replace />} />
-      <Route path="/register" element={<Navigate to="/dashboard" replace />} />
+      {/* Public Routes - Authentication Required */}
+      <Route path="/login" element={
+        <PublicRoute>
+          <LoginPage />
+        </PublicRoute>
+      } />
+      <Route path="/register" element={
+        <PublicRoute>
+          <RegisterPage />
+        </PublicRoute>
+      } />
       
       {/* Extended Registration Route for Personal Disponible */}
-      <Route path="/register-personal" element={<ExtendedRegisterPage />} />
+      <Route path="/register-personal" element={
+        <PublicRoute>
+          <ExtendedRegisterPage />
+        </PublicRoute>
+      } />
 
       {/* Protected Routes */}
       <Route

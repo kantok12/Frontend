@@ -22,27 +22,13 @@ interface AuthActions {
 
 type AuthStore = AuthState & AuthActions;
 
-// Usuario demo por defecto
-const demoUser: User = {
-  id: 'demo-1',
-  email: 'demo@gestor.com',
-  nombre: 'Usuario',
-  apellido: 'Demo',
-  rol: 'admin',
-  activo: true,
-  created_at: new Date().toISOString(),
-  updated_at: new Date().toISOString(),
-};
-
-const demoToken = 'demo-token-12345';
-
 export const useAuthStore = create<AuthStore>()(
   persist(
     (set, get) => ({
-      // Estado inicial - Demo autenticado
-      user: demoUser,
-      token: demoToken,
-      isAuthenticated: true,
+      // Estado inicial - Sin autenticación
+      user: null,
+      token: null,
+      isAuthenticated: false,
       isLoading: false,
       error: null,
 

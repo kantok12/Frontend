@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { Search, Plus, Settings, Users, Building2, MapPin, AlertCircle, ChevronRight } from 'lucide-react';
-import { useServiciosPage } from '../hooks/useServicios';
+import { useServiciosPage, useClientes, useNodos } from '../hooks/useServicios';
 // import { useMinimoPersonal } from '../hooks/useMinimoPersonal'; // Deshabilitado temporalmente
 import { Tooltip } from '../components/common/Tooltip';
 import { Cartera, Cliente, Nodo } from '../types';
@@ -243,8 +243,9 @@ export const ServiciosPage: React.FC = () => {
           })
         );
         setAssignedPersonal(updated);
-      } catch {
+      } catch (error) {
         // Ignorar
+        console.warn('Error al hidratar nombres:', error);
       }
     };
     hydrateNames();
@@ -255,10 +256,10 @@ export const ServiciosPage: React.FC = () => {
     setAssigning(true);
     try {
       if (selectedNodo) {
-        await apiService.assignNodoToPersona(selectedRutToAssign.trim(), selectedNodo.id);
+        await apiService.assignNodoToPersona(selectedRutToAssign.trim(), (selectedNodo as Nodo).id);
       } else if (selectedCliente) {
         // 1) Verificar requisitos ANTES de asignar
-        const match = await apiService.matchPrerequisitosCliente(selectedCliente.id, selectedRutToAssign.trim());
+        const match = await apiService.matchPrerequisitosCliente((selectedCliente as Cliente).id, selectedRutToAssign.trim());
         const validacion = (match as any)?.data || match;
         const faltantes = validacion?.faltantes || [];
         if (faltantes.length > 0) {

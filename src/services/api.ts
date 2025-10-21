@@ -74,13 +74,13 @@ class ApiService {
   }
 
   // Métodos de autenticación
-  async login(credentials: LoginForm): Promise<ApiResponse<{ token: string; user: User }>> {
-    const response: AxiosResponse<ApiResponse<{ token: string; user: User }>> = await this.api.post('/auth/login', credentials);
+  async login(credentials: LoginForm): Promise<{ message: string; user: User; token: string }> {
+    const response: AxiosResponse<{ message: string; user: User; token: string }> = await this.api.post('/auth/login', credentials);
     return response.data;
   }
 
-  async register(userData: RegisterForm): Promise<ApiResponse<{ token: string; user: User }>> {
-    const response: AxiosResponse<ApiResponse<{ token: string; user: User }>> = await this.api.post('/auth/register', userData);
+  async register(userData: RegisterForm): Promise<{ message: string; user: User; token: string }> {
+    const response: AxiosResponse<{ message: string; user: User; token: string }> = await this.api.post('/auth/register', userData);
     return response.data;
   }
 
@@ -94,7 +94,8 @@ class ApiService {
       apellido: userData.apellido
     });
 
-    if (userResponse.success && userResponse.data) {
+    // userResponse es { message: string; user: User; token: string }
+    if (userResponse && userResponse.user && userResponse.token) {
       try {
         // Luego crear el registro en personal-disponible
         const personalData: CreatePersonalDisponibleData = {
@@ -120,8 +121,8 @@ class ApiService {
           return {
             success: true,
             data: {
-              token: userResponse.data.token,
-              user: userResponse.data.user,
+              token: userResponse.token,
+              user: userResponse.user,
               personal: personalResponse.data
             }
           };
