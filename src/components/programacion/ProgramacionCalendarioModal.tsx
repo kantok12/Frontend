@@ -67,6 +67,7 @@ export const ProgramacionCalendarioModal: React.FC<ProgramacionCalendarioModalPr
     horaFin: '17:00',
     observaciones: ''
   });
+  const [semanaSeleccionada, setSemanaSeleccionada] = useState<'actual' | 'siguiente'>('actual');
   const [showFormulario, setShowFormulario] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -90,6 +91,33 @@ export const ProgramacionCalendarioModal: React.FC<ProgramacionCalendarioModalPr
     const diffMs = fin.getTime() - inicio.getTime();
     const diffHours = diffMs / (1000 * 60 * 60);
     return Math.max(0, diffHours);
+  };
+
+  // Función para obtener la fecha de inicio de la semana seleccionada
+  const getFechaInicioSemana = (semana: 'actual' | 'siguiente'): string => {
+    const hoy = new Date();
+    const lunesActual = new Date(hoy);
+    lunesActual.setDate(hoy.getDate() - hoy.getDay() + 1); // Lunes de esta semana
+    
+    if (semana === 'siguiente') {
+      lunesActual.setDate(lunesActual.getDate() + 7); // Lunes de la siguiente semana
+    }
+    
+    return lunesActual.toISOString().split('T')[0];
+  };
+
+  // Función para formatear fecha de semana
+  const formatearSemana = (semana: 'actual' | 'siguiente'): string => {
+    const fecha = new Date(getFechaInicioSemana(semana));
+    const fechaFin = new Date(fecha);
+    fechaFin.setDate(fecha.getDate() + 6);
+    
+    const formatearFecha = (f: Date) => f.toLocaleDateString('es-ES', { 
+      day: '2-digit', 
+      month: 'short'
+    });
+    
+    return `${formatearFecha(fecha)} - ${formatearFecha(fechaFin)}`;
   };
 
   // Días de la semana
@@ -320,7 +348,8 @@ export const ProgramacionCalendarioModal: React.FC<ProgramacionCalendarioModalPr
       console.log('🚀 Iniciando proceso de guardado...');
       console.log('📋 Asignaciones a guardar:', asignaciones);
       console.log('🏢 Cartera ID:', carteraId);
-      console.log('📅 Semana inicio:', semanaInicio);
+      console.log('📅 Semana seleccionada:', semanaSeleccionada);
+      console.log('📅 Fecha inicio calculada:', getFechaInicioSemana(semanaSeleccionada));
       
       // Crear cada asignación usando la API
       const promises = asignaciones.map(async (asignacion, index) => {
@@ -351,7 +380,7 @@ export const ProgramacionCalendarioModal: React.FC<ProgramacionCalendarioModalPr
           cartera_id: carteraId,
           cliente_id: asignacion.clienteId || null,
           nodo_id: asignacion.nodoId || null,
-          semana_inicio: semanaInicio,
+          semana_inicio: getFechaInicioSemana(semanaSeleccionada),
           [asignacion.dia]: true, // Marcar el día como activo
           horas_estimadas: calcularHorasEstimadas(asignacion.horaInicio, asignacion.horaFin),
           observaciones: asignacion.observaciones || '',
@@ -378,7 +407,8 @@ export const ProgramacionCalendarioModal: React.FC<ProgramacionCalendarioModalPr
         console.log('📤 Creando programación:', programacionData);
         console.log('👤 Personal seleccionado:', personalSeleccionado);
         console.log('🏢 Cartera ID:', carteraId);
-        console.log('📅 Semana inicio:', semanaInicio);
+        console.log('📅 Semana seleccionada:', semanaSeleccionada);
+        console.log('📅 Fecha inicio calculada:', getFechaInicioSemana(semanaSeleccionada));
         console.log('✅ Validaciones pasadas - enviando a API');
         
         // Usar directamente el servicio API en lugar del hook
@@ -441,19 +471,20 @@ export const ProgramacionCalendarioModal: React.FC<ProgramacionCalendarioModalPr
       
       // Invalidar queries para refrescar el calendario
       console.log('🔄 Invalidando queries para refrescar el calendario...');
+      const fechaInicioCalculada = getFechaInicioSemana(semanaSeleccionada);
       if (carteraId === 0) {
         queryClient.invalidateQueries({ 
-          queryKey: ['programacion', 'semana', 0, semanaInicio] 
+          queryKey: ['programacion', 'semana', 0, fechaInicioCalculada] 
         });
         queryClient.invalidateQueries({ 
           queryKey: ['programacion'] 
         });
-        console.log('✅ Queries de semana invalidadas');
+        console.log('✅ Queries de semana invalidadas para:', fechaInicioCalculada);
       } else {
         queryClient.invalidateQueries({ 
-          queryKey: ['programacion', 'cartera', carteraId, semanaInicio] 
+          queryKey: ['programacion', 'cartera', carteraId, fechaInicioCalculada] 
         });
-        console.log('✅ Queries de cartera invalidadas');
+        console.log('✅ Queries de cartera invalidadas para:', fechaInicioCalculada);
       }
       
       console.log('🎉 Proceso completado exitosamente');
@@ -646,6 +677,29 @@ export const ProgramacionCalendarioModal: React.FC<ProgramacionCalendarioModalPr
                         </option>
                       ))}
                     </select>
+                  </div>
+
+                  {/* Semana */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Semana de Programación *
+                    </label>
+                    <select
+                      value={semanaSeleccionada}
+                      onChange={(e) => setSemanaSeleccionada(e.target.value as 'actual' | 'siguiente')}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="actual">
+                        Esta semana ({formatearSemana('actual')})
+                      </option>
+                      <option value="siguiente">
+                        Siguiente semana ({formatearSemana('siguiente')})
+                      </option>
+                    </select>
+                    <div className="mt-1 text-xs text-blue-600 flex items-center">
+                      <Calendar className="h-3 w-3 mr-1" />
+                      Programando para: {formatearSemana(semanaSeleccionada)}
+                    </div>
                   </div>
 
                   {/* Cartera */}
