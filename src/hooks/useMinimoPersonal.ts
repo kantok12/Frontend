@@ -100,10 +100,13 @@ export const useMinimoPersonalDashboard = (filters?: {
   cliente_id?: number;
   nodo_id?: number;
 }) => {
-  const { data: minimoPersonal, isLoading: minimoPersonalLoading } = useMinimoPersonal({
-    limit: 100,
-    ...filters
-  });
+  // Deshabilitado temporalmente por error 500
+  // const { data: minimoPersonal, isLoading: minimoPersonalLoading } = useMinimoPersonal({
+  //   limit: 100,
+  //   ...filters
+  // });
+  const minimoPersonal: any = null;
+  const minimoPersonalLoading = false;
 
   return {
     minimoPersonal: minimoPersonal?.data || [],

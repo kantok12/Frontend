@@ -59,10 +59,13 @@ class ApiService {
         
         // Filtrar errores 404 de imágenes de perfil para evitar spam en consola
         if (error.response?.status === 404 && 
-            error.config?.url?.includes('/profile-image')) {
+            error.config?.url?.includes('/personal/') && 
+            error.config?.url?.includes('/image')) {
           // No loguear estos errores ya que son esperados cuando no hay imagen
-          // Solo rechazar la promesa sin mostrar error en consola
-          return Promise.reject(error);
+          // Crear un error silencioso que no se muestre en consola
+          const silentError = new Error('No image found');
+          silentError.name = 'SilentError';
+          return Promise.reject(silentError);
         }
         
         return Promise.reject(error);
@@ -623,6 +626,37 @@ class ApiService {
     return response.data;
   }
 
+  // Actualizar documento
+  async updateDocumento(id: number, data: any): Promise<ApiResponse<any>> {
+    // Si hay un archivo, usar FormData
+    if (data.archivo) {
+      const formData = new FormData();
+      
+      // Agregar campos de texto
+      if (data.nombre_documento) formData.append('nombre_documento', data.nombre_documento);
+      if (data.tipo_documento) formData.append('tipo_documento', data.tipo_documento);
+      if (data.fecha_emision) formData.append('fecha_emision', data.fecha_emision);
+      if (data.fecha_vencimiento) formData.append('fecha_vencimiento', data.fecha_vencimiento);
+      if (data.dias_validez) formData.append('dias_validez', data.dias_validez.toString());
+      if (data.estado_documento) formData.append('estado_documento', data.estado_documento);
+      if (data.institucion_emisora) formData.append('institucion_emisora', data.institucion_emisora);
+      
+      // Agregar archivo
+      formData.append('archivo', data.archivo);
+      
+      const response: AxiosResponse<ApiResponse<any>> = await this.api.put(`/documentos/${id}`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data;
+    } else {
+      // Si no hay archivo, enviar como JSON
+      const response: AxiosResponse<ApiResponse<any>> = await this.api.put(`/documentos/${id}`, data);
+      return response.data;
+    }
+  }
+
   // Obtener tipos de documentos disponibles
   async getTiposDocumentos(): Promise<ApiResponse<any[]>> {
     console.log('🌐 Haciendo petición a /documentos/tipos');
@@ -750,33 +784,11 @@ class ApiService {
   // Método para obtener estadísticas del dashboard
   async getDashboardStats(): Promise<ApiResponse<DashboardStats>> {
     try {
-      // Como no hay un endpoint específico para dashboard stats, simularemos con datos combinados
-      const personalRes = await this.getPersonal(1, 5);
-
-      const stats: DashboardStats = {
-        total_personal: personalRes.pagination.total,
-        total_empresas: 10, // Valor fijo por ahora
-        total_servicios: 15, // Valor fijo por ahora
-        personal_activo: personalRes.data.filter((p: Personal) => p.activo).length,
-        servicios_activos: 12 // Valor fijo por ahora
-      };
-
-      return {
-        success: true,
-        data: stats
-      };
+      const response: AxiosResponse<ApiResponse<DashboardStats>> = await this.api.get('/dashboard/stats');
+      return response.data;
     } catch (error) {
-      // Si hay error, devolver datos mock
-      return {
-        success: true,
-        data: {
-          total_personal: 49,
-          total_empresas: 10,
-          total_servicios: 15,
-          personal_activo: 45,
-          servicios_activos: 12
-        }
-      };
+      console.error('Error al obtener estadísticas del dashboard:', error);
+      throw error;
     }
   }
 
@@ -794,7 +806,7 @@ class ApiService {
         withCredentials: false,
       });
 
-      const response: AxiosResponse<ApiResponse<any>> = await uploadApi.post(`/personal/${rut}/profile-image`, formData, {
+      const response: AxiosResponse<ApiResponse<any>> = await uploadApi.post(`/personal/${rut}/upload`, formData, {
         headers: {
           // No establecer Content-Type para que axios lo establezca automáticamente con boundary
         },
@@ -811,7 +823,7 @@ class ApiService {
   // Obtener imagen de perfil
   async getProfileImage(rut: string): Promise<ApiResponse<any>> {
     try {
-      const url = `/personal/${rut}/profile-image`;
+      const url = `/personal/${rut}/image`;
       console.log('🖼️ API - getProfileImage URL:', url, 'Base URL:', this.api.defaults.baseURL);
       const response: AxiosResponse<ApiResponse<any>> = await this.api.get(url);
       console.log('🖼️ API - getProfileImage response:', response.data);
@@ -839,7 +851,7 @@ class ApiService {
   // Verificar si existe imagen de perfil sin generar errores 404 en consola
   async checkProfileImageExists(rut: string): Promise<boolean> {
     try {
-      const response = await this.api.head(`/personal/${rut}/profile-image`);
+      const response = await this.api.head(`/personal/${rut}/image`);
       return response.status === 200;
     } catch (error: any) {
       // Si es 404, no existe la imagen
@@ -854,7 +866,7 @@ class ApiService {
   // Descargar imagen de perfil
   async downloadProfileImage(rut: string): Promise<Blob> {
     try {
-      const response = await this.api.get(`/personal/${rut}/profile-image/download`, {
+      const response = await this.api.get(`/personal/${rut}/image`, {
         responseType: 'blob'
       });
       return response.data;
@@ -867,7 +879,7 @@ class ApiService {
   // Eliminar imagen de perfil
   async deleteProfileImage(rut: string): Promise<ApiResponse<any>> {
     try {
-      const response: AxiosResponse<ApiResponse<any>> = await this.api.delete(`/personal/${rut}/profile-image`);
+      const response: AxiosResponse<ApiResponse<any>> = await this.api.delete(`/personal/${rut}/image`);
       console.log('✅ Imagen de perfil eliminada:', response.data);
       return response.data;
     } catch (error: any) {

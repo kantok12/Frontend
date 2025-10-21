@@ -276,6 +276,21 @@ export const useDeleteDocumento = () => {
   });
 };
 
+// Hook para actualizar documento
+export const useUpdateDocumento = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: ({ id, data }: { id: number; data: any }) => apiService.updateDocumento(id, data),
+    onSuccess: () => {
+      // Invalidar queries relacionadas
+      queryClient.invalidateQueries({ queryKey: ['documentos'] });
+      queryClient.invalidateQueries({ queryKey: ['documentos', 'persona'] });
+      queryClient.invalidateQueries({ queryKey: ['documentos', 'curso'] });
+    },
+  });
+};
+
 // Hook para descargar documento
 export const useDownloadDocumento = () => {
   return useMutation({

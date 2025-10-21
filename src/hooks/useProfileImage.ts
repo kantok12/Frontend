@@ -19,7 +19,7 @@ export const useProfileImage = (rut: string) => {
         const result = await apiService.getProfileImage(rut);
         return result;
       } catch (err: any) {
-        if (err.response?.status === 404) {
+        if (err.response?.status === 404 || err.name === 'SilentError') {
           // No hay imagen de perfil, esto es normal - no loguear error
           return null;
         }
@@ -29,16 +29,16 @@ export const useProfileImage = (rut: string) => {
     enabled: !!rut,
     staleTime: 5 * 60 * 1000, // 5 minutos
     retry: (failureCount, error: any) => {
-      // No reintentar si es 404 (no hay imagen) o si ya hemos intentado 1 vez
-      if (error?.response?.status === 404 || failureCount >= 1) {
+      // No reintentar si es 404 (no hay imagen), error silencioso, o si ya hemos intentado 1 vez
+      if (error?.response?.status === 404 || error?.name === 'SilentError' || failureCount >= 1) {
         return false;
       }
       return true;
     },
     retryDelay: 1000,
     onError: (error: any) => {
-      // Solo loguear errores que no sean 404
-      if (error.response?.status !== 404) {
+      // Solo loguear errores que no sean 404 o errores silenciosos
+      if (error.response?.status !== 404 && error.name !== 'SilentError') {
         console.error('❌ Error al obtener imagen de perfil:', error);
       }
     }

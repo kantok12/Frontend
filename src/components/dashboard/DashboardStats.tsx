@@ -29,7 +29,7 @@ import { EventosModal } from './EventosModal';
 import { NodosInfoModal } from './NodosInfoModal';
 import { CarterasInfoModal } from './CarterasInfoModal';
 
-// Datos mock de eventos del calendario (próximos 15 días)
+// Función para obtener los próximos 15 días
 const getProximosDias = () => {
   const dias = [];
   const hoy = new Date();
@@ -41,148 +41,8 @@ const getProximosDias = () => {
   return dias;
 };
 
-const proximosDias = getProximosDias();
+// const proximosDias = getProximosDias(); // TODO: Usar cuando se implementen eventos reales
 
-// TODO: Implementar carga de eventos reales desde el backend
-const eventosReales = [
-  { 
-    id: '1', 
-    fecha: proximosDias[0], 
-    estado: 'en_progreso',
-    tipo: 'Mantenimiento Industrial',
-    ubicacion: 'Planta Minera Norte',
-    horaInicio: '08:00',
-    horaFin: '16:00',
-    descripcion: 'Mantenimiento preventivo de equipos críticos',
-    prioridad: 'alta',
-    personasAsignadas: [
-      { id: '1', nombre: 'Juan Carlos Pérez' },
-      { id: '3', nombre: 'Carlos Alberto Martínez' }
-    ]
-  },
-  { 
-    id: '2', 
-    fecha: proximosDias[1], 
-    estado: 'programado',
-    tipo: 'Servicio Spot',
-    ubicacion: 'Zona Industrial Sur',
-    horaInicio: '09:00',
-    horaFin: '13:00',
-    descripcion: 'Inspección de equipos de lubricación',
-    prioridad: 'media',
-    personasAsignadas: [
-      { id: '2', nombre: 'María Elena Rodríguez' }
-    ]
-  },
-  { 
-    id: '3', 
-    fecha: proximosDias[2], 
-    estado: 'programado',
-    tipo: 'Servicio Integral',
-    ubicacion: 'Planta de Procesamiento',
-    horaInicio: '07:30',
-    horaFin: '15:30',
-    descripcion: 'Servicio completo de mantenimiento',
-    prioridad: 'alta',
-    personasAsignadas: [
-      { id: '3', nombre: 'Carlos Alberto Martínez' },
-      { id: '8', nombre: 'Carmen López Torres' },
-      { id: '7', nombre: 'Roberto Silva Mendoza' }
-    ]
-  },
-  { 
-    id: '4', 
-    fecha: proximosDias[4], 
-    estado: 'programado',
-    tipo: 'Programa de Lubricación',
-    ubicacion: 'Área de Maquinaria',
-    horaInicio: '10:00',
-    horaFin: '14:00',
-    descripcion: 'Aplicación de programa de lubricación preventiva',
-    prioridad: 'media',
-    personasAsignadas: [
-      { id: '6', nombre: 'Patricia Vargas Castro' },
-      { id: '5', nombre: 'Luis Fernando Ramírez' }
-    ]
-  },
-  { 
-    id: '5', 
-    fecha: proximosDias[6], 
-    estado: 'programado',
-    tipo: 'Levantamientos',
-    ubicacion: 'Sector de Transporte',
-    horaInicio: '08:30',
-    horaFin: '12:30',
-    descripcion: 'Levantamiento de equipos pesados',
-    prioridad: 'baja',
-    personasAsignadas: [
-      { id: '5', nombre: 'Luis Fernando Ramírez' }
-    ]
-  },
-  { 
-    id: '6', 
-    fecha: proximosDias[8], 
-    estado: 'programado',
-    tipo: 'Instalaciones',
-    ubicacion: 'Nueva Línea de Producción',
-    horaInicio: '09:00',
-    horaFin: '17:00',
-    descripcion: 'Instalación de nuevos equipos',
-    prioridad: 'alta',
-    personasAsignadas: [
-      { id: '1', nombre: 'Juan Carlos Pérez' },
-      { id: '3', nombre: 'Carlos Alberto Martínez' },
-      { id: '7', nombre: 'Roberto Silva Mendoza' },
-      { id: '8', nombre: 'Carmen López Torres' }
-    ]
-  },
-  { 
-    id: '7', 
-    fecha: proximosDias[10], 
-    estado: 'programado',
-    tipo: 'Mantenimiento Industrial',
-    ubicacion: 'Planta Minera Sur',
-    horaInicio: '08:00',
-    horaFin: '16:00',
-    descripcion: 'Mantenimiento de sistemas hidráulicos',
-    prioridad: 'media',
-    personasAsignadas: [
-      { id: '1', nombre: 'Juan Carlos Pérez' },
-      { id: '6', nombre: 'Patricia Vargas Castro' }
-    ]
-  },
-  { 
-    id: '8', 
-    fecha: proximosDias[12], 
-    estado: 'programado',
-    tipo: 'Servicio Spot',
-    ubicacion: 'Área de Almacenamiento',
-    horaInicio: '11:00',
-    horaFin: '15:00',
-    descripcion: 'Revisión de equipos de almacenamiento',
-    prioridad: 'baja',
-    personasAsignadas: [
-      { id: '2', nombre: 'María Elena Rodríguez' },
-      { id: '7', nombre: 'Roberto Silva Mendoza' }
-    ]
-  },
-  { 
-    id: '9', 
-    fecha: proximosDias[14], 
-    estado: 'programado',
-    tipo: 'Servicio Integral',
-    ubicacion: 'Planta Principal',
-    horaInicio: '07:00',
-    horaFin: '15:00',
-    descripcion: 'Servicio completo de mantenimiento general',
-    prioridad: 'alta',
-    personasAsignadas: [
-      { id: '3', nombre: 'Carlos Alberto Martínez' },
-      { id: '8', nombre: 'Carmen López Torres' },
-      { id: '5', nombre: 'Luis Fernando Ramírez' }
-    ]
-  }
-];
 
 const StatCard: React.FC<{
   title: string;
@@ -252,11 +112,8 @@ export const DashboardStats: React.FC = () => {
     p.activo && p.comentario_estado?.toLowerCase().includes('acreditación')
   ).length;
   
-  const totalEventos = eventosReales.length;
-  const eventosHoy = eventosReales.filter(e => {
-    const hoy = new Date().toISOString().split('T')[0];
-    return e.fecha === hoy;
-  }).length;
+  const totalEventos = 0; // TODO: Implementar carga de eventos reales desde el backend
+  const eventosHoy = 0; // TODO: Implementar carga de eventos reales desde el backend
 
   // Usar datos reales del backend
   const serviciosData = estadisticasServicios?.data;
@@ -687,7 +544,7 @@ export const DashboardStats: React.FC = () => {
       <EventosModal
         isOpen={showEventosModal}
         onClose={() => setShowEventosModal(false)}
-        eventos={eventosReales}
+        eventos={[]}
       />
 
       {/* Modal de información de nodos */}

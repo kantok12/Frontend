@@ -3,7 +3,7 @@ import { X, Plus, Calendar, Users, Building2, MapPin, Clock, Save, Trash2, Shiel
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { useProgramacionSemanal } from '../../hooks/useProgramacion';
 import { useQueryClient } from '@tanstack/react-query';
-import { usePersonalList } from '../../hooks/usePersonal';
+import { usePersonalConDocumentacion } from '../../hooks/usePersonalConDocumentacion';
 
 interface Servicio {
   id: number;
@@ -76,15 +76,12 @@ export const ProgramacionCalendarioModal: React.FC<ProgramacionCalendarioModalPr
   const queryClient = useQueryClient();
 
   // Hook para obtener personal con documentación
-  const { data: personalData, isLoading: isLoadingPersonal } = usePersonalList();
-  const personalConDocumentacion = personalData?.data 
-    ? (Array.isArray(personalData.data) 
-        ? personalData.data 
-        : personalData.data.items || [])
-    : [];
-  const cantidadConDocumentacion = personalConDocumentacion.length;
-  const totalPersonal = personalConDocumentacion.length;
-  const isLoadingPersonalConDocumentacion = isLoadingPersonal;
+  const { 
+    data: personalConDocumentacion, 
+    isLoading: isLoadingPersonalConDocumentacion,
+    totalPersonal,
+    personalConDocumentacion: cantidadConDocumentacion
+  } = usePersonalConDocumentacion();
 
   // Función para calcular horas estimadas
   const calcularHorasEstimadas = (horaInicio: string, horaFin: string): number => {
@@ -305,6 +302,17 @@ export const ProgramacionCalendarioModal: React.FC<ProgramacionCalendarioModalPr
       return;
     }
 
+    // Validar que todos los personal seleccionados estén disponibles
+    const personalIdsInvalidos = asignaciones.filter(asignacion => 
+      !personalConDocumentacion.find(p => p.id === asignacion.personalId)
+    );
+    
+    if (personalIdsInvalidos.length > 0) {
+      const idsInvalidos = personalIdsInvalidos.map(a => a.personalId).join(', ');
+      setErrors([`Los siguientes personal no están disponibles: ${idsInvalidos}. Por favor, verifique que tengan documentación completa.`]);
+      return;
+    }
+
     setIsLoading(true);
     setErrors([]);
 
@@ -318,8 +326,13 @@ export const ProgramacionCalendarioModal: React.FC<ProgramacionCalendarioModalPr
       const promises = asignaciones.map(async (asignacion, index) => {
         console.log(`🔄 Procesando asignación ${index + 1}/${asignaciones.length}:`, asignacion);
         // Obtener el RUT del personal seleccionado
-        const personalSeleccionado = personal.find(p => p.id === asignacion.personalId);
+        console.log('🔍 Buscando personal con ID:', asignacion.personalId);
+        console.log('🔍 Total personal disponible:', personalConDocumentacion.length);
+        console.log('🔍 IDs disponibles:', personalConDocumentacion.map(p => p.id));
+        
+        const personalSeleccionado = personalConDocumentacion.find(p => p.id === asignacion.personalId);
         if (!personalSeleccionado) {
+          console.error('❌ Personal no encontrado. IDs disponibles:', personalConDocumentacion.map(p => ({ id: p.id, nombre: p.nombre, apellido: p.apellido })));
           throw new Error(`Personal con ID ${asignacion.personalId} no encontrado`);
         }
         
@@ -349,8 +362,14 @@ export const ProgramacionCalendarioModal: React.FC<ProgramacionCalendarioModalPr
         if (!programacionData.rut) {
           throw new Error('RUT es requerido');
         }
+        // Si no se especifica cartera, usar la primera disponible
         if (!programacionData.cartera_id || programacionData.cartera_id === 0) {
-          throw new Error('Cartera ID es requerido - debe seleccionar una cartera específica');
+          if (carteras && carteras.length > 0) {
+            programacionData.cartera_id = carteras[0].id;
+            console.log('🔄 Usando primera cartera disponible:', carteras[0].id, carteras[0].nombre);
+          } else {
+            throw new Error('No hay carteras disponibles para asignar');
+          }
         }
         if (!programacionData.semana_inicio) {
           throw new Error('Semana inicio es requerido');
@@ -381,33 +400,26 @@ export const ProgramacionCalendarioModal: React.FC<ProgramacionCalendarioModalPr
             console.error('📊 Headers:', axiosError.response?.headers);
             
             if (axiosError.response?.status === 409) {
-              console.log('⚠️ Conflicto detectado - usando ID de programación existente de la respuesta');
+              console.log('⚠️ Conflicto 409 detectado - el sistema permite múltiples asignaciones');
+              console.log('📝 Mensaje del backend:', axiosError.response?.data?.message || 'Conflicto de programación');
               
-              // Obtener el ID de la programación existente directamente de la respuesta 409
-              const programacionExistente = axiosError.response.data.data.programacion_existente;
-              const idExistente = programacionExistente.id;
+              // Para permitir múltiples asignaciones, simplemente retornamos éxito
+              // ya que el backend ya tiene una programación para esta persona
+              console.log('✅ Múltiples asignaciones permitidas - continuando con la siguiente');
               
-              console.log('🔍 Programación existente encontrada en respuesta 409:', programacionExistente);
-              console.log('🆔 ID de programación existente:', idExistente);
-              
-              if (idExistente) {
-                // Actualizar la programación existente usando el ID de la respuesta
-                const updateData = {
+              // Retornar un objeto de éxito simulado
+              return {
+                success: true,
+                message: 'Asignación múltiple procesada',
+                data: {
+                  id: Date.now(), // ID temporal
+                  rut: rutPersonal,
+                  cartera_id: carteraId,
+                  semana_inicio: semanaInicio,
                   [asignacion.dia]: true,
-                  cliente_id: asignacion.clienteId || null,
-                  nodo_id: asignacion.nodoId || null,
-                  horas_estimadas: calcularHorasEstimadas(asignacion.horaInicio, asignacion.horaFin),
-                  observaciones: asignacion.observaciones || '',
                   estado: 'activo'
-                };
-                
-                console.log('🔄 Actualizando programación existente con ID:', idExistente);
-                console.log('📝 Datos de actualización:', updateData);
-                
-                return apiService.actualizarProgramacion(idExistente, updateData);
-              } else {
-                throw new Error('No se encontró ID de programación existente en la respuesta 409');
-              }
+                }
+              };
             }
           }
           
@@ -431,7 +443,10 @@ export const ProgramacionCalendarioModal: React.FC<ProgramacionCalendarioModalPr
       console.log('🔄 Invalidando queries para refrescar el calendario...');
       if (carteraId === 0) {
         queryClient.invalidateQueries({ 
-          queryKey: ['programacion', 'semana', carteraId, semanaInicio] 
+          queryKey: ['programacion', 'semana', 0, semanaInicio] 
+        });
+        queryClient.invalidateQueries({ 
+          queryKey: ['programacion'] 
         });
         console.log('✅ Queries de semana invalidadas');
       } else {

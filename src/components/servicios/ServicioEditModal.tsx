@@ -16,21 +16,6 @@ interface PersonalActivo {
   estado: 'Activo' | 'Inactivo';
 }
 
-const mockPersonalActivo: PersonalActivo[] = [
-  { id: 'p1', nombre: 'Juan Pérez', rut: '11.111.111-1', estado: 'Activo' },
-  { id: 'p2', nombre: 'María López', rut: '22.222.222-2', estado: 'Activo' },
-  { id: 'p3', nombre: 'Carlos García', rut: '33.333.333-3', estado: 'Activo' },
-  { id: 'p4', nombre: 'Ana Rodríguez', rut: '44.444.444-4', estado: 'Activo' },
-  { id: 'p5', nombre: 'Pedro Sánchez', rut: '55.555.555-5', estado: 'Activo' },
-  { id: 'p6', nombre: 'Laura Díaz', rut: '66.666.666-6', estado: 'Activo' },
-  { id: 'p7', nombre: 'Miguel Fernández', rut: '77.777.777-7', estado: 'Inactivo' },
-];
-
-const empresasChilenas = [
-  'CODELCO', 'Antofagasta Minerals', 'Anglo American Sur', 'BHP Billiton', 'Colbún S.A.',
-  'ENAP', 'Arauco', 'CAP S.A.', 'SQM', 'Escondida', 'Cencosud', 'Falabella', 'LAN Airlines',
-  'Banco de Chile', 'Copec', 'CCU', 'Molibdenos y Metales', 'Celulosa Arauco', 'Viña Concha y Toro', 'Agrosuper'
-];
 
 export const ServicioEditModal: React.FC<ServicioEditModalProps> = ({
   isOpen,
@@ -54,7 +39,7 @@ export const ServicioEditModal: React.FC<ServicioEditModalProps> = ({
   const [errors, setErrors] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  const activePersonal = mockPersonalActivo.filter(p => p.estado === 'Activo');
+  const activePersonal: PersonalActivo[] = []; // TODO: Implementar carga de personal real desde el backend
 
   const zonaOptions = ['Minería', 'Industria'];
   const categoriaOptions: { [key: string]: string[] } = {
@@ -272,9 +257,9 @@ export const ServicioEditModal: React.FC<ServicioEditModalProps> = ({
                   className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white"
                 >
                   <option value="">Seleccione una empresa</option>
-                  {empresasChilenas.map(empresa => (
-                    <option key={empresa} value={empresa}>{empresa}</option>
-                  ))}
+                  {/* TODO: Implementar carga de empresas reales desde el backend */}
+                  <option value="Empresa 1">Empresa 1</option>
+                  <option value="Empresa 2">Empresa 2</option>
                 </select>
               </div>
               <div>

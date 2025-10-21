@@ -31,42 +31,8 @@ export const CarteraViewModal: React.FC<CarteraViewModalProps> = ({
   
   if (!isOpen || !cartera) return null;
   
-  // Usar datos reales si están disponibles, sino usar datos mock para demo
-  const clientes = clientesResponse?.success && clientesResponse.data ? clientesResponse.data : [
-    {
-      id: '1',
-      nombre: 'Minera Norte S.A.',
-      rut: '12.345.678-9',
-      email: 'contacto@mineranorte.cl',
-      telefono: '+56 9 1234 5678',
-      direccion: 'Av. Principal 123, Antofagasta',
-      tipo: 'Empresa',
-      ubicacion: 'Antofagasta',
-      seccion: 'Norte'
-    },
-    {
-      id: '2',
-      nombre: 'Industrias del Sur Ltda.',
-      rut: '98.765.432-1',
-      email: 'info@industriasdelsur.cl',
-      telefono: '+56 9 8765 4321',
-      direccion: 'Calle Industrial 456, Concepción',
-      tipo: 'Empresa',
-      ubicacion: 'Concepción',
-      seccion: 'Sur'
-    },
-    {
-      id: '3',
-      nombre: 'Juan Pérez',
-      rut: '11.222.333-4',
-      email: 'juan.perez@email.com',
-      telefono: '+56 9 1111 2222',
-      direccion: 'Calle Falsa 789, Santiago',
-      tipo: 'Persona',
-      ubicacion: 'Santiago',
-      seccion: 'Centro'
-    }
-  ];
+  // Usar datos reales del backend
+  const clientes = clientesResponse?.success && clientesResponse.data ? clientesResponse.data : [];
 
   const ubicaciones = Array.from(new Set(clientes.map(c => c.ubicacion).filter((ubicacion): ubicacion is string => Boolean(ubicacion))));
   const secciones = Array.from(new Set(clientes.map(c => c.seccion).filter((seccion): seccion is string => Boolean(seccion))));

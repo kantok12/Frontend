@@ -22,11 +22,6 @@ export const AUTH_CONFIG = {
   REFRESH_INTERVAL: 5 * 60 * 1000, // 5 minutos
 };
 
-// Configuración del modo demo
-export const DEMO_CONFIG = {
-  ENABLED: false, // Solo datos reales del backend
-  MOCK_DELAY: 500, // Simular delay de red
-};
 
 // Configuración de archivos
 export const FILE_CONFIG = {

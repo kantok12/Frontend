@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { Search, Plus, Settings, Users, Building2, MapPin, AlertCircle, ChevronRight } from 'lucide-react';
 import { useServiciosPage } from '../hooks/useServicios';
-import { useMinimoPersonal } from '../hooks/useMinimoPersonal';
+// import { useMinimoPersonal } from '../hooks/useMinimoPersonal'; // Deshabilitado temporalmente
 import { Tooltip } from '../components/common/Tooltip';
 import { Cartera, Cliente, Nodo } from '../types';
 import { AgregarClienteModal } from '../components/servicios/AgregarClienteModal';
@@ -38,8 +38,9 @@ export const ServiciosPage: React.FC = () => {
   const [prereqError, setPrereqError] = useState<string | null>(null);
   const [prereqData, setPrereqData] = useState<any | null>(null);
 
-  // Listado de personal para seleccionar (hasta 100, con búsqueda)
-  const { data: personListData, isLoading: personListLoading } = usePersonalList(1, 100, personSearch);
+  // Listado de personal para seleccionar (hasta 100, sin búsqueda para evitar llamadas excesivas)
+  // Usar un hook optimizado que no cause llamadas excesivas
+  const { data: personListData, isLoading: personListLoading } = usePersonalList(1, 100, '', {});
   const personOptions = personListData?.data?.items || [];
   
   // Estados comunes
@@ -59,9 +60,10 @@ export const ServiciosPage: React.FC = () => {
     error 
   } = useServiciosPage('', activeTab);
 
-  // Obtener mínimos de personal
-  const { data: minimoPersonalData } = useMinimoPersonal({ limit: 1000 });
-  const minimosPersonal = minimoPersonalData?.data || [];
+  // Obtener mínimos de personal (deshabilitado temporalmente por error 500)
+  // const { data: minimoPersonalData } = useMinimoPersonal({ limit: 1000 });
+  // const minimosPersonal = minimoPersonalData?.data || [];
+  const minimosPersonal: any[] = []; // Array vacío temporal
   
 
   // Funciones helper para obtener nombres por ID
@@ -1057,7 +1059,7 @@ export const ServiciosPage: React.FC = () => {
           // Invalidar cache para refrescar los datos
           queryClient.invalidateQueries({ queryKey: ['clientes'] });
           queryClient.invalidateQueries({ queryKey: ['carteras'] });
-          queryClient.invalidateQueries({ queryKey: ['minimo-personal'] });
+          // queryClient.invalidateQueries({ queryKey: ['minimo-personal'] }); // Deshabilitado temporalmente
           queryClient.invalidateQueries({ queryKey: ['estructura'] });
           queryClient.invalidateQueries({ queryKey: ['estadisticas'] });
           setShowAgregarClienteModal(false);
