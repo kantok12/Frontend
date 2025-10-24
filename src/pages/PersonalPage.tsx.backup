@@ -5,7 +5,7 @@ import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { PersonalForm } from '../components/personal/PersonalForm';
 import { PersonalDetailModal } from '../components/personal/PersonalDetailModal';
 import { ProfileImage } from '../components/common/ProfileImage';
-import { Search, Plus, Trash2, Eye, User, Mail, CheckCircle, XCircle, Activity, FileText } from 'lucide-react';
+import { Search, Plus, Trash2, Eye, User, Mail, CheckCircle, XCircle, Activity } from 'lucide-react';
 import { Personal } from '../types';
 
 // Estados de actividad (para UI, no relacionados con backend)
@@ -68,12 +68,8 @@ export const PersonalPage: React.FC = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedPersonal, setSelectedPersonal] = useState<Personal | null>(null);
 
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [showDetailModal, setShowDetailModal] = useState(false);
-
-  // Nuevos filtros para documentos
-  const [filtroDocumento, setFiltroDocumento] = useState<string>('todos');
-  const [filtroDocumentacionCompleta, setFiltroDocumentacionCompleta] = useState<string>('todos');
+        const [showDeleteModal, setShowDeleteModal] = useState(false);
+        const [showDetailModal, setShowDetailModal] = useState(false);
 
   // Debounce search para evitar demasiadas consultas
   React.useEffect(() => {
@@ -654,6 +650,84 @@ export const PersonalPage: React.FC = () => {
                       </span>
                     </div>
 
+                    {/* Estado de Documentación */}
+                    <div className="mb-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-2">
+                          <FileText className="h-4 w-4 text-gray-500" />
+                          <span className="text-sm font-medium text-gray-700">Documentación:</span>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          {(() => {
+                            // Generar datos mock consistentes basados en el ID de la persona
+                            const seed = typeof persona.id === 'string' ? parseInt(persona.id) || 1 : persona.id;
+                            const mockTotal = (seed % 5);
+                            const mockCompleta = (seed % 3) === 0;
+                            const mockVencidos = (seed % 4) === 0 ? 1 : 0;
+                            const mockPorVencer = (seed % 5) === 0 ? 1 : 0;
+                            
+                            if (mockCompleta) {
+                              return (
+                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">
+                                  <CheckCircle className="h-3 w-3 mr-1" />
+                                  Completa
+                                </span>
+                              );
+                            } else if (mockTotal > 0) {
+                              return (
+                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 border border-yellow-200">
+                                  <XCircle className="h-3 w-3 mr-1" />
+                                  Incompleta
+                                </span>
+                              );
+                            } else {
+                              return (
+                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 border border-red-200">
+                                  <XCircle className="h-3 w-3 mr-1" />
+                                  Sin documentos
+                                </span>
+                              );
+                            }
+                          })()}
+                        </div>
+                      </div>
+                      
+                      {/* Detalles de documentación */}
+                      <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+                        {(() => {
+                          const seed = typeof persona.id === 'string' ? parseInt(persona.id) || 1 : persona.id;
+                          const mockTotal = (seed % 5);
+                          const mockVencidos = (seed % 4) === 0 ? 1 : 0;
+                          const mockPorVencer = (seed % 5) === 0 ? 1 : 0;
+                          const mockFaltantes = Math.max(0, 4 - mockTotal);
+                          
+                          return (
+                            <>
+                              <div className="flex justify-between">
+                                <span className="text-gray-600">Total:</span>
+                                <span className="font-medium">{mockTotal}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-600">Faltantes:</span>
+                                <span className="font-medium text-red-600">{mockFaltantes}</span>
+                              </div>
+                              {mockVencidos > 0 && (
+                                <div className="flex justify-between col-span-2">
+                                  <span className="text-gray-600">Vencidos:</span>
+                                  <span className="font-medium text-red-600">{mockVencidos}</span>
+                                </div>
+                              )}
+                              {mockPorVencer > 0 && (
+                                <div className="flex justify-between col-span-2">
+                                  <span className="text-gray-600">Por vencer:</span>
+                                  <span className="font-medium text-yellow-600">{mockPorVencer}</span>
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </div>
+                    </div>
 
                     {/* Información de Nacimiento */}
                     {/* <div className="mb-3">

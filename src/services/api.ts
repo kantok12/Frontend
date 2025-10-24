@@ -734,19 +734,6 @@ class ApiService {
     return response.data;
   }
 
-  // ==================== MÉTODOS PARA MIGRACIÓN ====================
-  
-  // Verificar estado de migración
-  async getMigrationStatus(): Promise<ApiResponse<any>> {
-    const response: AxiosResponse<ApiResponse<any>> = await this.api.get('/migration/status');
-    return response.data;
-  }
-
-  // Ejecutar migración
-  async runMigration(): Promise<ApiResponse<any>> {
-    const response: AxiosResponse<ApiResponse<any>> = await this.api.post('/migration/run');
-    return response.data;
-  }
 
   // ==================== MÉTODOS PARA BACKUP ====================
   
@@ -1380,6 +1367,217 @@ class ApiService {
   // POST /api/servicios/acuerdos/:id/desactivar
   async desactivarAcuerdo(id: number): Promise<ApiResponse<any>> {
     const response: AxiosResponse<ApiResponse<any>> = await this.api.post(`/servicios/acuerdos/${id}/desactivar`);
+    return response.data;
+  }
+
+  // ==================== MÉTODOS PARA PROGRAMACIÓN OPTIMIZADA ====================
+  
+  // GET /api/programacion-optimizada
+  async getProgramacionOptimizada(params: {
+    cartera_id: number;
+    fecha_inicio?: string;
+    fecha_fin?: string;
+    semana?: string;
+    fecha?: string;
+  }): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.get('/programacion-optimizada', { params });
+    return response.data;
+  }
+
+  // POST /api/programacion-optimizada
+  async crearProgramacionOptimizada(data: {
+    rut: string;
+    cartera_id: number;
+    cliente_id?: number;
+    nodo_id?: number;
+    fechas_trabajo: string[];
+    horas_estimadas: number;
+    observaciones?: string;
+    estado?: string;
+  }): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.post('/programacion-optimizada', data);
+    return response.data;
+  }
+
+  // POST /api/programacion-optimizada/semana
+  async crearProgramacionSemanaOptimizada(data: {
+    rut: string;
+    cartera_id: number;
+    cliente_id?: number;
+    nodo_id?: number;
+    semana_inicio: string;
+    dias_trabajo: string[];
+    horas_estimadas: number;
+    observaciones?: string;
+    estado?: string;
+  }): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.post('/programacion-optimizada/semana', data);
+    return response.data;
+  }
+
+  // GET /api/programacion-optimizada/calendario
+  async getCalendarioOptimizado(params: {
+    cartera_id: number;
+    mes?: number;
+    año?: number;
+  }): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.get('/programacion-optimizada/calendario', { params });
+    return response.data;
+  }
+
+  // GET /api/programacion-optimizada/:id
+  async getProgramacionOptimizadaById(id: number): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.get(`/programacion-optimizada/${id}`);
+    return response.data;
+  }
+
+  // PUT /api/programacion-optimizada/:id
+  async actualizarProgramacionOptimizada(id: number, data: any): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.put(`/programacion-optimizada/${id}`, data);
+    return response.data;
+  }
+
+  // DELETE /api/programacion-optimizada/:id
+  async eliminarProgramacionOptimizada(id: number): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.delete(`/programacion-optimizada/${id}`);
+    return response.data;
+  }
+
+  // ==================== MÉTODOS PARA CARPETAS PERSONAL ====================
+  
+  // GET /api/carpetas-personal
+  async getCarpetasPersonal(): Promise<ApiResponse<any[]>> {
+    const response: AxiosResponse<ApiResponse<any[]>> = await this.api.get('/carpetas-personal');
+    return response.data;
+  }
+
+  // GET /api/carpetas-personal/:id
+  async getCarpetaPersonalById(id: number): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.get(`/carpetas-personal/${id}`);
+    return response.data;
+  }
+
+  // POST /api/carpetas-personal
+  async crearCarpetaPersonal(data: any): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.post('/carpetas-personal', data);
+    return response.data;
+  }
+
+  // PUT /api/carpetas-personal/:id
+  async actualizarCarpetaPersonal(id: number, data: any): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.put(`/carpetas-personal/${id}`, data);
+    return response.data;
+  }
+
+  // DELETE /api/carpetas-personal/:id
+  async eliminarCarpetaPersonal(id: number): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.delete(`/carpetas-personal/${id}`);
+    return response.data;
+  }
+
+  // ==================== MÉTODOS PARA AUDITORÍA ====================
+  
+  // GET /api/auditoria
+  async getAuditoria(): Promise<ApiResponse<any[]>> {
+    const response: AxiosResponse<ApiResponse<any[]>> = await this.api.get('/auditoria');
+    return response.data;
+  }
+
+  // GET /api/auditoria/:id
+  async getAuditoriaById(id: number): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.get(`/auditoria/${id}`);
+    return response.data;
+  }
+
+  // ==================== MÉTODOS PARA SERVICIO ====================
+  
+  // GET /api/servicio
+  async getServicios(): Promise<ApiResponse<any[]>> {
+    const response: AxiosResponse<ApiResponse<any[]>> = await this.api.get('/servicio');
+    return response.data;
+  }
+
+  // GET /api/servicio/:id
+  async getServicioById(id: number): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.get(`/servicio/${id}`);
+    return response.data;
+  }
+
+  // POST /api/servicio
+  async crearServicio(data: any): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.post('/servicio', data);
+    return response.data;
+  }
+
+  // PUT /api/servicio/:id
+  async actualizarServicio(id: number, data: any): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.put(`/servicio/${id}`, data);
+    return response.data;
+  }
+
+  // DELETE /api/servicio/:id
+  async eliminarServicio(id: number): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.delete(`/servicio/${id}`);
+    return response.data;
+  }
+
+  // ==================== MÉTODOS PARA PRERREQUISITOS ====================
+  
+  // GET /api/prerrequisitos
+  async getPrerrequisitos(): Promise<ApiResponse<any[]>> {
+    const response: AxiosResponse<ApiResponse<any[]>> = await this.api.get('/prerrequisitos');
+    return response.data;
+  }
+
+  // GET /api/prerrequisitos/:id
+  async getPrerrequisitoById(id: number): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.get(`/prerrequisitos/${id}`);
+    return response.data;
+  }
+
+  // POST /api/prerrequisitos
+  async crearPrerrequisito(data: any): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.post('/prerrequisitos', data);
+    return response.data;
+  }
+
+  // PUT /api/prerrequisitos/:id
+  async actualizarPrerrequisito(id: number, data: any): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.put(`/prerrequisitos/${id}`, data);
+    return response.data;
+  }
+
+  // DELETE /api/prerrequisitos/:id
+  async eliminarPrerrequisito(id: number): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.delete(`/prerrequisitos/${id}`);
+    return response.data;
+  }
+
+  // ==================== MÉTODOS PARA MIGRACIÓN ====================
+  
+  // GET /api/migration
+  async getMigrationStatus(): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.get('/migration');
+    return response.data;
+  }
+
+  // POST /api/migration
+  async runMigration(): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.post('/migration');
+    return response.data;
+  }
+
+  // ==================== MÉTODOS PARA BELRAY ====================
+  
+  // GET /api/belray
+  async getBelray(): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.get('/belray');
+    return response.data;
+  }
+
+  // POST /api/belray
+  async crearBelray(data: any): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.post('/belray', data);
     return response.data;
   }
 

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { X, Calendar, Users, MapPin, Clock, CheckCircle, AlertCircle } from 'lucide-react';
 import { useCarteras } from '../../hooks/useCarteras';
-import { usePersonalConDocumentacion } from '../../hooks/usePersonalConDocumentacion';
+import { usePersonalList } from '../../hooks/usePersonal';
+import { Personal } from '../../types';
 import { useProgramacionSemanal } from '../../hooks/useProgramacion';
 import { apiService } from '../../services/api';
 
@@ -40,7 +41,8 @@ const ModernProgramacionModal: React.FC<ModernProgramacionModalProps> = ({
   const [isLoading, setIsLoading] = useState(false);
 
   const { data: carterasData } = useCarteras();
-  const { data: personalConDocumentacion = [] } = usePersonalConDocumentacion();
+  const { data: personalData } = usePersonalList(1, 1000, '');
+  const personalConDocumentacion = personalData?.data?.items || [];
   const { crearProgramacion } = useProgramacionSemanal(
     carteraSeleccionada || 0,
     fechaInicioSemana.toISOString().split('T')[0]
@@ -294,7 +296,7 @@ const ModernProgramacionModal: React.FC<ModernProgramacionModalProps> = ({
                 </h3>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {personalConDocumentacion.map(personal => {
+                  {personalConDocumentacion.map((personal: Personal) => {
                     const isSelected = selectedPersonal.find(p => p.id === personal.id);
                     return (
                       <div

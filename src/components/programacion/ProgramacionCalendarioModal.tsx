@@ -3,7 +3,7 @@ import { X, Plus, Calendar, Users, Building2, MapPin, Clock, Save, Trash2, Shiel
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { useProgramacionSemanal } from '../../hooks/useProgramacion';
 import { useQueryClient } from '@tanstack/react-query';
-import { usePersonalConDocumentacion } from '../../hooks/usePersonalConDocumentacion';
+import { usePersonalList } from '../../hooks/usePersonal';
 
 interface Servicio {
   id: number;
@@ -77,12 +77,9 @@ export const ProgramacionCalendarioModal: React.FC<ProgramacionCalendarioModalPr
   const queryClient = useQueryClient();
 
   // Hook para obtener personal con documentación
-  const { 
-    data: personalConDocumentacion, 
-    isLoading: isLoadingPersonalConDocumentacion,
-    totalPersonal,
-    personalConDocumentacion: cantidadConDocumentacion
-  } = usePersonalConDocumentacion();
+  const { data: personalData, isLoading: isLoadingPersonalConDocumentacion } = usePersonalList(1, 1000, '');
+  const personalConDocumentacion = personalData?.data?.items || [];
+  const totalPersonal = personalData?.data?.total || 0;
 
   // Función para calcular horas estimadas
   const calcularHorasEstimadas = (horaInicio: string, horaFin: string): number => {
@@ -332,7 +329,7 @@ export const ProgramacionCalendarioModal: React.FC<ProgramacionCalendarioModalPr
 
     // Validar que todos los personal seleccionados estén disponibles
     const personalIdsInvalidos = asignaciones.filter(asignacion => 
-      !personalConDocumentacion.find(p => p.id === asignacion.personalId)
+      !personalConDocumentacion.find((p: Personal) => p.id === asignacion.personalId)
     );
     
     if (personalIdsInvalidos.length > 0) {
@@ -357,11 +354,11 @@ export const ProgramacionCalendarioModal: React.FC<ProgramacionCalendarioModalPr
         // Obtener el RUT del personal seleccionado
         console.log('🔍 Buscando personal con ID:', asignacion.personalId);
         console.log('🔍 Total personal disponible:', personalConDocumentacion.length);
-        console.log('🔍 IDs disponibles:', personalConDocumentacion.map(p => p.id));
+        console.log('🔍 IDs disponibles:', personalConDocumentacion.map((p: Personal) => p.id));
         
-        const personalSeleccionado = personalConDocumentacion.find(p => p.id === asignacion.personalId);
+        const personalSeleccionado = personalConDocumentacion.find((p: Personal) => p.id === asignacion.personalId);
         if (!personalSeleccionado) {
-          console.error('❌ Personal no encontrado. IDs disponibles:', personalConDocumentacion.map(p => ({ id: p.id, nombre: p.nombre, apellido: p.apellido })));
+          console.error('❌ Personal no encontrado. IDs disponibles:', personalConDocumentacion.map((p: Personal) => ({ id: p.id, nombre: p.nombre, apellido: p.apellido })));
           throw new Error(`Personal con ID ${asignacion.personalId} no encontrado`);
         }
         
@@ -627,14 +624,14 @@ export const ProgramacionCalendarioModal: React.FC<ProgramacionCalendarioModalPr
                         Solo se muestra personal con documentación personal completa y vigente
                       </p>
                       <p className="text-xs text-blue-600">
-                        Disponibles: {cantidadConDocumentacion} de {totalPersonal} personas
+                        Disponibles: {personalConDocumentacion.length} de {totalPersonal} personas
                       </p>
                     </div>
                   </div>
                 </div>
 
                 {/* Advertencia si no hay personal disponible */}
-                {!isLoadingPersonalConDocumentacion && cantidadConDocumentacion === 0 && (
+                 {!isLoadingPersonalConDocumentacion && personalConDocumentacion.length === 0 && (
                   <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                     <div className="flex items-center">
                       <AlertTriangle className="h-5 w-5 text-yellow-600 mr-2" />
@@ -666,9 +663,9 @@ export const ProgramacionCalendarioModal: React.FC<ProgramacionCalendarioModalPr
                       <option value="">
                         {isLoadingPersonalConDocumentacion 
                           ? 'Cargando personal con documentación...' 
-                          : cantidadConDocumentacion === 0
+                          : personalConDocumentacion.length === 0
                             ? 'No hay personal con documentación completa'
-                            : `Seleccionar personal (${cantidadConDocumentacion} disponibles)...`
+                            : `Seleccionar personal (${personalConDocumentacion.length} disponibles)...`
                         }
                       </option>
                       {personalConDocumentacion.map((persona: Personal) => (
@@ -842,7 +839,7 @@ export const ProgramacionCalendarioModal: React.FC<ProgramacionCalendarioModalPr
                   <button
                     type="button"
                     onClick={handleAgregarAsignacion}
-                    disabled={cantidadConDocumentacion === 0}
+                    disabled={personalConDocumentacion.length === 0}
                     className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Plus className="h-4 w-4 mr-1" />

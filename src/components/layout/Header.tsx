@@ -1,13 +1,16 @@
 import React from 'react';
 import { Menu, Bell, User, Settings } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
+import { useNotificaciones } from '../../hooks/useNotificaciones';
 
 interface HeaderProps {
   onMenuToggle: () => void;
+  onNotificacionesToggle: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onMenuToggle }) => {
+export const Header: React.FC<HeaderProps> = ({ onMenuToggle, onNotificacionesToggle }) => {
   const { user } = useAuth();
+  const { notificacionesNoLeidas } = useNotificaciones();
 
   return (
     <header className="bg-gradient-to-r from-blue-600 via-blue-700 to-blue-800 shadow-lg border-b border-blue-500/20 backdrop-blur-sm">
@@ -34,9 +37,17 @@ export const Header: React.FC<HeaderProps> = ({ onMenuToggle }) => {
         {/* Right side */}
         <div className="flex items-center space-x-3">
           {/* Notifications */}
-          <button className="relative p-2.5 text-white hover:text-blue-100 hover:bg-white/10 rounded-xl transition-all duration-200 group">
+          <button
+            onClick={onNotificacionesToggle}
+            className="relative p-2.5 text-white hover:text-blue-100 hover:bg-white/10 rounded-xl transition-all duration-200 group"
+            title="Ver notificaciones"
+          >
             <Bell size={20} />
-            <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-blue-600"></span>
+            {notificacionesNoLeidas > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 rounded-full border-2 border-blue-600 flex items-center justify-center text-xs font-bold text-white">
+                {notificacionesNoLeidas > 9 ? '9+' : notificacionesNoLeidas}
+              </span>
+            )}
           </button>
 
           {/* Settings */}
@@ -58,6 +69,7 @@ export const Header: React.FC<HeaderProps> = ({ onMenuToggle }) => {
           </div>
         </div>
       </div>
+
     </header>
   );
 };

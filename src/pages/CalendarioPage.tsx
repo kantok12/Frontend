@@ -431,6 +431,7 @@ export const CalendarioPage: React.FC = () => {
         carteraId={0}
         semanaInicio={fechaInicioSemana.toISOString().split('T')[0]}
       />
+
     </div>
   );
 };

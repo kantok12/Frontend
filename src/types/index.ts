@@ -882,3 +882,37 @@ export interface AcuerdoVencer {
   tipo_acuerdo: 'servicio' | 'personal' | 'cliente' | 'general';
   alerta: 'critica' | 'advertencia' | 'normal';
 }
+
+// Tipos para notificaciones
+export interface NotificacionDocumento {
+  id: string;
+  tipo: 'documento_vencido' | 'documento_por_vencer' | 'documento_faltante' | 'documento_renovado';
+  prioridad: 'alta' | 'media' | 'baja';
+  titulo: string;
+  mensaje: string;
+  personal_id: string;
+  personal_nombre: string;
+  documento_id?: string;
+  documento_nombre?: string;
+  fecha_vencimiento?: string;
+  dias_restantes?: number;
+  leida: boolean;
+  fecha_creacion: string;
+  accion_requerida?: string;
+}
+
+export interface CreateNotificacionData {
+  tipo: string;
+  prioridad: 'alta' | 'media' | 'baja';
+  titulo: string;
+  mensaje: string;
+  personal_id: string;
+  documento_id?: string;
+  fecha_vencimiento?: string;
+  accion_requerida?: string;
+}
+
+export interface UpdateNotificacionData {
+  leida?: boolean;
+  accion_requerida?: string;
+}

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { X, Save, AlertTriangle, CheckCircle, Clock, User, Building2, MapPin } from 'lucide-react';
-import { usePersonalConDocumentacion } from '../../hooks/usePersonalConDocumentacion';
+import { usePersonalList } from '../../hooks/usePersonal';
 import { AsignacionSemanal, AsignacionFormData } from '../../types/programacion';
+import { Personal } from '../../types';
 
 interface AsignacionSemanalModalProps {
   isOpen: boolean;
@@ -41,12 +42,9 @@ export const AsignacionSemanalModal: React.FC<AsignacionSemanalModalProps> = ({
   const [isLoading, setIsLoading] = useState(false);
 
   // Obtener personal con documentación
-  const { 
-    data: personalConDocumentacion, 
-    isLoading: isLoadingPersonal,
-    totalPersonal,
-    personalConDocumentacion: cantidadConDocumentacion
-  } = usePersonalConDocumentacion();
+  const { data: personalData, isLoading: isLoadingPersonal } = usePersonalList(1, 1000, '');
+  const personalConDocumentacion = personalData?.data?.items || [];
+  const totalPersonal = personalData?.data?.total || 0;
 
   // Reset form when modal opens
   useEffect(() => {
@@ -128,7 +126,7 @@ export const AsignacionSemanalModal: React.FC<AsignacionSemanalModalProps> = ({
       newErrors.push('La hora de inicio debe ser anterior a la hora de fin');
     }
 
-    if (cantidadConDocumentacion === 0) {
+    if (personalConDocumentacion.length === 0) {
       newErrors.push('No hay personal disponible con documentación completa');
     }
 
@@ -142,7 +140,7 @@ export const AsignacionSemanalModal: React.FC<AsignacionSemanalModalProps> = ({
 
     setIsLoading(true);
     try {
-      const personalSeleccionado = personalConDocumentacion.find(p => p.id === asignacion.personalId);
+      const personalSeleccionado = personalConDocumentacion.find((p: Personal) => p.id === asignacion.personalId);
       const carteraSeleccionada = carteras.find(c => c.id === asignacion.carteraId);
       const clienteSeleccionado = asignacion.clienteId ? clientes.find(c => c.id === toNumber(asignacion.clienteId)) : undefined;
       const nodoSeleccionado = asignacion.nodoId ? nodos.find(n => n.id === toNumber(asignacion.nodoId)) : undefined;
@@ -213,7 +211,7 @@ export const AsignacionSemanalModal: React.FC<AsignacionSemanalModalProps> = ({
                   Solo se muestra personal con documentación personal completa y vigente
                 </p>
                 <p className="text-xs text-blue-600">
-                  Disponibles: {cantidadConDocumentacion} de {totalPersonal} personas
+                  Disponibles: {personalConDocumentacion.length} de {totalPersonal} personas
                 </p>
               </div>
             </div>
@@ -253,12 +251,12 @@ export const AsignacionSemanalModal: React.FC<AsignacionSemanalModalProps> = ({
                 <option value="">
                   {isLoadingPersonal 
                     ? 'Cargando personal con documentación...' 
-                    : cantidadConDocumentacion === 0
+                    : personalConDocumentacion.length === 0
                       ? 'No hay personal con documentación completa'
                       : 'Seleccionar personal...'
                   }
                 </option>
-                {personalConDocumentacion.map((persona) => (
+                {personalConDocumentacion.map((persona: Personal) => (
                   <option key={persona.id} value={persona.id}>
                     {persona.nombre} {persona.apellido} - {persona.rut}
                   </option>
@@ -400,7 +398,7 @@ export const AsignacionSemanalModal: React.FC<AsignacionSemanalModalProps> = ({
           </button>
           <button
             onClick={handleSave}
-            disabled={isLoading || cantidadConDocumentacion === 0}
+            disabled={isLoading || personalConDocumentacion.length === 0}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center"
           >
             {isLoading ? (
