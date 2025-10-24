@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { Calendar, ChevronLeft, ChevronRight, Plus, Download, Users, CheckCircle, XCircle, Settings, BarChart3, Clock, MapPin } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, Plus, Download, Users, CheckCircle, XCircle, Settings, BarChart3, Clock, MapPin, Search, Filter, X, RefreshCw } from 'lucide-react';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { useProgramacionOptimizada } from '../hooks/useProgramacionOptimizada';
 import { useCarteras } from '../hooks/useCarteras';
 import { usePersonalList } from '../hooks/usePersonal';
 import { ProgramacionCalendarioModal } from '../components/programacion/ProgramacionCalendarioModal';
+import { ProgramacionOptimizadaModal } from '../components/programacion/ProgramacionOptimizadaModal';
+import { RestablecerProgramacionModal } from '../components/programacion/RestablecerProgramacionModal';
 import { useClientes, useNodos, useServiciosPage } from '../hooks/useServicios';
 import { useQueryClient } from '@tanstack/react-query';
 import { exportarPlanificacionPDF } from '../utils/pdfExporter';
@@ -23,7 +25,16 @@ export const CalendarioPage: React.FC = () => {
   
   // Estados para la integración con la API
   const [showProgramacionCalendarioModal, setShowProgramacionCalendarioModal] = useState(false);
+  const [showProgramacionOptimizadaModal, setShowProgramacionOptimizadaModal] = useState(false);
+  const [showRestablecerModal, setShowRestablecerModal] = useState(false);
   const [vistaTabla, setVistaTabla] = useState<'simple' | 'jerarquica'>('jerarquica');
+  
+  // Estados para filtros
+  const [filtroCartera, setFiltroCartera] = useState<string>('');
+  const [filtroCliente, setFiltroCliente] = useState<string>('');
+  const [filtroNodo, setFiltroNodo] = useState<string>('');
+  const [filtroPersonal, setFiltroPersonal] = useState<string>('');
+  const [busqueda, setBusqueda] = useState<string>('');
   
   // Hooks para datos
   const { data: carterasData } = useCarteras();
@@ -33,13 +44,13 @@ export const CalendarioPage: React.FC = () => {
 
   // Funciones auxiliares para el sistema optimizado
   const calcularTotalHoras = () => {
-    return datosProcesados.reduce((total: number, p: any) => {
+    return datosFiltrados.reduce((total: number, p: any) => {
       return total + (p.horas_estimadas || 0);
     }, 0);
   };
 
   const getTrabajadoresUnicos = () => {
-    return datosProcesados.map(p => p.rut);
+    return datosFiltrados.map(p => p.rut);
   };
 
   // Hook para programación optimizada con fallback
@@ -125,6 +136,70 @@ export const CalendarioPage: React.FC = () => {
   // Datos procesados para la tabla
   const datosProcesados = procesarDatosOptimizados();
 
+  // Función para filtrar datos
+  const filtrarDatos = () => {
+    let datosFiltrados = [...datosProcesados];
+
+    // Filtro por cartera
+    if (filtroCartera) {
+      datosFiltrados = datosFiltrados.filter(d => 
+        d.cartera_id === filtroCartera || d.nombre_cartera?.toLowerCase().includes(filtroCartera.toLowerCase())
+      );
+    }
+
+    // Filtro por cliente
+    if (filtroCliente) {
+      datosFiltrados = datosFiltrados.filter(d => 
+        d.cliente_id === filtroCliente || d.nombre_cliente?.toLowerCase().includes(filtroCliente.toLowerCase())
+      );
+    }
+
+    // Filtro por nodo
+    if (filtroNodo) {
+      datosFiltrados = datosFiltrados.filter(d => 
+        d.nodo_id === filtroNodo || d.nombre_nodo?.toLowerCase().includes(filtroNodo.toLowerCase())
+      );
+    }
+
+    // Filtro por personal
+    if (filtroPersonal) {
+      datosFiltrados = datosFiltrados.filter(d => 
+        d.rut === filtroPersonal || d.nombre_persona?.toLowerCase().includes(filtroPersonal.toLowerCase())
+      );
+    }
+
+    // Búsqueda general
+    if (busqueda) {
+      const terminoBusqueda = busqueda.toLowerCase();
+      datosFiltrados = datosFiltrados.filter(d => 
+        d.nombre_persona?.toLowerCase().includes(terminoBusqueda) ||
+        d.nombre_cartera?.toLowerCase().includes(terminoBusqueda) ||
+        d.nombre_cliente?.toLowerCase().includes(terminoBusqueda) ||
+        d.nombre_nodo?.toLowerCase().includes(terminoBusqueda) ||
+        d.rut?.toLowerCase().includes(terminoBusqueda) ||
+        d.cargo?.toLowerCase().includes(terminoBusqueda)
+      );
+    }
+
+    return datosFiltrados;
+  };
+
+  // Datos filtrados para mostrar
+  const datosFiltrados = filtrarDatos();
+
+  // Función para contar filtros activos
+  const contarFiltrosActivos = () => {
+    let count = 0;
+    if (filtroCartera) count++;
+    if (filtroCliente) count++;
+    if (filtroNodo) count++;
+    if (filtroPersonal) count++;
+    if (busqueda) count++;
+    return count;
+  };
+
+  const filtrosActivos = contarFiltrosActivos();
+
   // Funciones para la planificación semanal
   const handleCambiarSemana = (direccion: 'anterior' | 'siguiente') => {
     const nuevaFecha = new Date(fechaInicioSemana);
@@ -134,6 +209,13 @@ export const CalendarioPage: React.FC = () => {
       nuevaFecha.setDate(nuevaFecha.getDate() + 7);
     }
     setFechaInicioSemana(nuevaFecha);
+    
+    // Limpiar filtros al cambiar de semana para mostrar todos los datos
+    setFiltroCartera('');
+    setFiltroCliente('');
+    setFiltroNodo('');
+    setFiltroPersonal('');
+    setBusqueda('');
   };
 
   // Función para alternar día (sistema optimizado)
@@ -318,7 +400,7 @@ export const CalendarioPage: React.FC = () => {
                <div className="flex items-center justify-between">
                  <div>
                    <div className="text-3xl font-bold">
-                     {datosProcesados.length}
+                     {datosFiltrados.length}
                    </div>
                      <div className="text-blue-100 text-sm font-medium">Total Programaciones</div>
                      <div className="text-blue-200 text-xs mt-1">
@@ -400,14 +482,14 @@ export const CalendarioPage: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="bg-blue-50 rounded-lg p-4">
                      <div className="text-2xl font-bold text-blue-900">
-                       {datosProcesados.length}
+                       {datosFiltrados.length}
                      </div>
                 <div className="text-sm text-blue-600">Registros de Programación</div>
               </div>
               <div className="bg-green-50 rounded-lg p-4">
                 <div className="text-2xl font-bold text-green-900">
-                  {datosProcesados.length > 0
-                    ? new Set(datosProcesados.map((p: any) => p.cartera_id)).size
+                  {datosFiltrados.length > 0
+                    ? new Set(datosFiltrados.map((p: any) => p.cartera_id)).size
                     : 0}
                 </div>
                 <div className="text-sm text-green-600">Carteras con Programación</div>
@@ -423,12 +505,140 @@ export const CalendarioPage: React.FC = () => {
         </div>
       )}
 
+      {/* Filtros y Búsqueda */}
+      <div className="card hover-lift slide-up animate-delay-200 mb-6">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+            <Filter className="h-5 w-5 mr-2 text-blue-600" />
+            Filtros y Búsqueda
+            {filtrosActivos > 0 && (
+              <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                {filtrosActivos} activo{filtrosActivos > 1 ? 's' : ''}
+              </span>
+            )}
+          </h3>
+        </div>
+        <div className="p-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+            {/* Búsqueda general */}
+            <div className="lg:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                <Search className="h-4 w-4 inline mr-1" />
+                Búsqueda General
+              </label>
+              <input
+                type="text"
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                placeholder="Buscar por nombre, RUT, cartera..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+
+            {/* Filtro por Cartera */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Cartera
+              </label>
+              <select
+                value={filtroCartera}
+                onChange={(e) => setFiltroCartera(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">Todas las carteras</option>
+                {carterasData?.data?.map((cartera: any) => (
+                  <option key={cartera.id} value={cartera.id}>
+                    {cartera.nombre}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Filtro por Cliente */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Cliente
+              </label>
+              <select
+                value={filtroCliente}
+                onChange={(e) => setFiltroCliente(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">Todos los clientes</option>
+                {clientesData?.data?.map((cliente: any) => (
+                  <option key={cliente.id} value={cliente.id}>
+                    {cliente.nombre}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Filtro por Nodo */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Nodo
+              </label>
+              <select
+                value={filtroNodo}
+                onChange={(e) => setFiltroNodo(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">Todos los nodos</option>
+                {nodosData?.data?.map((nodo: any) => (
+                  <option key={nodo.id} value={nodo.id}>
+                    {nodo.nombre}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Botones de acción */}
+            <div className="flex items-end space-x-2">
+              <button
+                onClick={() => setShowProgramacionOptimizadaModal(true)}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center"
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                Nueva Programación
+              </button>
+              {datosFiltrados.length > 0 && (
+                <button
+                  onClick={() => setShowRestablecerModal(true)}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center"
+                >
+                  <RefreshCw className="h-4 w-4 mr-1" />
+                  Restablecer
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  setFiltroCartera('');
+                  setFiltroCliente('');
+                  setFiltroNodo('');
+                  setFiltroPersonal('');
+                  setBusqueda('');
+                }}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center"
+              >
+                <X className="h-4 w-4 mr-1" />
+                Limpiar
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Tabla de programación */}
       <div className="card hover-lift slide-up animate-delay-300">
         <div className="px-6 py-4 border-b border-gray-200">
           <div className="flex justify-between items-center">
                    <h3 className="text-lg font-semibold text-gray-900">
                      Programación Optimizada
+                     {datosFiltrados.length !== datosProcesados.length && (
+                       <span className="ml-2 text-sm text-blue-600">
+                         ({datosFiltrados.length} de {datosProcesados.length})
+                       </span>
+                     )}
                    </h3>
             <div className="flex space-x-2">
               <button
@@ -479,7 +689,7 @@ export const CalendarioPage: React.FC = () => {
             )}
 
             {/* Empty state */}
-            {!isLoadingProgramacion && !errorProgramacion && datosProcesados.length === 0 && (
+            {!isLoadingProgramacion && !errorProgramacion && datosFiltrados.length === 0 && (
               <div className="text-center py-12">
                 <Calendar className="h-16 w-16 text-gray-300 mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">No hay programación</h3>
@@ -490,7 +700,7 @@ export const CalendarioPage: React.FC = () => {
             )}
 
             {/* Tabla de programación */}
-            {!isLoadingProgramacion && !errorProgramacion && datosProcesados.length > 0 && (
+            {!isLoadingProgramacion && !errorProgramacion && datosFiltrados.length > 0 && (
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-gray-50">
@@ -515,7 +725,7 @@ export const CalendarioPage: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {datosProcesados.map((prog: any, index: number) => (
+                    {datosFiltrados.map((prog: any, index: number) => (
                       <tr key={prog.id || index} className="hover:bg-gray-50 transition-colors">
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center">
@@ -577,7 +787,7 @@ export const CalendarioPage: React.FC = () => {
       </div>
 
             {/* Resumen de la Semana */}
-            {!isLoadingProgramacion && !errorProgramacion && datosProcesados.length > 0 && (
+            {!isLoadingProgramacion && !errorProgramacion && datosFiltrados.length > 0 && (
         <div className="card hover-lift slide-up animate-delay-400 mt-8">
           <div className="px-6 py-4 border-b border-gray-200">
             <h3 className="text-lg font-semibold text-gray-900 flex items-center">
@@ -608,8 +818,8 @@ export const CalendarioPage: React.FC = () => {
                   </div>
                   <div>
                            <div className="text-2xl font-bold text-green-900">
-                             {datosProcesados.length > 0
-                               ? new Set(datosProcesados.map((p: any) => p.cartera_id)).size
+                             {datosFiltrados.length > 0
+                               ? new Set(datosFiltrados.map((p: any) => p.cartera_id)).size
                                : 0}
                            </div>
                     <div className="text-sm text-green-600">Carteras con Personal</div>
@@ -653,6 +863,31 @@ export const CalendarioPage: React.FC = () => {
         personal={personalData?.data?.items || []}
         carteraId={0}
         semanaInicio={fechaInicioSemana.toISOString().split('T')[0]}
+      />
+
+      {/* Modal de Programación Optimizada */}
+      <ProgramacionOptimizadaModal
+        isOpen={showProgramacionOptimizadaModal}
+        onClose={() => setShowProgramacionOptimizadaModal(false)}
+        onSuccess={() => {
+          // Refrescar datos después de crear programación
+          queryClient.invalidateQueries({ queryKey: ['programacion-optimizada'] });
+        }}
+        fechaInicioSemana={fechaInicioSemana}
+        carteraId={carteraId}
+      />
+
+      {/* Modal de Restablecer Programación */}
+      <RestablecerProgramacionModal
+        isOpen={showRestablecerModal}
+        onClose={() => setShowRestablecerModal(false)}
+        onSuccess={() => {
+          // Refrescar datos después de restablecer programación
+          queryClient.invalidateQueries({ queryKey: ['programacion-optimizada'] });
+        }}
+        programacionData={programacion}
+        fechaInicio={fechaInicioSemana.toISOString().split('T')[0]}
+        fechaFin={fechaFinSemana.toISOString().split('T')[0]}
       />
 
     </div>
