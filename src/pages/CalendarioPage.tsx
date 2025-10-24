@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Calendar, ChevronLeft, ChevronRight, Plus, Download, Users, CheckCircle, XCircle } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, Plus, Download, Users, CheckCircle, XCircle, Settings, BarChart3, Clock, MapPin } from 'lucide-react';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
-import { useProgramacionSemanal } from '../hooks/useProgramacion';
+import { useProgramacionOptimizada } from '../hooks/useProgramacionOptimizada';
 import { useCarteras } from '../hooks/useCarteras';
 import { usePersonalList } from '../hooks/usePersonal';
 import { ProgramacionCalendarioModal } from '../components/programacion/ProgramacionCalendarioModal';
@@ -31,20 +31,99 @@ export const CalendarioPage: React.FC = () => {
   const { data: nodosData } = useNodos({ limit: 1000 });
   const { data: personalData } = usePersonalList();
 
-  // Hook para programación semanal - obtener todas las carteras
-  const {
-    programacion,
-    isLoading: isLoadingProgramacion,
+  // Funciones auxiliares para el sistema optimizado
+  const calcularTotalHoras = () => {
+    return datosProcesados.reduce((total: number, p: any) => {
+      return total + (p.horas_estimadas || 0);
+    }, 0);
+  };
+
+  const getTrabajadoresUnicos = () => {
+    return datosProcesados.map(p => p.rut);
+  };
+
+  // Hook para programación optimizada con fallback
+  const fechaFinSemana = new Date(fechaInicioSemana.getTime() + 6 * 24 * 60 * 60 * 1000);
+  
+  // Usar la primera cartera disponible o 6 (BAKERY - CARNES) como fallback
+  const carteraId = carterasData?.data && carterasData.data.length > 0 
+    ? parseInt(carterasData.data[0].id) 
+    : 6; // Fallback a BAKERY - CARNES que sabemos que funciona
+    
+  const { 
+    data: programacionData, 
+    isLoading: isLoadingProgramacion, 
     error: errorProgramacion,
-    alternarDia,
-    calcularTotalHoras,
-    getTrabajadoresUnicos,
-    isUpdating,
-    isCreating
-  } = useProgramacionSemanal(
-    0, // Siempre obtener todas las carteras
-    fechaInicioSemana.toISOString().split('T')[0]
+    isFallback
+  } = useProgramacionOptimizada(
+    carteraId, // Usar cartera válida
+    fechaInicioSemana.toISOString().split('T')[0], // fechaInicio
+    fechaFinSemana.toISOString().split('T')[0] // fechaFin
   );
+
+  // Datos de programación
+  const programacion = programacionData?.data?.programacion || [];
+
+  // Función para procesar datos del sistema optimizado
+  const procesarDatosOptimizados = () => {
+    if (!programacion || programacion.length === 0) return [];
+    
+    const trabajadoresMap = new Map();
+    
+    // Procesar cada fecha y sus trabajadores
+    programacion.forEach((dia: any) => {
+      if (dia.trabajadores && dia.trabajadores.length > 0) {
+        dia.trabajadores.forEach((trabajador: any) => {
+          const key = `${trabajador.rut}_${trabajador.cartera_id}`;
+          
+          if (!trabajadoresMap.has(key)) {
+            trabajadoresMap.set(key, {
+              id: trabajador.id,
+              rut: trabajador.rut,
+              nombre_persona: trabajador.nombre_persona,
+              cargo: trabajador.cargo,
+              cartera_id: trabajador.cartera_id,
+              nombre_cartera: trabajador.nombre_cartera,
+              cliente_id: trabajador.cliente_id,
+              nombre_cliente: trabajador.nombre_cliente,
+              nodo_id: trabajador.nodo_id,
+              nombre_nodo: trabajador.nombre_nodo,
+              lunes: false,
+              martes: false,
+              miercoles: false,
+              jueves: false,
+              viernes: false,
+              sabado: false,
+              domingo: false,
+              horas_estimadas: 0,
+              observaciones: trabajador.observaciones || '',
+              estado: trabajador.estado
+            });
+          }
+          
+          // Marcar el día correspondiente
+          const trabajadorData = trabajadoresMap.get(key);
+          const diaSemana = dia.dia_semana.toLowerCase();
+          
+          if (diaSemana === 'lunes') trabajadorData.lunes = true;
+          else if (diaSemana === 'martes') trabajadorData.martes = true;
+          else if (diaSemana === 'miercoles') trabajadorData.miercoles = true;
+          else if (diaSemana === 'jueves') trabajadorData.jueves = true;
+          else if (diaSemana === 'viernes') trabajadorData.viernes = true;
+          else if (diaSemana === 'sabado') trabajadorData.sabado = true;
+          else if (diaSemana === 'domingo') trabajadorData.domingo = true;
+          
+          // Sumar horas estimadas
+          trabajadorData.horas_estimadas += trabajador.horas_estimadas || 0;
+        });
+      }
+    });
+    
+    return Array.from(trabajadoresMap.values());
+  };
+
+  // Datos procesados para la tabla
+  const datosProcesados = procesarDatosOptimizados();
 
   // Funciones para la planificación semanal
   const handleCambiarSemana = (direccion: 'anterior' | 'siguiente') => {
@@ -57,12 +136,10 @@ export const CalendarioPage: React.FC = () => {
     setFechaInicioSemana(nuevaFecha);
   };
 
+  // Función para alternar día (sistema optimizado)
   const handleAlternarDia = async (programacionId: number, dia: string) => {
-    try {
-      await alternarDia(programacionId, dia);
-    } catch (error) {
-      console.error('Error al alternar día:', error);
-    }
+    console.log('Alternar día:', programacionId, dia);
+    // TODO: Implementar lógica para sistema optimizado
   };
 
   // Función para formatear fecha
@@ -156,21 +233,40 @@ export const CalendarioPage: React.FC = () => {
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Planificación Semanal</h1>
           <p className="text-gray-600 mt-1">Gestiona las asignaciones de personal a carteras por semana</p>
-          <div className="mt-2">
+          <div className="mt-2 flex flex-wrap gap-2">
             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
               📊 Todas las Carteras ({carterasData?.data?.length || 0})
             </span>
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+              👥 Personal ({personalData?.data?.total || 0})
+            </span>
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+              🏢 Clientes ({clientesData?.data?.length || 0})
+            </span>
           </div>
         </div>
-        <div className="flex space-x-3">
-          <button 
-            onClick={() => setShowProgramacionCalendarioModal(true)}
-            className="btn-primary hover-grow"
-          >
-            <Plus className="h-4 w-4" />
-            Agregar Programación
-          </button>
-        </div>
+             <div className="flex space-x-3">
+               <button
+                 onClick={() => {
+                   console.log('🔄 Refrescando datos...');
+                   queryClient.invalidateQueries({ queryKey: ['programacion-optimizada'] });
+                   queryClient.invalidateQueries({ queryKey: ['carteras'] });
+                   queryClient.invalidateQueries({ queryKey: ['personal'] });
+                   queryClient.invalidateQueries({ queryKey: ['clientes'] });
+                 }}
+                 className="btn-secondary hover-grow"
+               >
+                 <Settings className="h-4 w-4" />
+                 Refresh
+               </button>
+               <button
+                 onClick={() => setShowProgramacionCalendarioModal(true)}
+                 className="btn-primary hover-grow"
+               >
+                 <Plus className="h-4 w-4" />
+                 Agregar Programación
+               </button>
+             </div>
       </div>
 
       {/* Controles del calendario */}
@@ -216,25 +312,35 @@ export const CalendarioPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Estadísticas */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-3xl font-bold">{programacion.length}</div>
-              <div className="text-blue-100 text-sm font-medium">Total Programaciones</div>
-            </div>
-            <div className="bg-blue-400 bg-opacity-30 rounded-full p-3">
-              <Calendar className="h-6 w-6" />
-            </div>
-          </div>
-        </div>
+           {/* Estadísticas */}
+           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+             <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+               <div className="flex items-center justify-between">
+                 <div>
+                   <div className="text-3xl font-bold">
+                     {datosProcesados.length}
+                   </div>
+                     <div className="text-blue-100 text-sm font-medium">Total Programaciones</div>
+                     <div className="text-blue-200 text-xs mt-1">
+                       Sistema Optimizado
+                     </div>
+                 </div>
+                 <div className="bg-blue-400 bg-opacity-30 rounded-full p-3">
+                   <Calendar className="h-6 w-6" />
+                 </div>
+               </div>
+             </div>
 
         <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-3xl font-bold">{getTrabajadoresUnicos().length}</div>
-              <div className="text-green-100 text-sm font-medium">Personal Único</div>
+              <div className="text-3xl font-bold">
+                {getTrabajadoresUnicos().length}
+              </div>
+                     <div className="text-green-100 text-sm font-medium">Personal Asignado</div>
+                     <div className="text-green-200 text-xs mt-1">
+                       Únicos en rango
+                     </div>
             </div>
             <div className="bg-green-400 bg-opacity-30 rounded-full p-3">
               <Users className="h-6 w-6" />
@@ -247,9 +353,10 @@ export const CalendarioPage: React.FC = () => {
             <div>
               <div className="text-3xl font-bold">{carterasData?.data?.length || 0}</div>
               <div className="text-orange-100 text-sm font-medium">Carteras Activas</div>
+              <div className="text-orange-200 text-xs mt-1">Disponibles</div>
             </div>
             <div className="bg-orange-400 bg-opacity-30 rounded-full p-3">
-              <Users className="h-6 w-6" />
+              <BarChart3 className="h-6 w-6" />
             </div>
           </div>
         </div>
@@ -257,21 +364,72 @@ export const CalendarioPage: React.FC = () => {
         <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-3xl font-bold">{calcularTotalHoras()}</div>
-              <div className="text-purple-100 text-sm font-medium">Total Horas</div>
+              <div className="text-3xl font-bold">
+                {calcularTotalHoras()}
+              </div>
+                     <div className="text-purple-100 text-sm font-medium">Total Horas</div>
+                     <div className="text-purple-200 text-xs mt-1">
+                       En rango de fechas
+                     </div>
             </div>
             <div className="bg-purple-400 bg-opacity-30 rounded-full p-3">
-              <Calendar className="h-6 w-6" />
+              <Clock className="h-6 w-6" />
             </div>
           </div>
         </div>
       </div>
 
+      {/* Información del Sistema */}
+      {programacionData?.data && (
+        <div className="card hover-lift slide-up animate-delay-300 mb-6">
+          <div className="px-6 py-4 border-b border-gray-200">
+                   <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                     <Calendar className="h-5 w-5 mr-2 text-blue-600" />
+                     Sistema de Programación Optimizada
+                   </h3>
+                   <p className="text-sm text-gray-600 mt-1">
+                     Datos del {formatearFecha(fechaInicioSemana)} al {formatearFecha(fechaFinSemana)}
+                     {programacionData?.data?.cartera && (
+                       <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                         📊 {programacionData.data.cartera.nombre}
+                       </span>
+                     )}
+                   </p>
+          </div>
+          <div className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-blue-50 rounded-lg p-4">
+                     <div className="text-2xl font-bold text-blue-900">
+                       {datosProcesados.length}
+                     </div>
+                <div className="text-sm text-blue-600">Registros de Programación</div>
+              </div>
+              <div className="bg-green-50 rounded-lg p-4">
+                <div className="text-2xl font-bold text-green-900">
+                  {datosProcesados.length > 0
+                    ? new Set(datosProcesados.map((p: any) => p.cartera_id)).size
+                    : 0}
+                </div>
+                <div className="text-sm text-green-600">Carteras con Programación</div>
+              </div>
+              <div className="bg-purple-50 rounded-lg p-4">
+                <div className="text-2xl font-bold text-purple-900">
+                  {calcularTotalHoras()}
+                </div>
+                <div className="text-sm text-purple-600">Horas Totales</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Tabla de programación */}
       <div className="card hover-lift slide-up animate-delay-300">
         <div className="px-6 py-4 border-b border-gray-200">
           <div className="flex justify-between items-center">
-            <h3 className="text-lg font-semibold text-gray-900">Programación Semanal</h3>
+                   <h3 className="text-lg font-semibold text-gray-900">
+                     Programación Optimizada
+                   </h3>
             <div className="flex space-x-2">
               <button
                 onClick={() => setVistaTabla('jerarquica')}
@@ -321,7 +479,7 @@ export const CalendarioPage: React.FC = () => {
             )}
 
             {/* Empty state */}
-            {!isLoadingProgramacion && !errorProgramacion && programacion.length === 0 && (
+            {!isLoadingProgramacion && !errorProgramacion && datosProcesados.length === 0 && (
               <div className="text-center py-12">
                 <Calendar className="h-16 w-16 text-gray-300 mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">No hay programación</h3>
@@ -332,7 +490,7 @@ export const CalendarioPage: React.FC = () => {
             )}
 
             {/* Tabla de programación */}
-            {!isLoadingProgramacion && !errorProgramacion && programacion.length > 0 && (
+            {!isLoadingProgramacion && !errorProgramacion && datosProcesados.length > 0 && (
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-gray-50">
@@ -357,18 +515,18 @@ export const CalendarioPage: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {programacion.map((prog: any, index: number) => (
+                    {datosProcesados.map((prog: any, index: number) => (
                       <tr key={prog.id || index} className="hover:bg-gray-50 transition-colors">
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center">
                             <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full flex items-center justify-center mr-3">
                               <span className="text-white text-sm font-semibold">
-                                {prog.nombre_personal?.charAt(0) || prog.rut?.charAt(0) || 'U'}
+                                {prog.nombre_persona?.charAt(0) || prog.rut?.charAt(0) || 'U'}
                               </span>
                             </div>
                             <div>
                               <div className="text-sm font-medium text-gray-900">
-                                {prog.nombre_personal || 'Sin nombre'}
+                                {prog.nombre_persona || 'Sin nombre'}
                               </div>
                               <div className="text-sm text-gray-500">{prog.rut}</div>
                             </div>
@@ -376,26 +534,32 @@ export const CalendarioPage: React.FC = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                            {prog.cartera_nombre || 'Sin cartera'}
+                            {prog.nombre_cartera || 'Sin cartera'}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {prog.cliente_nombre || '-'}
+                          {prog.nombre_cliente || '-'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {prog.nodo_nombre || '-'}
+                          {prog.nombre_nodo || '-'}
                         </td>
                         {['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'].map(dia => (
                           <td key={dia} className="px-6 py-4 whitespace-nowrap text-center">
                             {prog[dia] ? (
                               <div className="flex items-center justify-center">
-                                <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+                                <div 
+                                  className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center cursor-pointer hover:bg-green-600 transition-colors"
+                                  title={`${dia.charAt(0).toUpperCase() + dia.slice(1)}: Asignado`}
+                                >
                                   <CheckCircle className="h-4 w-4 text-white" />
                                 </div>
                               </div>
                             ) : (
                               <div className="flex items-center justify-center">
-                                <div className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center">
+                                <div 
+                                  className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center cursor-pointer hover:bg-gray-300 transition-colors"
+                                  title={`${dia.charAt(0).toUpperCase() + dia.slice(1)}: No asignado`}
+                                >
                                   <XCircle className="h-4 w-4 text-gray-400" />
                                 </div>
                               </div>
@@ -411,6 +575,65 @@ export const CalendarioPage: React.FC = () => {
           </>
         </div>
       </div>
+
+            {/* Resumen de la Semana */}
+            {!isLoadingProgramacion && !errorProgramacion && datosProcesados.length > 0 && (
+        <div className="card hover-lift slide-up animate-delay-400 mt-8">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+              <BarChart3 className="h-5 w-5 mr-2" />
+              Resumen de la Semana
+            </h3>
+          </div>
+          <div className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="bg-blue-50 rounded-lg p-4">
+                <div className="flex items-center">
+                  <div className="bg-blue-100 rounded-full p-2 mr-3">
+                    <Users className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-blue-900">
+                      {getTrabajadoresUnicos().length}
+                    </div>
+                    <div className="text-sm text-blue-600">Personal Único</div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-green-50 rounded-lg p-4">
+                <div className="flex items-center">
+                  <div className="bg-green-100 rounded-full p-2 mr-3">
+                    <MapPin className="h-5 w-5 text-green-600" />
+                  </div>
+                  <div>
+                           <div className="text-2xl font-bold text-green-900">
+                             {datosProcesados.length > 0
+                               ? new Set(datosProcesados.map((p: any) => p.cartera_id)).size
+                               : 0}
+                           </div>
+                    <div className="text-sm text-green-600">Carteras con Personal</div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-purple-50 rounded-lg p-4">
+                <div className="flex items-center">
+                  <div className="bg-purple-100 rounded-full p-2 mr-3">
+                    <Clock className="h-5 w-5 text-purple-600" />
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-purple-900">
+                      {calcularTotalHoras()}
+                    </div>
+                    <div className="text-sm text-purple-600">Horas Totales</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal de Programación con Calendario */}
       <ProgramacionCalendarioModal

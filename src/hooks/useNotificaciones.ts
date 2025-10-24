@@ -21,7 +21,10 @@ export const useNotificaciones = () => {
   // Obtener datos de documentos vencidos y por vencer
   const { data: documentosVencidos, isLoading: isLoadingVencidos } = useDocumentosVencidos();
   const { data: documentosPorVencer, isLoading: isLoadingPorVencer } = useDocumentosPorVencer();
-  const { data: cursosVencidos, isLoading: isLoadingCursos } = useCursosVencidos();
+  // Temporalmente deshabilitado - endpoint /api/cursos/vencidos devuelve error 500
+  // const { data: cursosVencidos, isLoading: isLoadingCursos } = useCursosVencidos();
+  const cursosVencidos: any = null;
+  const isLoadingCursos = false;
 
   // Cargar notificaciones eliminadas del localStorage al inicializar
   useEffect(() => {
