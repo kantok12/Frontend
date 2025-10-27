@@ -368,9 +368,19 @@ export const ProgramacionCalendarioModal: React.FC<ProgramacionCalendarioModalPr
 
         // Verificar que tenemos un RUT válido
         const rutPersonal = personalSeleccionado.rut || personalSeleccionado.id;
+        console.log('🔍 RUT obtenido:', rutPersonal);
+        console.log('🔍 Personal completo:', personalSeleccionado);
+        
         if (!rutPersonal) {
           throw new Error(`No se encontró RUT para el personal: ${personalSeleccionado.nombre} ${personalSeleccionado.apellido}`);
         }
+        
+        // Validar que carteraId sea válido
+        if (!carteraId || carteraId <= 0) {
+          throw new Error(`Cartera ID inválido: ${carteraId}`);
+        }
+        
+        console.log('✅ Validaciones pasadas - RUT:', rutPersonal, 'Cartera:', carteraId);
 
         const programacionData = {
           rut: rutPersonal,
@@ -408,18 +418,57 @@ export const ProgramacionCalendarioModal: React.FC<ProgramacionCalendarioModalPr
         console.log('📅 Fecha inicio calculada:', getFechaInicioSemana(semanaSeleccionada));
         console.log('✅ Validaciones pasadas - enviando a API');
         
-        // Usar directamente el servicio API en lugar del hook
+        // Usar el sistema de programación optimizada
         const { apiService } = await import('../../services/api');
         
-        // Intentar crear la programación
+        // Convertir la asignación al formato de programación optimizada
+        const fechaTrabajo = new Date(semanaInicio);
+        // Ajustar la fecha según el día de la semana
+        const diasSemana = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+        const indiceDia = diasSemana.indexOf(asignacion.dia);
+        if (indiceDia > 0) {
+          fechaTrabajo.setDate(fechaTrabajo.getDate() + indiceDia - 1);
+        }
+        
+        // Validar fechas_trabajo
+        const fechaTrabajoStr = fechaTrabajo.toISOString().split('T')[0];
+        if (!fechaTrabajoStr) {
+          throw new Error('Fecha de trabajo inválida');
+        }
+        
+        const programacionCompatibilidadData = {
+          rut: rutPersonal,
+          cartera_id: carteraId,
+          cliente_id: asignacion.clienteId || undefined,
+          nodo_id: asignacion.nodoId || undefined,
+          semana_inicio: fechaInicioCalculada,
+          lunes: asignacion.dia === 'lunes',
+          martes: asignacion.dia === 'martes',
+          miercoles: asignacion.dia === 'miercoles',
+          jueves: asignacion.dia === 'jueves',
+          viernes: asignacion.dia === 'viernes',
+          sabado: asignacion.dia === 'sabado',
+          domingo: asignacion.dia === 'domingo',
+          horas_estimadas: 8,
+          observaciones: asignacion.observaciones || '',
+          estado: 'activo'
+        };
+        
+        console.log('📤 Creando programación compatibilidad:', programacionCompatibilidadData);
+        console.log('🔍 Validación de datos requeridos:');
+        console.log('  - rut:', programacionCompatibilidadData.rut, typeof programacionCompatibilidadData.rut);
+        console.log('  - cartera_id:', programacionCompatibilidadData.cartera_id, typeof programacionCompatibilidadData.cartera_id);
+        console.log('  - semana_inicio:', programacionCompatibilidadData.semana_inicio, typeof programacionCompatibilidadData.semana_inicio);
+        
+        // Intentar crear la programación con compatibilidad
         try {
-          const result = await apiService.crearProgramacion(programacionData);
-          console.log('✅ Programación creada:', result);
+          const result = await apiService.crearProgramacionCompatibilidad(programacionCompatibilidadData);
+          console.log('✅ Programación compatibilidad creada:', result);
           return result;
         } catch (apiError) {
           console.error('❌ Error específico de API:', apiError);
           
-          // Log detallado del error 409
+          // Log detallado del error
           if (apiError && typeof apiError === 'object' && 'response' in apiError) {
             const axiosError = apiError as any;
             console.error('📊 Status:', axiosError.response?.status);
@@ -431,7 +480,6 @@ export const ProgramacionCalendarioModal: React.FC<ProgramacionCalendarioModalPr
               console.log('📝 Mensaje del backend:', axiosError.response?.data?.message || 'Conflicto de programación');
               
               // Para permitir múltiples asignaciones, simplemente retornamos éxito
-              // ya que el backend ya tiene una programación para esta persona
               console.log('✅ Múltiples asignaciones permitidas - continuando con la siguiente');
               
               // Retornar un objeto de éxito simulado
@@ -442,23 +490,15 @@ export const ProgramacionCalendarioModal: React.FC<ProgramacionCalendarioModalPr
                   id: Date.now(), // ID temporal
                   rut: rutPersonal,
                   cartera_id: carteraId,
-                  semana_inicio: semanaInicio,
-                  [asignacion.dia]: true,
+                  fechas_trabajo: [fechaTrabajo.toISOString().split('T')[0]],
                   estado: 'activo'
                 }
               };
             }
           }
           
-          // Si falla todo, intentar con un formato más simple
-          const simpleData = {
-            rut: rutPersonal,
-            cartera_id: carteraId,
-            semana_inicio: semanaInicio,
-            [asignacion.dia]: true
-          };
-          console.log('🔄 Intentando con formato simple:', simpleData);
-          return apiService.crearProgramacion(simpleData);
+          // Si falla todo, lanzar el error
+          throw apiError;
         }
       });
 
@@ -469,20 +509,18 @@ export const ProgramacionCalendarioModal: React.FC<ProgramacionCalendarioModalPr
       // Invalidar queries para refrescar el calendario
       console.log('🔄 Invalidando queries para refrescar el calendario...');
       const fechaInicioCalculada = getFechaInicioSemana(semanaSeleccionada);
-      if (carteraId === 0) {
-        queryClient.invalidateQueries({ 
-          queryKey: ['programacion', 'semana', 0, fechaInicioCalculada] 
-        });
-        queryClient.invalidateQueries({ 
-          queryKey: ['programacion'] 
-        });
-        console.log('✅ Queries de semana invalidadas para:', fechaInicioCalculada);
-      } else {
-        queryClient.invalidateQueries({ 
-          queryKey: ['programacion', 'cartera', carteraId, fechaInicioCalculada] 
-        });
-        console.log('✅ Queries de cartera invalidadas para:', fechaInicioCalculada);
-      }
+      const fechaInicioDate = new Date(fechaInicioCalculada);
+      const fechaFinCalculada = new Date(fechaInicioDate);
+      fechaFinCalculada.setDate(fechaFinCalculada.getDate() + 6);
+      
+      // Invalidar queries de programación optimizada
+      queryClient.invalidateQueries({ 
+        queryKey: ['programacion-compatibilidad'] 
+      });
+      queryClient.invalidateQueries({ 
+        queryKey: ['programacion-compatibilidad', carteraId, fechaInicioDate.toISOString().split('T')[0]] 
+      });
+      console.log('✅ Queries de programación compatibilidad invalidadas para cartera:', carteraId, 'fecha:', fechaInicioDate.toISOString().split('T')[0]);
       
       console.log('🎉 Proceso completado exitosamente');
       onSuccess(asignaciones);

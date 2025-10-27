@@ -195,19 +195,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
           {/* Footer */}
           <div className={`border-t border-gray-100 ${isCollapsed ? 'p-2' : 'p-4'}`}>
-            <div className={`bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl ${isCollapsed ? 'p-2' : 'p-4'}`}>
+            <button
+              onClick={() => {
+                if (window.confirm('¿Estás seguro de que quieres cerrar sesión?')) {
+                  console.log('Cerrando sesión desde sidebar...');
+                  logout();
+                }
+              }}
+              className={`bg-gradient-to-r from-gray-50 to-gray-100 hover:from-gray-100 hover:to-gray-200 rounded-xl ${isCollapsed ? 'p-2' : 'p-4'} w-full transition-all duration-200 cursor-pointer`}
+              title="Cerrar sesión"
+            >
               <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'space-x-3'}`}>
                 <div className="w-8 h-8 bg-gradient-to-br from-gray-400 to-gray-500 rounded-lg flex items-center justify-center">
                   <LogOut size={16} className="text-white" />
                 </div>
                 {!isCollapsed && (
-                  <div className="flex-1">
+                  <div className="flex-1 text-left">
                     <div className="text-sm font-medium text-gray-700">Sesión Activa</div>
                     <div className="text-xs text-gray-500">Usuario conectado</div>
                   </div>
                 )}
               </div>
-            </div>
+            </button>
           </div>
         </div>
       </div>

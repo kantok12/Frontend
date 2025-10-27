@@ -1443,6 +1443,72 @@ class ApiService {
     return response.data;
   }
 
+  // ==================== MÉTODOS PARA PROGRAMACIÓN SEMANAL SIMPLIFICADA ====================
+  
+  // GET /api/programacion-semanal
+  async getProgramacionSemanal(params: {
+    cartera_id: number;
+    fecha_inicio: string;
+    fecha_fin: string;
+  }): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.get('/programacion-semanal', { params });
+    return response.data;
+  }
+
+  // POST /api/programacion-semanal
+  async crearProgramacionSemanal(data: {
+    rut: string;
+    cartera_id: number;
+    cliente_id?: number;
+    nodo_id?: number;
+    fecha_trabajo: string;
+    horas_estimadas?: number;
+    observaciones?: string;
+    estado?: string;
+  }): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.post('/programacion-semanal', data);
+    return response.data;
+  }
+
+  // DELETE /api/programacion-semanal/:id
+  async eliminarProgramacionSemanal(id: number): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.delete(`/programacion-semanal/${id}`);
+    return response.data;
+  }
+
+  // ==================== MÉTODOS PARA COMPATIBILIDAD ====================
+
+  // GET /api/programacion-compatibilidad
+  async getProgramacionCompatibilidad(params: {
+    cartera_id: number;
+    semana: string;
+  }): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.get('/programacion-compatibilidad', { params });
+    return response.data;
+  }
+
+  // POST /api/programacion-compatibilidad
+  async crearProgramacionCompatibilidad(data: {
+    rut: string;
+    cartera_id: number;
+    cliente_id?: number;
+    nodo_id?: number;
+    semana_inicio: string;
+    lunes?: boolean;
+    martes?: boolean;
+    miercoles?: boolean;
+    jueves?: boolean;
+    viernes?: boolean;
+    sabado?: boolean;
+    domingo?: boolean;
+    horas_estimadas?: number;
+    observaciones?: string;
+    estado?: string;
+  }): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.post('/programacion-compatibilidad', data);
+    return response.data;
+  }
+
   // ==================== MÉTODOS PARA CARPETAS PERSONAL ====================
   
   // GET /api/carpetas-personal

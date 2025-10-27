@@ -13,7 +13,7 @@ import { ExtendedRegisterPage } from './pages/auth/ExtendedRegisterPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { PersonalPage } from './pages/PersonalPage';
 import { EstadoDocumentacionPage } from './pages/EstadoDocumentacionPage';
-import { CalendarioPage } from './pages/CalendarioPage';
+import CalendarioPage from './pages/CalendarioPage';
 import { ServiciosPage } from './pages/ServiciosPage';
 
 // Protected Route Component
@@ -149,3 +149,4 @@ function App() {
 }
 
 export default App;
+

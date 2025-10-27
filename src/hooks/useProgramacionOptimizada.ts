@@ -8,19 +8,23 @@ export const useProgramacionOptimizada = (
   fechaInicio?: string,
   fechaFin?: string
 ) => {
+
   // Usar SOLO el sistema optimizado
   const optimizedQuery = useQuery({
     queryKey: ['programacion-optimizada', carteraId, fechaInicio, fechaFin],
-    queryFn: () => apiService.getProgramacionOptimizada({
-      cartera_id: carteraId,
-      fecha_inicio: fechaInicio,
-      fecha_fin: fechaFin
-    }),
+    queryFn: async () => {
+      return await apiService.getProgramacionOptimizada({
+        cartera_id: carteraId,
+        fecha_inicio: fechaInicio,
+        fecha_fin: fechaFin
+      });
+    },
     enabled: carteraId >= 0,
     staleTime: 5 * 60 * 1000, // 5 minutos
     retry: 0, // Sin reintentos - mostrar error inmediatamente
     retryOnMount: false,
   });
+
 
   // Retornar directamente el sistema optimizado
   return {
