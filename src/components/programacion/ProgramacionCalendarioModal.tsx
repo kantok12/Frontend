@@ -346,7 +346,10 @@ export const ProgramacionCalendarioModal: React.FC<ProgramacionCalendarioModalPr
       console.log('📋 Asignaciones a guardar:', asignaciones);
       console.log('🏢 Cartera ID:', carteraId);
       console.log('📅 Semana seleccionada:', semanaSeleccionada);
-      console.log('📅 Fecha inicio calculada:', getFechaInicioSemana(semanaSeleccionada));
+      
+      // Calcular fecha de inicio de semana una sola vez fuera del map
+      const fechaInicioCalculada = getFechaInicioSemana(semanaSeleccionada);
+      console.log('📅 Fecha inicio calculada:', fechaInicioCalculada);
       
       // Crear cada asignación usando la API
       const promises = asignaciones.map(async (asignacion, index) => {
@@ -508,7 +511,6 @@ export const ProgramacionCalendarioModal: React.FC<ProgramacionCalendarioModalPr
       
       // Invalidar queries para refrescar el calendario
       console.log('🔄 Invalidando queries para refrescar el calendario...');
-      const fechaInicioCalculada = getFechaInicioSemana(semanaSeleccionada);
       const fechaInicioDate = new Date(fechaInicioCalculada);
       const fechaFinCalculada = new Date(fechaInicioDate);
       fechaFinCalculada.setDate(fechaFinCalculada.getDate() + 6);
