@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Menu, Bell, User, Settings } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useNotificaciones } from '../../hooks/useNotificaciones';
@@ -9,6 +10,7 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({ onMenuToggle, onNotificacionesToggle }) => {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { notificacionesNoLeidas } = useNotificaciones();
 
@@ -51,7 +53,11 @@ export const Header: React.FC<HeaderProps> = ({ onMenuToggle, onNotificacionesTo
           </button>
 
           {/* Settings */}
-          <button className="p-2.5 text-white hover:text-blue-100 hover:bg-white/10 rounded-xl transition-all duration-200">
+          <button 
+            onClick={() => navigate('/configuracion')}
+            className="p-2.5 text-white hover:text-blue-100 hover:bg-white/10 rounded-xl transition-all duration-200"
+            title="Configuración de usuario"
+          >
             <Settings size={20} />
           </button>
 

@@ -15,6 +15,7 @@ import { PersonalPage } from './pages/PersonalPage';
 import { EstadoDocumentacionPage } from './pages/EstadoDocumentacionPage';
 import CalendarioPage from './pages/CalendarioPage';
 import { ServiciosPage } from './pages/ServiciosPage';
+import { ConfiguracionPage } from './pages/ConfiguracionPage';
 
 // Protected Route Component
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -119,6 +120,15 @@ function App() {
         element={
           <ProtectedRoute>
             <ServiciosPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/configuracion"
+        element={
+          <ProtectedRoute>
+            <ConfiguracionPage />
           </ProtectedRoute>
         }
       />

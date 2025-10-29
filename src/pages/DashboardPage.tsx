@@ -1,13 +1,8 @@
 import React from 'react';
 import { 
-  Activity,
   TrendingUp,
-  BarChart3,
   Calendar,
-  Users,
-  Settings,
-  Clock,
-  MapPin
+  Clock
 } from 'lucide-react';
 import { useDashboardStats } from '../hooks/useDashboard';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
@@ -40,44 +35,6 @@ export const DashboardPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header moderno */}
-        <div className="fade-in mb-8">
-          <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                  Dashboard Ejecutivo
-                </h1>
-                <p className="text-gray-600 text-lg">
-                  Sistema Integral de Servicios Internos
-                </p>
-                <div className="flex items-center mt-4 space-x-6">
-                  <div className="flex items-center text-sm text-gray-500">
-                    <Clock className="h-4 w-4 mr-2" />
-                    Última actualización: {new Date().toLocaleString('es-CL')}
-                  </div>
-                  <div className="flex items-center text-sm text-gray-500">
-                    <MapPin className="h-4 w-4 mr-2" />
-                    Santiago, Chile
-                  </div>
-                </div>
-              </div>
-              <div className="hidden lg:block">
-                <div className="bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl p-6 text-white">
-                  <div className="flex items-center space-x-4">
-                    <div className="p-3 bg-white/20 rounded-lg">
-                      <Activity className="h-8 w-8" />
-                    </div>
-                    <div>
-                      <p className="text-sm opacity-90">Dashboard</p>
-                      <p className="text-2xl font-bold">Activo</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
 
         {/* Stats Cards y Gráficos */}
         <div className="slide-up animate-delay-200">
@@ -168,24 +125,6 @@ export const DashboardPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Footer informativo */}
-        <div className="mt-8 bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <Activity className="h-6 w-6 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-gray-900">Dashboard Activo</p>
-                <p className="text-sm text-gray-500">Monitoreo en tiempo real de servicios</p>
-              </div>
-            </div>
-            <div className="text-right">
-              <p className="text-sm text-gray-500">Versión 1.0.0</p>
-              <p className="text-sm text-gray-500">Última actualización: {new Date().toLocaleDateString('es-CL')}</p>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );

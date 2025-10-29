@@ -3,6 +3,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useDocumentosVencidos, useDocumentosPorVencer } from './useDocumentosVencidos';
 import { useCursosVencidos } from './useCursos';
 import { useNavegacionDocumentos } from './useNavegacionDocumentos';
+import { usePersonalList } from './usePersonal';
+import { useProgramacionSemanal } from './useProgramacion';
+import { useEstadisticasServicios } from './useServicios';
+import { useAuditoriaDashboard, useAuditoriaNotificaciones, useAuditoriaEstadisticas } from './useAuditoria';
 import { 
   NotificacionDocumento, 
   CreateNotificacionData, 
@@ -25,6 +29,32 @@ export const useNotificaciones = () => {
   // const { data: cursosVencidos, isLoading: isLoadingCursos } = useCursosVencidos();
   const cursosVencidos: any = null;
   const isLoadingCursos = false;
+
+  // Obtener datos adicionales para notificaciones más completas
+  const { data: personalData, isLoading: isLoadingPersonal } = usePersonalList(1, 1000, '');
+  const { data: estadisticasServicios, isLoading: isLoadingServicios } = useEstadisticasServicios();
+  
+  // Obtener programación de la semana actual para notificaciones de asignaciones
+  const fechaInicioSemana = new Date();
+  const diaSemana = fechaInicioSemana.getDay();
+  const diff = fechaInicioSemana.getDate() - diaSemana + (diaSemana === 0 ? -6 : 1);
+  fechaInicioSemana.setDate(diff);
+  fechaInicioSemana.setHours(0, 0, 0, 0);
+  
+  const { programacion: programacionData, isLoading: isLoadingProgramacion } = useProgramacionSemanal(
+    6, // Cartera por defecto
+    fechaInicioSemana.toISOString().split('T')[0]
+  );
+
+  // Obtener datos de auditoría para notificaciones del sistema
+  const { data: auditoriaDashboard, isLoading: isLoadingAuditoriaDashboard } = useAuditoriaDashboard({
+    limit: 50,
+    es_critico: true
+  });
+  
+  const { data: auditoriaNotificaciones, isLoading: isLoadingAuditoriaNotificaciones } = useAuditoriaNotificaciones(false);
+  
+  const { data: auditoriaEstadisticas, isLoading: isLoadingAuditoriaEstadisticas } = useAuditoriaEstadisticas(30);
 
   // Cargar notificaciones eliminadas del localStorage al inicializar
   useEffect(() => {
@@ -72,6 +102,189 @@ export const useNotificaciones = () => {
           });
         }
       });
+    }
+
+    // Notificaciones de personal sin asignación esta semana
+    if (personalData?.data?.items && programacionData) {
+      const personalList = personalData.data.items;
+      const programacionList = programacionData;
+      
+      // Obtener RUTs de personal asignado esta semana
+      const rutAsignados = new Set();
+      programacionList.forEach((dia: any) => {
+        if (dia.trabajadores) {
+          dia.trabajadores.forEach((trabajador: any) => {
+            rutAsignados.add(trabajador.rut);
+          });
+        }
+      });
+
+      // Buscar personal activo sin asignación
+      personalList.forEach((personal: any) => {
+        if (personal.activo && !rutAsignados.has(personal.rut)) {
+          const notificacionId = `personal_sin_asignacion_${personal.rut}`;
+          if (!notificacionesEliminadas.has(notificacionId)) {
+            notificaciones.push({
+              id: notificacionId,
+              tipo: 'personal_sin_asignacion',
+              prioridad: 'media',
+              titulo: 'Personal Sin Asignación',
+              mensaje: `${personal.nombres} ${personal.apellidos} no tiene asignaciones para esta semana`,
+              personal_id: personal.rut,
+              personal_nombre: `${personal.nombres} ${personal.apellidos}`,
+              documento_id: null,
+              documento_nombre: null,
+              fecha_vencimiento: null,
+              dias_restantes: null,
+              leida: false,
+              fecha_creacion: new Date().toISOString(),
+              accion_requerida: 'Asignar Personal'
+            });
+          }
+        }
+      });
+    }
+
+    // Notificaciones de servicios con problemas
+    if (estadisticasServicios?.data) {
+      const serviciosData = estadisticasServicios.data;
+      
+      // Notificación si hay muchos nodos sin personal asignado
+      if (serviciosData.totales?.nodos > serviciosData.totales?.personal_asignado) {
+        const notificacionId = 'servicios_sin_personal';
+        if (!notificacionesEliminadas.has(notificacionId)) {
+          notificaciones.push({
+            id: notificacionId,
+            tipo: 'servicios_sin_personal',
+            prioridad: 'media',
+            titulo: 'Servicios Sin Personal',
+            mensaje: `Hay ${serviciosData.totales.nodos - serviciosData.totales.personal_asignado} nodos sin personal asignado`,
+            personal_id: null,
+            personal_nombre: null,
+            documento_id: null,
+            documento_nombre: null,
+            fecha_vencimiento: null,
+            dias_restantes: null,
+            leida: false,
+            fecha_creacion: new Date().toISOString(),
+            accion_requerida: 'Revisar Asignaciones'
+          });
+        }
+      }
+    }
+
+    // Notificaciones de auditoría - Dashboard de actividad crítica
+    if (auditoriaDashboard?.data) {
+      // Manejar diferentes estructuras de respuesta
+      const actividades = auditoriaDashboard.data.actividades || auditoriaDashboard.data.data || auditoriaDashboard.data || [];
+      
+      if (Array.isArray(actividades) && actividades.length > 0) {
+        actividades.forEach((actividad: any, index: number) => {
+          const notificacionId = `auditoria_critica_${actividad.id || actividad._id || index}`;
+          if (!notificacionesEliminadas.has(notificacionId)) {
+            notificaciones.push({
+              id: notificacionId,
+              tipo: 'auditoria_critica',
+              prioridad: 'alta',
+              titulo: 'Actividad Crítica Detectada',
+              mensaje: `${actividad.accion || actividad.action || 'Acción'} en ${actividad.tabla || actividad.table || 'sistema'}: ${actividad.descripcion || actividad.description || actividad.mensaje || 'Sin descripción'}`,
+              personal_id: actividad.usuario_id || actividad.usuarioId || actividad.user_id || null,
+              personal_nombre: actividad.usuario_nombre || actividad.usuarioNombre || actividad.user_name || null,
+              documento_id: null,
+              documento_nombre: null,
+              fecha_vencimiento: null,
+              dias_restantes: null,
+              leida: false,
+              fecha_creacion: actividad.fecha_creacion || actividad.fechaCreacion || actividad.created_at || new Date().toISOString(),
+              accion_requerida: 'Revisar Auditoría'
+            });
+          }
+        });
+      }
+    }
+
+    // Notificaciones de auditoría - Notificaciones no leídas del sistema
+    if (auditoriaNotificaciones?.data) {
+      // Manejar diferentes estructuras de respuesta
+      const notifs = auditoriaNotificaciones.data.notificaciones || auditoriaNotificaciones.data.data || auditoriaNotificaciones.data || [];
+      
+      if (Array.isArray(notifs) && notifs.length > 0) {
+        notifs.forEach((notif: any) => {
+          const notificacionId = `auditoria_sistema_${notif.id || notif._id || Math.random()}`;
+          if (!notificacionesEliminadas.has(notificacionId)) {
+            notificaciones.push({
+              id: notificacionId,
+              tipo: 'auditoria_sistema',
+              prioridad: (notif.prioridad || notif.priority || 'media') as 'alta' | 'media' | 'baja',
+              titulo: notif.titulo || notif.title || 'Notificación del Sistema',
+              mensaje: notif.mensaje || notif.message || 'Sin mensaje',
+              personal_id: notif.usuario_id || notif.usuarioId || notif.user_id || null,
+              personal_nombre: notif.usuario_nombre || notif.usuarioNombre || notif.user_name || null,
+              documento_id: null,
+              documento_nombre: null,
+              fecha_vencimiento: null,
+              dias_restantes: null,
+              leida: notif.leida || notif.read || false,
+              fecha_creacion: notif.fecha_creacion || notif.fechaCreacion || notif.created_at || new Date().toISOString(),
+              accion_requerida: notif.accion_requerida || notif.accionRequerida || notif.action_required || 'Revisar'
+            });
+          }
+        });
+      }
+    }
+
+    // Notificaciones de auditoría - Estadísticas de los últimos 30 días
+    if (auditoriaEstadisticas?.data) {
+      // Manejar diferentes estructuras de respuesta
+      const stats = auditoriaEstadisticas.data.estadisticas || auditoriaEstadisticas.data.data || auditoriaEstadisticas.data || {};
+      
+      // Notificación si hay muchas actividades críticas
+      const actividadesCriticas = stats.actividades_criticas || stats.actividadesCriticas || stats.critical_activities || 0;
+      if (actividadesCriticas > 10) {
+        const notificacionId = 'auditoria_muchas_criticas';
+        if (!notificacionesEliminadas.has(notificacionId)) {
+          notificaciones.push({
+            id: notificacionId,
+            tipo: 'auditoria_estadisticas',
+            prioridad: 'alta',
+            titulo: 'Alto Número de Actividades Críticas',
+            mensaje: `Se han detectado ${actividadesCriticas} actividades críticas en los últimos 30 días`,
+            personal_id: null,
+            personal_nombre: null,
+            documento_id: null,
+            documento_nombre: null,
+            fecha_vencimiento: null,
+            dias_restantes: null,
+            leida: false,
+            fecha_creacion: new Date().toISOString(),
+            accion_requerida: 'Revisar Estadísticas'
+          });
+        }
+      }
+
+      // Notificación si hay muchas modificaciones en programación
+      const modificacionesProgramacion = stats.modificaciones_programacion || stats.modificacionesProgramacion || stats.programming_modifications || 0;
+      if (modificacionesProgramacion > 20) {
+        const notificacionId = 'auditoria_muchas_modificaciones';
+        if (!notificacionesEliminadas.has(notificacionId)) {
+          notificaciones.push({
+            id: notificacionId,
+            tipo: 'auditoria_estadisticas',
+            prioridad: 'media',
+            titulo: 'Frecuentes Modificaciones en Programación',
+            mensaje: `Se han realizado ${modificacionesProgramacion} modificaciones en programación en los últimos 30 días`,
+            personal_id: null,
+            personal_nombre: null,
+            documento_id: null,
+            documento_nombre: null,
+            fecha_vencimiento: null,
+            dias_restantes: null,
+            leida: false,
+            fecha_creacion: new Date().toISOString(),
+            accion_requerida: 'Revisar Patrones'
+          });
+        }
+      }
     }
 
     // Notificaciones de documentos por vencer
@@ -141,6 +354,12 @@ export const useNotificaciones = () => {
     documentosVencidos?.data,
     documentosPorVencer?.data,
     cursosVencidos?.data,
+    personalData?.data?.items,
+    programacionData,
+    estadisticasServicios?.data,
+    auditoriaDashboard?.data,
+    auditoriaNotificaciones?.data,
+    auditoriaEstadisticas?.data,
     notificacionesEliminadas
   ]);
   
@@ -217,6 +436,20 @@ export const useNotificaciones = () => {
         return '📋';
       case 'documento_renovado':
         return '✅';
+      case 'personal_sin_asignacion':
+        return '👤';
+      case 'servicios_sin_personal':
+        return '🏢';
+      case 'programacion_pendiente':
+        return '📅';
+      case 'mantenimiento_proximo':
+        return '🔧';
+      case 'auditoria_critica':
+        return '🔴';
+      case 'auditoria_sistema':
+        return '🔔';
+      case 'auditoria_estadisticas':
+        return '📊';
       default:
         return '📄';
     }
@@ -248,7 +481,7 @@ export const useNotificaciones = () => {
     notificacionesPorPrioridad,
     
     // Estados de carga
-    isLoading: isLoadingVencidos || isLoadingPorVencer || isLoadingCursos,
+    isLoading: isLoadingVencidos || isLoadingPorVencer || isLoadingCursos || isLoadingPersonal || isLoadingServicios || isLoadingProgramacion || isLoadingAuditoriaDashboard || isLoadingAuditoriaNotificaciones || isLoadingAuditoriaEstadisticas,
     
     // Mutations
     marcarComoLeida,

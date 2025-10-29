@@ -96,10 +96,10 @@ const CalendarioPage: React.FC = () => {
       };
       
       console.log('📤 Datos enviados al backend:', {
-        rut: trabajador.rut,
-        cartera_id: trabajador.cartera_id,
-        cliente_id: trabajador.cliente_id,
-        nodo_id: trabajador.nodo_id,
+              rut: trabajador.rut,
+              cartera_id: trabajador.cartera_id,
+              cliente_id: trabajador.cliente_id,
+              nodo_id: trabajador.nodo_id,
         semana_inicio: fechaInicioSemana.toISOString().split('T')[0],
         ...diasBooleanos,
         horas_estimadas: 8,
@@ -128,11 +128,39 @@ const CalendarioPage: React.FC = () => {
       await queryClient.invalidateQueries({ queryKey: ['programacion-compatibilidad'] });
       await queryClient.refetchQueries({ queryKey: ['programacion-compatibilidad'] });
       console.log('✅ Datos actualizados');
-      
-      alert(`${trabajador.nombre_persona} asignado exitosamente al ${dia}`);
     } catch (error: any) {
       console.error('Error al asignar el día:', error);
-      alert(`Error al asignar el día: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+      
+      // Manejo específico de errores HTTP
+      let mensajeError = 'Error desconocido';
+      
+      if (error.response) {
+        const status = error.response.status;
+        const data = error.response.data;
+        
+        switch (status) {
+          case 400:
+            mensajeError = `Error 400 - Solicitud inválida: ${data?.message || 'Datos incompletos o inválidos. Verifica que todos los campos estén correctos.'}`;
+            break;
+          case 404:
+            mensajeError = `Error 404 - No encontrado: ${data?.message || 'No se encontró el trabajador o la cartera especificada.'}`;
+            break;
+          case 409:
+            mensajeError = `Error 409 - Conflicto: ${data?.message || 'El trabajador ya está asignado a este día.'}`;
+            break;
+          case 500:
+            mensajeError = `Error 500 - Error del servidor: ${data?.message || 'Error interno del servidor. Intenta nuevamente.'}`;
+            break;
+          default:
+            mensajeError = `Error ${status}: ${data?.message || 'Error del servidor'}`;
+        }
+      } else if (error.request) {
+        mensajeError = 'Error de conexión: No se pudo conectar con el servidor. Verifica tu conexión a internet.';
+      } else {
+        mensajeError = `Error: ${error.message || 'Error desconocido'}`;
+      }
+      
+      alert(`❌ Error al asignar el día:\n\n${mensajeError}\n\nSugerencias:\n• Verifica que el trabajador esté disponible\n• Intenta refrescar la página\n• Contacta al administrador si el problema persiste`);
     }
   };
   
@@ -151,6 +179,22 @@ const CalendarioPage: React.FC = () => {
         sabado: trabajador.sabado && (dia !== 'sabado'),
         domingo: trabajador.domingo && (dia !== 'domingo')
       };
+      
+      // Verificar si quedaría sin ningún día asignado
+      const diasAsignados = Object.values(diasBooleanos).filter(Boolean).length;
+      console.log(`📊 Días asignados después de desasignar: ${diasAsignados}`);
+      
+      if (diasAsignados === 0) {
+        const confirmacion = window.confirm(
+          `⚠️ Advertencia: Al desasignar el ${dia}, ${trabajador.nombre_persona} no tendrá ningún día asignado esta semana.\n\n` +
+          `¿Estás seguro de que quieres continuar? Esto podría causar problemas en la programación.`
+        );
+        
+        if (!confirmacion) {
+          console.log('❌ Desasignación cancelada por el usuario');
+          return;
+        }
+      }
       
       console.log('📤 Datos enviados al backend:', {
         rut: trabajador.rut,
@@ -184,11 +228,39 @@ const CalendarioPage: React.FC = () => {
       await queryClient.invalidateQueries({ queryKey: ['programacion-compatibilidad'] });
       await queryClient.refetchQueries({ queryKey: ['programacion-compatibilidad'] });
       console.log('✅ Datos actualizados');
-      
-      alert(`${trabajador.nombre_persona} desasignado exitosamente del ${dia}`);
     } catch (error: any) {
       console.error('Error al desasignar el día:', error);
-      alert(`Error al desasignar el día: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+      
+      // Manejo específico de errores HTTP
+      let mensajeError = 'Error desconocido';
+      
+      if (error.response) {
+        const status = error.response.status;
+        const data = error.response.data;
+        
+        switch (status) {
+          case 400:
+            mensajeError = `Error 400 - Solicitud inválida: ${data?.message || 'El servidor no puede procesar la solicitud. Posiblemente no se puede desasignar todos los días de un trabajador.'}`;
+            break;
+          case 404:
+            mensajeError = `Error 404 - No encontrado: ${data?.message || 'No se encontró la programación para este trabajador.'}`;
+            break;
+          case 409:
+            mensajeError = `Error 409 - Conflicto: ${data?.message || 'Ya existe una programación para este trabajador en esta semana.'}`;
+            break;
+          case 500:
+            mensajeError = `Error 500 - Error del servidor: ${data?.message || 'Error interno del servidor. Intenta nuevamente.'}`;
+            break;
+          default:
+            mensajeError = `Error ${status}: ${data?.message || 'Error del servidor'}`;
+        }
+      } else if (error.request) {
+        mensajeError = 'Error de conexión: No se pudo conectar con el servidor. Verifica tu conexión a internet.';
+      } else {
+        mensajeError = `Error: ${error.message || 'Error desconocido'}`;
+      }
+      
+      alert(`❌ Error al desasignar el día:\n\n${mensajeError}\n\nSugerencias:\n• Verifica que el trabajador tenga al menos un día asignado\n• Intenta refrescar la página\n• Contacta al administrador si el problema persiste`);
     }
   };
   

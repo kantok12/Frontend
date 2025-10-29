@@ -84,6 +84,23 @@ class ApiService {
     return response.data;
   }
 
+  async getCurrentUser(): Promise<ApiResponse<{
+    id: number;
+    rut: string;
+    nombres: string;
+    apellidos: string;
+    email: string;
+    cargo: string;
+    cartera_id: number;
+    cartera_nombre: string;
+    activo: boolean;
+    fecha_creacion: string;
+    ultimo_acceso: string;
+  }>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.get('/auth/me');
+    return response.data;
+  }
+
   async registerWithPersonalDisponible(userData: ExtendedRegisterForm): Promise<ApiResponse<{ token: string; user: User; personal: PersonalDisponible }>> {
     // Primero registrar el usuario
     const userResponse = await this.register({
@@ -145,10 +162,6 @@ class ApiService {
     return response.data;
   }
 
-  async getCurrentUser(): Promise<ApiResponse<User>> {
-    const response: AxiosResponse<ApiResponse<User>> = await this.api.get('/auth/me');
-    return response.data;
-  }
 
   async refreshToken(): Promise<ApiResponse<{ token: string }>> {
     const response: AxiosResponse<ApiResponse<{ token: string }>> = await this.api.post('/auth/refresh');
@@ -1514,6 +1527,39 @@ class ApiService {
   // GET /api/carpetas-personal
   async getCarpetasPersonal(): Promise<ApiResponse<any[]>> {
     const response: AxiosResponse<ApiResponse<any[]>> = await this.api.get('/carpetas-personal');
+    return response.data;
+  }
+
+  // ==================== MÉTODOS PARA AUDITORÍA ====================
+
+  // GET /api/auditoria/dashboard - Obtener dashboard de actividad
+  async getAuditoriaDashboard(params?: {
+    limit?: number;
+    es_critico?: boolean;
+  }): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.get('/auditoria/dashboard', { params });
+    return response.data;
+  }
+
+  // GET /api/auditoria/historial/:tabla/:id - Ver historial de un registro específico
+  async getAuditoriaHistorial(tabla: string, id: string | number): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.get(`/auditoria/historial/${tabla}/${id}`);
+    return response.data;
+  }
+
+  // GET /api/auditoria/estadisticas - Obtener estadísticas de los últimos 30 días
+  async getAuditoriaEstadisticas(params?: {
+    periodo?: number;
+  }): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.get('/auditoria/estadisticas', { params });
+    return response.data;
+  }
+
+  // GET /api/auditoria/notificaciones - Ver notificaciones no leídas
+  async getAuditoriaNotificaciones(params?: {
+    leida?: boolean;
+  }): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.get('/auditoria/notificaciones', { params });
     return response.data;
   }
 

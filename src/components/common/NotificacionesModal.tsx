@@ -41,6 +41,7 @@ export const NotificacionesModal: React.FC<NotificacionesModalProps> = ({
 
   const [filtroPrioridad, setFiltroPrioridad] = useState<'todas' | 'alta' | 'media' | 'baja'>('todas');
   const [filtroTipo, setFiltroTipo] = useState<'todas' | 'leidas' | 'no_leidas'>('no_leidas');
+  const [filtroCategoria, setFiltroCategoria] = useState<'todas' | 'documentos' | 'personal' | 'servicios' | 'auditoria'>('todas');
 
   // Cerrar modal con tecla Escape
   useEffect(() => {
@@ -62,13 +63,23 @@ export const NotificacionesModal: React.FC<NotificacionesModalProps> = ({
     };
   }, [isOpen, onClose]);
 
+  // Función para determinar la categoría de una notificación
+  const getCategoriaNotificacion = (tipo: string): 'documentos' | 'personal' | 'servicios' | 'auditoria' => {
+    if (tipo.startsWith('documento_')) return 'documentos';
+    if (tipo.startsWith('personal_') || tipo === 'programacion_pendiente') return 'personal';
+    if (tipo.startsWith('servicios_') || tipo === 'mantenimiento_proximo') return 'servicios';
+    if (tipo.startsWith('auditoria_')) return 'auditoria';
+    return 'documentos'; // default
+  };
+
   // Filtrar notificaciones según los filtros seleccionados
   const notificacionesFiltradas = notificaciones.filter(notif => {
     const cumplePrioridad = filtroPrioridad === 'todas' || notif.prioridad === filtroPrioridad;
     const cumpleTipo = filtroTipo === 'todas' || 
       (filtroTipo === 'leidas' && notif.leida) || 
       (filtroTipo === 'no_leidas' && !notif.leida);
-    return cumplePrioridad && cumpleTipo;
+    const cumpleCategoria = filtroCategoria === 'todas' || getCategoriaNotificacion(notif.tipo) === filtroCategoria;
+    return cumplePrioridad && cumpleTipo && cumpleCategoria;
   });
 
   const handleMarcarComoLeida = async (notificacionId: string) => {
@@ -93,13 +104,31 @@ export const NotificacionesModal: React.FC<NotificacionesModalProps> = ({
     // Cerrar el modal de notificaciones primero
     onClose();
 
-    // Navegar a los documentos de la persona
-    if (notificacion.personal_id && notificacion.personal_id !== 'undefined') {
-      navegarADocumentos(notificacion.personal_id, notificacion.personal_id);
-    } else {
-      console.warn('⚠️ No se pudo navegar: personal_id no disponible');
-      // Fallback: navegar a la página de personal
-      window.location.href = '/personal';
+    // Navegar según el tipo de notificación
+    const categoria = getCategoriaNotificacion(notificacion.tipo);
+    
+    switch (categoria) {
+      case 'documentos':
+      case 'personal':
+        // Navegar a los documentos de la persona
+        if (notificacion.personal_id && notificacion.personal_id !== 'undefined') {
+          navegarADocumentos(notificacion.personal_id, notificacion.personal_id);
+        } else {
+          console.warn('⚠️ No se pudo navegar: personal_id no disponible');
+          window.location.href = '/personal';
+        }
+        break;
+      case 'servicios':
+        // Navegar a la página de servicios
+        window.location.href = '/servicios';
+        break;
+      case 'auditoria':
+        // Para auditoría, podríamos navegar a una página de auditoría o simplemente mantener el modal cerrado
+        // Por ahora, solo cerramos el modal ya que la información está en el mensaje
+        console.log('📊 Notificación de auditoría:', notificacion.mensaje);
+        break;
+      default:
+        window.location.href = '/';
     }
   };
 
@@ -179,6 +208,22 @@ export const NotificacionesModal: React.FC<NotificacionesModalProps> = ({
         {/* Filtros */}
         <div className="px-6 py-4 bg-gray-50 border-b">
           <div className="flex flex-wrap gap-4">
+            {/* Filtro por categoría */}
+            <div className="flex items-center space-x-2">
+              <label className="text-sm font-medium text-gray-700">Categoría:</label>
+              <select
+                value={filtroCategoria}
+                onChange={(e) => setFiltroCategoria(e.target.value as any)}
+                className="px-3 py-1 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="todas">Todas</option>
+                <option value="documentos">📄 Documentos</option>
+                <option value="personal">👤 Personal</option>
+                <option value="servicios">🏢 Servicios</option>
+                <option value="auditoria">🔍 Auditoría</option>
+              </select>
+            </div>
+
             {/* Filtro por prioridad */}
             <div className="flex items-center space-x-2">
               <label className="text-sm font-medium text-gray-700">Prioridad:</label>
@@ -193,7 +238,6 @@ export const NotificacionesModal: React.FC<NotificacionesModalProps> = ({
                 <option value="baja">Baja</option>
               </select>
             </div>
-
 
             {/* Filtro por estado */}
             <div className="flex items-center space-x-2">
@@ -234,9 +278,9 @@ export const NotificacionesModal: React.FC<NotificacionesModalProps> = ({
                   }`}
                 >
                   <div className="flex items-start space-x-3">
-                    {/* Icono */}
-                    <div className="flex-shrink-0 mt-1">
-                      {getIconoPrioridad(notificacion.prioridad)}
+                    {/* Icono del tipo de notificación */}
+                    <div className="flex-shrink-0 mt-1 text-2xl">
+                      {getIconoTipo(notificacion.tipo)}
                     </div>
 
                     {/* Contenido */}
@@ -250,6 +294,9 @@ export const NotificacionesModal: React.FC<NotificacionesModalProps> = ({
                             <span className={`px-2 py-1 text-xs font-medium rounded-full border ${getColorPrioridad(notificacion.prioridad)}`}>
                               {notificacion.prioridad.toUpperCase()}
                             </span>
+                            <span className="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-600 border border-gray-200">
+                              {getCategoriaNotificacion(notificacion.tipo).toUpperCase()}
+                            </span>
                             {!notificacion.leida && (
                               <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
                             )}
@@ -262,7 +309,7 @@ export const NotificacionesModal: React.FC<NotificacionesModalProps> = ({
                             {notificacion.personal_nombre && (
                               <span>• {notificacion.personal_nombre}</span>
                             )}
-                            {notificacion.dias_restantes !== undefined && (
+                            {notificacion.dias_restantes !== undefined && notificacion.dias_restantes !== null && (
                               <span>• {notificacion.dias_restantes} días restantes</span>
                             )}
                           </div>
@@ -307,11 +354,14 @@ export const NotificacionesModal: React.FC<NotificacionesModalProps> = ({
         {/* Footer con estadísticas */}
         <div className="px-6 py-4 bg-gray-50 border-t">
           <div className="flex items-center justify-between text-sm text-gray-600">
-            <div className="flex items-center space-x-6">
-              <span>Total: {notificaciones.length}</span>
+            <div className="flex items-center flex-wrap gap-4">
+              <span className="font-semibold">Total: {notificaciones.length}</span>
               <span>No leídas: {notificacionesNoLeidas}</span>
               <span>Alta prioridad: {notificacionesPorPrioridad.alta.length}</span>
-              <span className="text-xs text-blue-600">Debug: {notificaciones.length} activas</span>
+              <span className="text-xs">📄 Documentos: {notificaciones.filter(n => getCategoriaNotificacion(n.tipo) === 'documentos').length}</span>
+              <span className="text-xs">👤 Personal: {notificaciones.filter(n => getCategoriaNotificacion(n.tipo) === 'personal').length}</span>
+              <span className="text-xs">🏢 Servicios: {notificaciones.filter(n => getCategoriaNotificacion(n.tipo) === 'servicios').length}</span>
+              <span className="text-xs">🔍 Auditoría: {notificaciones.filter(n => getCategoriaNotificacion(n.tipo) === 'auditoria').length}</span>
             </div>
             <div className="text-xs text-gray-500">
               Última actualización: {new Date().toLocaleTimeString('es-ES')}

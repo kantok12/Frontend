@@ -1,53 +1,34 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useCallback } from 'react';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { Search, Plus, Settings, Users, Building2, MapPin, AlertCircle, ChevronRight } from 'lucide-react';
-import { useServiciosPage, useClientes, useNodos } from '../hooks/useServicios';
-// import { useMinimoPersonal } from '../hooks/useMinimoPersonal'; // Deshabilitado temporalmente
+import { useServiciosPage } from '../hooks/useServicios';
 import { Tooltip } from '../components/common/Tooltip';
 import { Cartera, Cliente, Nodo } from '../types';
 import { AgregarClienteModal } from '../components/servicios/AgregarClienteModal';
 import { AgregarNodoModal } from '../components/servicios/AgregarNodoModal';
 import { usePersonalList } from '../hooks/usePersonal';
+import { usePersonalAssignments } from '../hooks/usePersonalAssignments';
+import { usePrerequisitos } from '../hooks/usePrerequisitos';
+import { useNavigationState } from '../hooks/useNavigationState';
+import { useUIState } from '../hooks/useUIState';
 import { apiService } from '../services/api';
 import { useQueryClient } from '@tanstack/react-query';
 
 export const ServiciosPage: React.FC = () => {
   const queryClient = useQueryClient();
   
-  // Estado para la pestaña activa
-  const [activeTab, setActiveTab] = useState<'carteras' | 'clientes' | 'nodos'>('carteras');
-  
-  // Estados para los modales
-  const [showAgregarClienteModal, setShowAgregarClienteModal] = useState(false);
-  const [showAgregarNodoModal, setShowAgregarNodoModal] = useState(false);
-  
-  // Estado para navegación jerárquica
-  const [selectedCartera, setSelectedCartera] = useState<Cartera | null>(null);
-  const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
-  const [selectedNodo, setSelectedNodo] = useState<Nodo | null>(null);
-  const [assignedPersonal, setAssignedPersonal] = useState<{ rut: string; nombre?: string }[] | null>(null);
-  const [assignedLoading, setAssignedLoading] = useState(false);
-  const [assignedError, setAssignedError] = useState<string | null>(null);
-  const [selectedRutToAssign, setSelectedRutToAssign] = useState('');
-  const [personSearch, setPersonSearch] = useState('');
-  const [assigning, setAssigning] = useState(false);
-  const [unassigningRut, setUnassigningRut] = useState<string | null>(null);
-  const [showPrereqPanel, setShowPrereqPanel] = useState(false);
-  const [selectedRutForMatch, setSelectedRutForMatch] = useState('');
-  const [prereqLoading, setPrereqLoading] = useState(false);
-  const [prereqError, setPrereqError] = useState<string | null>(null);
-  const [prereqData, setPrereqData] = useState<any | null>(null);
+  // Hooks optimizados
+  const { uiState, handleTabChange, handlePageChange, handleSearchChange, handleSearchClear, handleModalToggle } = useUIState();
+  const { navigationState, handleCarteraClick, handleClienteClick, handleNodoClick, handleBackToCarteras, handleBackToClientes } = useNavigationState();
+  const { assignmentState, loadAssignedPersonal, handleAssign, handleUnassign, updateAssignmentState } = usePersonalAssignments();
+  const { prereqState, loadPrerequisitosMatch, updatePrereqState } = usePrerequisitos();
 
   // Listado de personal para seleccionar (hasta 100, sin búsqueda para evitar llamadas excesivas)
-  // Usar un hook optimizado que no cause llamadas excesivas
   const { data: personListData, isLoading: personListLoading } = usePersonalList(1, 100, '', {});
   const personOptions = personListData?.data?.items || [];
   
-  // Estados comunes
-  const [page, setPage] = useState(1);
-  const [search, setSearch] = useState('');
-  const [limit] = useState(10);
-  const [showModal, setShowModal] = useState(false);
+  // Constantes
+  const limit = 10;
   
   // Obtener datos reales del backend (sin búsqueda para evitar bloqueos)
   const { 
@@ -58,7 +39,7 @@ export const ServiciosPage: React.FC = () => {
     nodos, 
     isLoading, 
     error 
-  } = useServiciosPage('', activeTab);
+  } = useServiciosPage('', uiState.activeTab);
 
   // Obtener mínimos de personal (deshabilitado temporalmente por error 500)
   // const { data: minimoPersonalData } = useMinimoPersonal({ limit: 1000 });
@@ -66,278 +47,213 @@ export const ServiciosPage: React.FC = () => {
   const minimosPersonal: any[] = []; // Array vacío temporal
   
 
-  // Funciones helper para obtener nombres por ID
-  const getCarteraNombre = (carteraId: number) => {
+  // Funciones helper optimizadas con useMemo
+  const getCarteraNombre = useCallback((carteraId: number) => {
     const cartera = carteras.find((c: Cartera) => c.id === carteraId);
     return cartera ? cartera.nombre : `Cartera ID: ${carteraId}`;
-  };
+  }, [carteras]);
 
-  const getClienteNombre = (clienteId: number) => {
+  const getClienteNombre = useCallback((clienteId: number) => {
     const cliente = clientes.find((c: Cliente) => c.id === clienteId);
     return cliente ? cliente.nombre : `Cliente ID: ${clienteId}`;
-  };
+  }, [clientes]);
 
-  const getNodosCliente = (clienteId: number) => {
+  const getNodosCliente = useCallback((clienteId: number) => {
     return nodos.filter((n: Nodo) => n.cliente_id === clienteId);
-  };
+  }, [nodos]);
 
-  const getMinimoPersonalCliente = (clienteId: number) => {
+  const getMinimoPersonalCliente = useCallback((clienteId: number) => {
     const minimo = minimosPersonal.find((mp: any) => mp.cliente_id === clienteId);
     return minimo ? minimo.minimo_personal : null;
-  };
+  }, [minimosPersonal]);
 
-  // Obtener datos filtrados según la pestaña activa y selección jerárquica
-  const getCurrentData = () => {
-    switch (activeTab) {
+  // Obtener datos filtrados optimizado con useMemo
+  const currentData = useMemo(() => {
+    const searchLower = uiState.search.toLowerCase();
+    
+    switch (uiState.activeTab) {
       case 'carteras':
         return carteras.filter((cartera: Cartera) => 
-          cartera.nombre && cartera.nombre.toLowerCase().includes(search.toLowerCase())
+          cartera.nombre && cartera.nombre.toLowerCase().includes(searchLower)
         );
       case 'clientes':
         let filteredClientes = clientes;
         // Si hay una cartera seleccionada, filtrar solo sus clientes
-        if (selectedCartera) {
+        if (navigationState.selectedCartera) {
           filteredClientes = clientes.filter((cliente: Cliente) => 
-            cliente.cartera_id === selectedCartera.id
+            cliente.cartera_id === navigationState.selectedCartera!.id
           );
         }
         return filteredClientes.filter((cliente: Cliente) => 
-          cliente.nombre && cliente.nombre.toLowerCase().includes(search.toLowerCase())
+          cliente.nombre && cliente.nombre.toLowerCase().includes(searchLower)
         );
       case 'nodos':
         let filteredNodos = nodos;
         // Si hay un cliente seleccionado, filtrar solo sus nodos
-        if (selectedCliente) {
+        if (navigationState.selectedCliente) {
           filteredNodos = nodos.filter((nodo: Nodo) => 
-            nodo.cliente_id === selectedCliente.id
+            nodo.cliente_id === navigationState.selectedCliente!.id
           );
         }
         // Si hay una cartera seleccionada pero no cliente específico, filtrar por cartera
-        else if (selectedCartera) {
+        else if (navigationState.selectedCartera) {
           filteredNodos = nodos.filter((nodo: Nodo) => 
-            nodo.cartera_id === selectedCartera.id
+            nodo.cartera_id === navigationState.selectedCartera!.id
           );
         }
         return filteredNodos.filter((nodo: Nodo) => 
-          nodo.nombre && nodo.nombre.toLowerCase().includes(search.toLowerCase())
+          nodo.nombre && nodo.nombre.toLowerCase().includes(searchLower)
         );
       default:
         return [];
     }
-  };
+  }, [uiState.activeTab, uiState.search, carteras, clientes, nodos, navigationState.selectedCartera, navigationState.selectedCliente]);
 
-  const currentData = getCurrentData();
-
-  // Paginación dinámica según la pestaña activa
-  const startIndex = (page - 1) * limit;
-  const endIndex = startIndex + limit;
+  // Paginación optimizada con useMemo
+  const paginationData = useMemo(() => {
+    const startIndex = (uiState.page - 1) * limit;
+    const endIndex = startIndex + limit;
+    
+    return {
+      paginatedData: currentData.slice(startIndex, endIndex),
+      totalPages: Math.ceil(currentData.length / limit),
+      total: currentData.length,
+      startIndex,
+      endIndex: Math.min(endIndex, currentData.length)
+    };
+  }, [currentData, uiState.page, limit]);
   
-  const paginatedData = currentData.slice(startIndex, endIndex);
-  const totalPages = Math.ceil(currentData.length / limit);
-  const total = currentData.length;
+  const { paginatedData, totalPages, total, startIndex, endIndex } = paginationData;
 
-  const handleSearch = (e: React.FormEvent) => {
+  // Handlers optimizados
+  const handleSearch = useCallback((e: React.FormEvent) => {
     e.preventDefault();
-    setPage(1); // Reset to first page when searching
-  };
+    handlePageChange(1);
+  }, [handlePageChange]);
+
+  const handleSearchInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    handleSearchChange(e.target.value);
+  }, [handleSearchChange]);
 
   React.useEffect(() => {
-    setPage(1);
-  }, [search]);
-
-  const handlePageChange = (newPage: number) => {
-    setPage(newPage);
-  };
+    handlePageChange(1);
+  }, [uiState.search, handlePageChange]);
 
   // Sin acciones: se eliminan handlers de ver/editar/eliminar
 
-  // Funciones para navegación jerárquica
-  const handleCarteraClick = (cartera: Cartera) => {
-    setSelectedCartera(cartera);
-    setSelectedCliente(null);
-    setSelectedNodo(null);
-    setActiveTab('clientes');
-    setPage(1);
-    setSearch('');
-  };
+  // Handlers de navegación optimizados
+  const handleCarteraClickWithUI = useCallback((cartera: Cartera) => {
+    handleCarteraClick(cartera);
+    handleTabChange('clientes');
+  }, [handleCarteraClick, handleTabChange]);
 
-  const handleClienteClick = (cliente: Cliente) => {
-    setSelectedCliente(cliente);
-    setSelectedNodo(null);
-    setActiveTab('nodos');
-    setPage(1);
-    setSearch('');
-  };
+  const handleClienteClickWithUI = useCallback((cliente: Cliente) => {
+    handleClienteClick(cliente);
+    handleTabChange('nodos');
+  }, [handleClienteClick, handleTabChange]);
 
-  const handleBackToCarteras = () => {
-    setSelectedCartera(null);
-    setSelectedCliente(null);
-    setSelectedNodo(null);
-    setActiveTab('carteras');
-    setPage(1);
-    setSearch('');
-  };
+  const handleBackToCarterasWithUI = useCallback(() => {
+    handleBackToCarteras();
+    handleTabChange('carteras');
+  }, [handleBackToCarteras, handleTabChange]);
 
-  const handleBackToClientes = () => {
-    setSelectedCliente(null);
-    setSelectedNodo(null);
-    setActiveTab('clientes');
-    setPage(1);
-    setSearch('');
-  };
+  const handleBackToClientesWithUI = useCallback(() => {
+    handleBackToClientes();
+    handleTabChange('clientes');
+  }, [handleBackToClientes, handleTabChange]);
 
-  // Cargar asignaciones según selección actual
+  // Cargar asignaciones cuando cambia la selección
   useEffect(() => {
-    const load = async () => {
-      setAssignedError(null);
-      setAssignedPersonal(null);
-      if (!selectedCartera && !selectedCliente && !selectedNodo) return;
-      setAssignedLoading(true);
-      try {
-        if (selectedNodo) {
-          const res = await apiService.getPersonalByNodo(selectedNodo.id);
-          setAssignedPersonal(res.data as any);
-        } else if (selectedCliente) {
-          const res = await apiService.getPersonalByCliente(selectedCliente.id);
-          setAssignedPersonal(res.data as any);
-        } else if (selectedCartera) {
-          const res = await apiService.getPersonalByCartera(selectedCartera.id);
-          setAssignedPersonal(res.data as any);
-        }
-        setShowPrereqPanel(false);
-        setPrereqData(null);
-      } catch (e: any) {
-        setAssignedError(e?.message || 'Error al cargar asignaciones');
-      } finally {
-        setAssignedLoading(false);
-      }
-    };
-    load();
-  }, [selectedCartera, selectedCliente, selectedNodo]);
+    loadAssignedPersonal(
+      navigationState.selectedCartera,
+      navigationState.selectedCliente,
+      navigationState.selectedNodo
+    );
+  }, [navigationState.selectedCartera, navigationState.selectedCliente, navigationState.selectedNodo, loadAssignedPersonal]);
 
-  // Enriquecer con nombres si llegan solo RUTs
-  useEffect(() => {
-    const hydrateNames = async () => {
-      if (!assignedPersonal || assignedPersonal.length === 0) return;
-      const needLookup = assignedPersonal.filter(p => !p.nombre);
-      if (needLookup.length === 0) return;
-      try {
-        const updated = await Promise.all(
-          assignedPersonal.map(async (p) => {
-            if (p.nombre) return p;
-            // Intentar encontrar en la lista ya cargada
-            const found = personOptions.find((x: any) => x.rut === p.rut);
-            if (found) {
-              return { ...p, nombre: `${found.nombre} ${found.apellido}`.trim() };
-            }
-            // Consultar al backend por RUT
-            try {
-              const res = await apiService.getPersonalByRut(p.rut);
-              const data: any = res.data || {};
-              const full = data.nombres || data.nombre || data.nombre_completo || '';
-              const nombreCompuesto = full ? full : undefined;
-              return { ...p, nombre: nombreCompuesto };
-            } catch {
-              return p;
-            }
-          })
-        );
-        setAssignedPersonal(updated);
-      } catch (error) {
-        // Ignorar
-        console.warn('Error al hidratar nombres:', error);
-      }
-    };
-    hydrateNames();
-  }, [assignedPersonal, personOptions]);
-
-  const handleAssign = async () => {
-    if (!selectedRutToAssign.trim()) return;
-    setAssigning(true);
+  // Enriquecer con nombres optimizado
+  const hydrateNames = useCallback(async () => {
+    if (!assignmentState.assignedPersonal || assignmentState.assignedPersonal.length === 0) return;
+    const needLookup = assignmentState.assignedPersonal.filter(p => !p.nombre);
+    if (needLookup.length === 0) return;
+    
     try {
-      if (selectedNodo) {
-        await apiService.assignNodoToPersona(selectedRutToAssign.trim(), (selectedNodo as Nodo).id);
-      } else if (selectedCliente) {
-        // 1) Verificar requisitos ANTES de asignar
-        const match = await apiService.matchPrerequisitosCliente((selectedCliente as Cliente).id, selectedRutToAssign.trim());
-        const validacion = (match as any)?.data || match;
-        const faltantes = validacion?.faltantes || [];
-        if (faltantes.length > 0) {
-          // Bloquear y mostrar faltantes
-          setShowPrereqPanel(true);
-          setSelectedRutForMatch(selectedRutToAssign.trim());
-          setPrereqData(validacion);
-          setAssigning(false);
-          return;
-        }
-        // 2) Si no hay faltantes, proceder a asignar
-        await apiService.assignClienteToPersona(selectedRutToAssign.trim(), selectedCliente.id);
-      } else if (selectedCartera) {
-        await apiService.assignCarteraToPersona(selectedRutToAssign.trim(), selectedCartera.id);
-      }
-      setSelectedRutToAssign('');
-      // Refrescar asignados
-      if (selectedNodo) {
-        const res = await apiService.getPersonalByNodo(selectedNodo.id);
-        setAssignedPersonal(res.data as any);
-      } else if (selectedCliente) {
-        const res = await apiService.getPersonalByCliente(selectedCliente.id);
-        setAssignedPersonal(res.data as any);
-      } else if (selectedCartera) {
-        const res = await apiService.getPersonalByCartera(selectedCartera.id);
-        setAssignedPersonal(res.data as any);
+      const updated = await Promise.all(
+        assignmentState.assignedPersonal.map(async (p) => {
+          if (p.nombre) return p;
+          // Intentar encontrar en la lista ya cargada
+          const found = personOptions.find((x: any) => x.rut === p.rut);
+          if (found) {
+            return { ...p, nombre: `${found.nombre} ${found.apellido}`.trim() };
+          }
+          // Consultar al backend por RUT
+          try {
+            const res: any = await apiService.getPersonalByRut(p.rut);
+            const data: any = res.data || {};
+            const full = data.nombres || data.nombre || data.nombre_completo || '';
+            const nombreCompuesto = full ? full : undefined;
+            return { ...p, nombre: nombreCompuesto };
+          } catch {
+            return p;
+          }
+        })
+      );
+      updateAssignmentState({ assignedPersonal: updated });
+    } catch (error) {
+      console.warn('Error al hidratar nombres:', error);
+    }
+  }, [assignmentState.assignedPersonal, personOptions, updateAssignmentState]);
+
+  useEffect(() => {
+    hydrateNames();
+  }, [hydrateNames]);
+
+  const handleAssignWithUI = useCallback(async () => {
+    try {
+      const result = await handleAssign(
+        navigationState.selectedCartera,
+        navigationState.selectedCliente,
+        navigationState.selectedNodo,
+        () => loadAssignedPersonal(
+          navigationState.selectedCartera,
+          navigationState.selectedCliente,
+          navigationState.selectedNodo
+        )
+      );
+      
+      if (result?.hasPrereqIssues) {
+        handleModalToggle('showPrereqPanel', true);
+        updatePrereqState({
+          selectedRutForMatch: assignmentState.selectedRutToAssign,
+          prereqData: result.prereqData
+        });
       }
     } catch (e: any) {
       alert(e?.message || 'Error al asignar');
-    } finally {
-      setAssigning(false);
     }
-  };
+  }, [handleAssign, navigationState.selectedCartera, navigationState.selectedCliente, navigationState.selectedNodo, loadAssignedPersonal, handleModalToggle, updatePrereqState, assignmentState.selectedRutToAssign]);
 
-  const handleUnassign = async (rut: string) => {
-    if (!rut) return;
-    setUnassigningRut(rut);
+  const handleUnassignWithUI = useCallback(async (rut: string) => {
     try {
-      if (selectedNodo) {
-        await apiService.unassignNodoFromPersona(rut, selectedNodo.id);
-      } else if (selectedCliente) {
-        await apiService.unassignClienteFromPersona(rut, selectedCliente.id);
-      } else if (selectedCartera) {
-        await apiService.unassignCarteraFromPersona(rut, selectedCartera.id);
-      }
-      // Refrescar asignados
-      if (selectedNodo) {
-        const res = await apiService.getPersonalByNodo(selectedNodo.id);
-        setAssignedPersonal(res.data as any);
-      } else if (selectedCliente) {
-        const res = await apiService.getPersonalByCliente(selectedCliente.id);
-        setAssignedPersonal(res.data as any);
-      } else if (selectedCartera) {
-        const res = await apiService.getPersonalByCartera(selectedCartera.id);
-        setAssignedPersonal(res.data as any);
-      }
+      await handleUnassign(
+        rut,
+        navigationState.selectedCartera,
+        navigationState.selectedCliente,
+        navigationState.selectedNodo,
+        () => loadAssignedPersonal(
+          navigationState.selectedCartera,
+          navigationState.selectedCliente,
+          navigationState.selectedNodo
+        )
+      );
     } catch (e: any) {
       alert(e?.message || 'Error al desasignar');
-    } finally {
-      setUnassigningRut(null);
     }
-  };
+  }, [handleUnassign, navigationState.selectedCartera, navigationState.selectedCliente, navigationState.selectedNodo, loadAssignedPersonal]);
 
-  const loadPrerequisitosMatch = async (rut?: string) => {
-    const rutToUse = rut || selectedRutForMatch;
-    if (!selectedCliente || !rutToUse) return;
-    setPrereqLoading(true);
-    setPrereqError(null);
-    try {
-      const res = await apiService.matchPrerequisitosCliente(selectedCliente.id, rutToUse);
-      setPrereqData(res.data);
-      setSelectedRutForMatch(rutToUse);
-    } catch (e: any) {
-      setPrereqError(e?.message || 'Error al cargar prerrequisitos');
-    } finally {
-      setPrereqLoading(false);
-    }
-  };
+  const handlePrerequisitosMatch = useCallback(async (rut?: string) => {
+    await loadPrerequisitosMatch(navigationState.selectedCliente, rut);
+  }, [loadPrerequisitosMatch, navigationState.selectedCliente]);
 
   if (isLoading) {
     return (
@@ -367,9 +283,9 @@ export const ServiciosPage: React.FC = () => {
           
           {/* Botones de acción según pestaña activa */}
           <div className="flex gap-3">
-            {activeTab === 'clientes' && (
-              <button
-                onClick={() => setShowAgregarClienteModal(true)}
+            {uiState.activeTab === 'clientes' && (
+            <button
+              onClick={() => handleModalToggle('showAgregarClienteModal', true)}
                 className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-medium transition-colors flex items-center shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
               >
                 <Plus className="h-5 w-5 mr-2" />
@@ -377,9 +293,9 @@ export const ServiciosPage: React.FC = () => {
               </button>
             )}
             
-            {activeTab === 'nodos' && (
-              <button
-                onClick={() => setShowAgregarNodoModal(true)}
+            {uiState.activeTab === 'nodos' && (
+            <button
+              onClick={() => handleModalToggle('showAgregarNodoModal', true)}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors flex items-center shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
               >
                 <Plus className="h-5 w-5 mr-2" />
@@ -401,36 +317,36 @@ export const ServiciosPage: React.FC = () => {
       </div>
 
       {/* Breadcrumb Navigation */}
-      {(selectedCartera || selectedCliente) && (
+      {(navigationState.selectedCartera || navigationState.selectedCliente) && (
         <div className="mb-6">
           <nav className="flex items-center space-x-2 text-sm">
             <button
-              onClick={handleBackToCarteras}
+              onClick={handleBackToCarterasWithUI}
               className="flex items-center text-blue-600 hover:text-blue-800 transition-colors"
             >
               <Settings className="h-4 w-4 mr-1" />
               Carteras
             </button>
             
-            {selectedCartera && (
+            {navigationState.selectedCartera && (
               <>
                 <ChevronRight className="h-4 w-4 text-gray-400" />
                 <button
-                  onClick={handleBackToClientes}
+                  onClick={handleBackToClientesWithUI}
                   className="flex items-center text-blue-600 hover:text-blue-800 transition-colors"
                 >
                   <Users className="h-4 w-4 mr-1" />
-                  {selectedCartera.nombre}
+                  {navigationState.selectedCartera.nombre}
                 </button>
               </>
             )}
             
-            {selectedCliente && (
+            {navigationState.selectedCliente && (
               <>
                 <ChevronRight className="h-4 w-4 text-gray-400" />
                 <span className="flex items-center text-gray-600">
                   <MapPin className="h-4 w-4 mr-1" />
-                  {selectedCliente.nombre}
+                  {navigationState.selectedCliente.nombre}
                 </span>
               </>
             )}
@@ -443,9 +359,9 @@ export const ServiciosPage: React.FC = () => {
         <div className="border-b border-gray-200">
           <nav className="-mb-px flex space-x-8">
             <button
-              onClick={() => setActiveTab('carteras')}
+              onClick={() => handleTabChange('carteras')}
               className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'carteras'
+                uiState.activeTab === 'carteras'
                   ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
@@ -456,9 +372,9 @@ export const ServiciosPage: React.FC = () => {
               </div>
             </button>
             <button
-              onClick={() => setActiveTab('clientes')}
+              onClick={() => handleTabChange('clientes')}
               className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'clientes'
+                uiState.activeTab === 'clientes'
                   ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
@@ -469,9 +385,9 @@ export const ServiciosPage: React.FC = () => {
               </div>
             </button>
             <button
-              onClick={() => setActiveTab('nodos')}
+              onClick={() => handleTabChange('nodos')}
               className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'nodos'
+                uiState.activeTab === 'nodos'
                   ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
@@ -494,12 +410,12 @@ export const ServiciosPage: React.FC = () => {
             <input
               type="text"
               placeholder={
-                activeTab === 'carteras' ? 'Buscar carteras por nombre...' :
-                activeTab === 'clientes' ? 'Buscar clientes por nombre...' :
+                uiState.activeTab === 'carteras' ? 'Buscar carteras por nombre...' :
+                uiState.activeTab === 'clientes' ? 'Buscar clientes por nombre...' :
                 'Buscar nodos por nombre...'
               }
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              value={uiState.search}
+              onChange={handleSearchInputChange}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white text-gray-900 placeholder-gray-500 text-sm"
             />
           </div>
@@ -509,13 +425,10 @@ export const ServiciosPage: React.FC = () => {
           >
             Buscar
           </button>
-          {search && (
+          {uiState.search && (
             <button
               type="button"
-              onClick={() => {
-                setSearch('');
-                setPage(1);
-              }}
+              onClick={handleSearchClear}
               className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
             >
               Limpiar
@@ -531,14 +444,14 @@ export const ServiciosPage: React.FC = () => {
             {/* Información principal de la pestaña */}
             <div className="flex items-center">
               <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center mr-3">
-                {activeTab === 'carteras' ? <Building2 className="h-4 w-4 text-gray-600" /> :
-                 activeTab === 'clientes' ? <Users className="h-4 w-4 text-gray-600" /> :
+                {uiState.activeTab === 'carteras' ? <Building2 className="h-4 w-4 text-gray-600" /> :
+                 uiState.activeTab === 'clientes' ? <Users className="h-4 w-4 text-gray-600" /> :
                  <MapPin className="h-4 w-4 text-gray-600" />}
               </div>
               <div>
                 <span className="text-sm text-gray-500">
-                  {activeTab === 'carteras' ? 'Carteras' : 
-                   activeTab === 'clientes' ? 'Clientes' : 'Nodos'}
+                  {uiState.activeTab === 'carteras' ? 'Carteras' : 
+                   uiState.activeTab === 'clientes' ? 'Clientes' : 'Nodos'}
                 </span>
                 <span className="ml-2 text-lg font-semibold text-gray-900">
                   {isLoading ? '...' : currentData.length}
@@ -573,7 +486,7 @@ export const ServiciosPage: React.FC = () => {
               <div>
                 <span className="text-sm text-gray-500">Página</span>
                 <span className="ml-2 text-lg font-semibold text-gray-900">
-                  {isLoading ? '...' : `${page} de ${totalPages}`}
+                  {isLoading ? '...' : `${uiState.page} de ${totalPages}`}
                 </span>
               </div>
             </div>
@@ -585,19 +498,19 @@ export const ServiciosPage: React.FC = () => {
       {/* Tabla dinámica según pestaña activa */}
       <div className="slide-up animate-delay-300">
         {/* Panel de personal asignado según la selección */}
-        {(selectedCartera || selectedCliente || selectedNodo) && (
+        {(navigationState.selectedCartera || navigationState.selectedCliente || navigationState.selectedNodo) && (
           <div className="mb-6 bg-white rounded-lg border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900">
-                Personal asignado a {selectedNodo ? 'Nodo' : selectedCliente ? 'Cliente' : 'Cartera'}
+                Personal asignado a {navigationState.selectedNodo ? 'Nodo' : navigationState.selectedCliente ? 'Cliente' : 'Cartera'}
               </h3>
-              {selectedCliente && (
+              {navigationState.selectedCliente && (
                 <button
-                  onClick={() => setShowPrereqPanel((v) => !v)}
+                  onClick={() => handleModalToggle('showPrereqPanel', !uiState.showPrereqPanel)}
                   className="px-3 py-2 text-sm rounded-md border hover:bg-gray-50"
                   title="Ver prerrequisitos del cliente"
                 >
-                  {showPrereqPanel ? 'Ocultar Prerrequisitos' : 'Ver Prerrequisitos'}
+                  {uiState.showPrereqPanel ? 'Ocultar Prerrequisitos' : 'Ver Prerrequisitos'}
                 </button>
               )}
             </div>
@@ -607,13 +520,13 @@ export const ServiciosPage: React.FC = () => {
                 <input
                   type="text"
                   placeholder="Buscar personal por nombre o RUT..."
-                  value={personSearch}
-                  onChange={(e) => setPersonSearch(e.target.value)}
+                  value={assignmentState.personSearch}
+                  onChange={(e) => updateAssignmentState({ personSearch: e.target.value })}
                   className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                 />
                 <select
-                  value={selectedRutToAssign}
-                  onChange={(e) => setSelectedRutToAssign(e.target.value)}
+                  value={assignmentState.selectedRutToAssign}
+                  onChange={(e) => updateAssignmentState({ selectedRutToAssign: e.target.value })}
                   className="w-80 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                   disabled={personListLoading}
                 >
@@ -626,25 +539,25 @@ export const ServiciosPage: React.FC = () => {
                 </select>
               </div>
               <button
-                onClick={handleAssign}
-                disabled={assigning || !selectedRutToAssign.trim()}
+                onClick={handleAssignWithUI}
+                disabled={assignmentState.assigning || !assignmentState.selectedRutToAssign.trim()}
                 className="px-3 py-2 text-sm text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50"
               >
-                {assigning ? 'Asignando...' : 'Asignar'}
+                {assignmentState.assigning ? 'Asignando...' : 'Asignar'}
               </button>
             </div>
-            {assignedLoading ? (
+            {assignmentState.assignedLoading ? (
               <div className="flex items-center text-gray-600 text-sm">
                 <LoadingSpinner size="sm" />
                 <span className="ml-2">Cargando personal asignado...</span>
               </div>
-            ) : assignedError ? (
-              <div className="text-sm text-red-600">{assignedError}</div>
-            ) : !assignedPersonal || assignedPersonal.length === 0 ? (
+            ) : assignmentState.assignedError ? (
+              <div className="text-sm text-red-600">{assignmentState.assignedError}</div>
+            ) : !assignmentState.assignedPersonal || assignmentState.assignedPersonal.length === 0 ? (
               <div className="text-sm text-gray-500">No hay personal asignado.</div>
             ) : (
               <ul className="text-sm text-gray-800 space-y-2">
-                {assignedPersonal.map((p) => (
+                {assignmentState.assignedPersonal.map((p) => (
                   <li key={p.rut} className="flex items-center justify-between">
                     <span>
                       {(() => {
@@ -658,11 +571,11 @@ export const ServiciosPage: React.FC = () => {
                       })()}
                     </span>
                     <button
-                      onClick={() => handleUnassign(p.rut)}
-                      disabled={unassigningRut === p.rut}
+                      onClick={() => handleUnassignWithUI(p.rut)}
+                      disabled={assignmentState.unassigningRut === p.rut}
                       className="px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200 disabled:opacity-50"
                     >
-                      {unassigningRut === p.rut ? 'Quitando...' : 'Quitar'}
+                      {assignmentState.unassigningRut === p.rut ? 'Quitando...' : 'Quitar'}
                     </button>
                   </li>
                 ))}
@@ -672,37 +585,37 @@ export const ServiciosPage: React.FC = () => {
         )}
 
         {/* Panel de Prerrequisitos por Cliente (match con RUT) */}
-        {showPrereqPanel && selectedCliente && (
+        {uiState.showPrereqPanel && navigationState.selectedCliente && (
           <div className="mb-6 bg-white rounded-lg border border-blue-200 p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-3">Prerrequisitos del Cliente</h3>
             <div className="flex items-center gap-2 mb-4">
               <select
-                value={selectedRutForMatch}
-                onChange={(e) => setSelectedRutForMatch(e.target.value)}
+                value={prereqState.selectedRutForMatch}
+                onChange={(e) => updatePrereqState({ selectedRutForMatch: e.target.value })}
                 className="w-80 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
               >
                 <option value="">Seleccionar trabajador asignado</option>
-                {(assignedPersonal || []).map((p) => (
+                {(assignmentState.assignedPersonal || []).map((p) => (
                   <option key={p.rut} value={p.rut}>{p.nombre ? `${p.nombre} (${p.rut})` : p.rut}</option>
                 ))}
               </select>
               <button
-                onClick={() => loadPrerequisitosMatch()}
-                disabled={!selectedRutForMatch || prereqLoading}
+                onClick={() => handlePrerequisitosMatch()}
+                disabled={!prereqState.selectedRutForMatch || prereqState.prereqLoading}
                 className="px-3 py-2 text-sm text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50"
               >
-                {prereqLoading ? 'Cargando...' : 'Ver estado'}
+                {prereqState.prereqLoading ? 'Cargando...' : 'Ver estado'}
               </button>
             </div>
-            {prereqError && <div className="text-sm text-red-600 mb-2">{prereqError}</div>}
-            {prereqLoading ? (
+            {prereqState.prereqError && <div className="text-sm text-red-600 mb-2">{prereqState.prereqError}</div>}
+            {prereqState.prereqLoading ? (
               <div className="flex items-center text-gray-600 text-sm"><LoadingSpinner size="sm" /><span className="ml-2">Cargando...</span></div>
-            ) : prereqData ? (
+            ) : prereqState.prereqData ? (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
                 <div>
                   <h4 className="font-medium text-gray-800 mb-2">Requisitos para trabajar a este cliente</h4>
                   <ul className="list-disc pl-5 space-y-1">
-                    {(prereqData.requisitos || []).map((r: any, idx: number) => (
+                    {(prereqState.prereqData.requisitos || []).map((r: any, idx: number) => (
                       <li key={idx}>{r.tipo_documento}{r.obligatorio ? ' (Obligatorio)' : ''}</li>
                     ))}
                   </ul>
@@ -710,7 +623,7 @@ export const ServiciosPage: React.FC = () => {
                 <div>
                   <h4 className="font-medium text-green-700 mb-2">Cumplidos por el trabajador</h4>
                   <ul className="list-disc pl-5 space-y-1 text-green-700">
-                    {(prereqData.cumplidos || []).map((r: any, idx: number) => (
+                    {(prereqState.prereqData.cumplidos || []).map((r: any, idx: number) => (
                       <li key={idx}>{r.tipo_documento}</li>
                     ))}
                   </ul>
@@ -718,15 +631,15 @@ export const ServiciosPage: React.FC = () => {
                 <div>
                   <h4 className="font-medium text-red-700 mb-2">Faltantes para habilitar al trabajador</h4>
                   <ul className="list-disc pl-5 space-y-1 text-red-700">
-                    {(prereqData.faltantes || []).map((r: any, idx: number) => (
+                    {(prereqState.prereqData.faltantes || []).map((r: any, idx: number) => (
                       <li key={idx}>{r.tipo_documento}{r.obligatorio ? ' (Obligatorio)' : ''}</li>
                     ))}
                   </ul>
-                  {(prereqData.por_vencer || []).length > 0 && (
+                  {(prereqState.prereqData.por_vencer || []).length > 0 && (
                     <div className="mt-3">
                       <h5 className="font-medium text-yellow-700 mb-1">Documentos por vencer</h5>
                       <ul className="list-disc pl-5 space-y-1 text-yellow-700">
-                        {(prereqData.por_vencer || []).map((r: any, idx: number) => (
+                        {(prereqState.prereqData.por_vencer || []).map((r: any, idx: number) => (
                           <li key={idx}>{r.tipo_documento}</li>
                         ))}
                       </ul>
@@ -741,8 +654,8 @@ export const ServiciosPage: React.FC = () => {
         )}
         <div className="mb-4">
           <h2 className="text-lg font-semibold text-gray-900">
-            {activeTab === 'carteras' ? 'Carteras' : 
-             activeTab === 'clientes' ? 'Clientes' : 'Nodos'} ({total} registros)
+            {uiState.activeTab === 'carteras' ? 'Carteras' : 
+             uiState.activeTab === 'clientes' ? 'Clientes' : 'Nodos'} ({total} registros)
           </h2>
         </div>
 
@@ -752,7 +665,7 @@ export const ServiciosPage: React.FC = () => {
               <AlertCircle className="h-12 w-12 text-red-600 mx-auto mb-4" />
               <h3 className="text-lg font-semibold text-red-800 mb-2">Error al cargar datos</h3>
               <p className="text-sm text-red-600 mb-4">
-                No se pudieron cargar los datos de {activeTab}. Los endpoints del backend pueden no estar disponibles.
+                No se pudieron cargar los datos de {uiState.activeTab}. Los endpoints del backend pueden no estar disponibles.
               </p>
               <button
                 onClick={() => window.location.reload()}
@@ -767,12 +680,12 @@ export const ServiciosPage: React.FC = () => {
             {isLoading ? (
               <div className="flex items-center justify-center">
                 <LoadingSpinner size="md" />
-                <span className="ml-2">Cargando {activeTab}...</span>
+                <span className="ml-2">Cargando {uiState.activeTab}...</span>
               </div>
-            ) : search ? (
-              `No se encontraron ${activeTab} con los criterios de búsqueda`
+            ) : uiState.search ? (
+              `No se encontraron ${uiState.activeTab} con los criterios de búsqueda`
             ) : (
-              `No hay ${activeTab} registrados`
+              `No hay ${uiState.activeTab} registrados`
             )}
           </div>
         ) : (
@@ -782,7 +695,7 @@ export const ServiciosPage: React.FC = () => {
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      {activeTab === 'carteras' ? (
+                      {uiState.activeTab === 'carteras' ? (
                         <>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Cartera
@@ -798,7 +711,7 @@ export const ServiciosPage: React.FC = () => {
                           </th>
                           {/* Sin acciones */}
                         </>
-                      ) : activeTab === 'clientes' ? (
+                      ) : uiState.activeTab === 'clientes' ? (
                         <>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Cliente
@@ -844,15 +757,15 @@ export const ServiciosPage: React.FC = () => {
                       <tr 
                         key={item.id} 
                         className={`hover:bg-gray-50 transition-colors duration-200 stagger-item animate-delay-${(index + 1) * 100} ${
-                          (activeTab === 'carteras' || activeTab === 'clientes') ? 'cursor-pointer' : ''
+                          (uiState.activeTab === 'carteras' || uiState.activeTab === 'clientes') ? 'cursor-pointer' : ''
                         }`}
                         onClick={
-                          activeTab === 'carteras' ? () => handleCarteraClick(item as Cartera) :
-                          activeTab === 'clientes' ? () => handleClienteClick(item as Cliente) :
-                          () => setSelectedNodo(item as Nodo)
+                          uiState.activeTab === 'carteras' ? () => handleCarteraClickWithUI(item as Cartera) :
+                          uiState.activeTab === 'clientes' ? () => handleClienteClickWithUI(item as Cliente) :
+                          () => handleNodoClick(item as Nodo)
                         }
                       >
-                        {activeTab === 'carteras' ? (
+                        {uiState.activeTab === 'carteras' ? (
                           <>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <div className="flex items-center">
@@ -888,7 +801,7 @@ export const ServiciosPage: React.FC = () => {
                             </td>
                             {/* Sin acciones */}
                           </>
-                        ) : activeTab === 'clientes' ? (
+                        ) : uiState.activeTab === 'clientes' ? (
                           <>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <div className="flex items-center">
@@ -1018,8 +931,8 @@ export const ServiciosPage: React.FC = () => {
                 </div>
                 <div className="flex space-x-2">
                   <button
-                    onClick={() => handlePageChange(page - 1)}
-                    disabled={page === 1}
+                    onClick={() => handlePageChange(uiState.page - 1)}
+                    disabled={uiState.page === 1}
                     className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Anterior
@@ -1029,7 +942,7 @@ export const ServiciosPage: React.FC = () => {
                       key={pageNum}
                       onClick={() => handlePageChange(pageNum)}
                       className={`px-3 py-2 text-sm font-medium rounded-md ${
-                        pageNum === page
+                        pageNum === uiState.page
                           ? 'text-blue-600 bg-blue-50 border border-blue-300'
                           : 'text-gray-500 bg-white border border-gray-300 hover:bg-gray-50'
                       }`}
@@ -1038,8 +951,8 @@ export const ServiciosPage: React.FC = () => {
                     </button>
                   ))}
                   <button
-                    onClick={() => handlePageChange(page + 1)}
-                    disabled={page === totalPages}
+                    onClick={() => handlePageChange(uiState.page + 1)}
+                    disabled={uiState.page === totalPages}
                     className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Siguiente
@@ -1053,8 +966,8 @@ export const ServiciosPage: React.FC = () => {
 
       {/* Modales */}
       <AgregarClienteModal
-        isOpen={showAgregarClienteModal}
-        onClose={() => setShowAgregarClienteModal(false)}
+        isOpen={uiState.showAgregarClienteModal}
+        onClose={() => handleModalToggle('showAgregarClienteModal', false)}
         onSuccess={(carteraId, clientes) => {
           console.log('Clientes agregados:', { carteraId, clientes });
           // Invalidar cache para refrescar los datos
@@ -1063,14 +976,14 @@ export const ServiciosPage: React.FC = () => {
           // queryClient.invalidateQueries({ queryKey: ['minimo-personal'] }); // Deshabilitado temporalmente
           queryClient.invalidateQueries({ queryKey: ['estructura'] });
           queryClient.invalidateQueries({ queryKey: ['estadisticas'] });
-          setShowAgregarClienteModal(false);
+          handleModalToggle('showAgregarClienteModal', false);
         }}
         carteras={carteras || []}
       />
 
       <AgregarNodoModal
-        isOpen={showAgregarNodoModal}
-        onClose={() => setShowAgregarNodoModal(false)}
+        isOpen={uiState.showAgregarNodoModal}
+        onClose={() => handleModalToggle('showAgregarNodoModal', false)}
         onSuccess={(clienteId, nodos) => {
           console.log('Nodos agregados:', { clienteId, nodos });
           // Invalidar cache para refrescar los datos
@@ -1079,7 +992,7 @@ export const ServiciosPage: React.FC = () => {
           queryClient.invalidateQueries({ queryKey: ['carteras'] });
           queryClient.invalidateQueries({ queryKey: ['estructura'] });
           queryClient.invalidateQueries({ queryKey: ['estadisticas'] });
-          setShowAgregarNodoModal(false);
+          handleModalToggle('showAgregarNodoModal', false);
         }}
         clientes={clientes || []}
       />

@@ -8,7 +8,6 @@ import { useEstados } from '../../hooks/useEstados';
 import { useCursosByRut, useDeleteCurso } from '../../hooks/useCursos';
 import { useDocumentosByPersona, useDownloadDocumento, useDeleteDocumento } from '../../hooks/useDocumentos';
 import { useProfileImage } from '../../hooks/useProfileImage';
-import { useDebugDocumentacion } from '../../hooks/useDebugDocumentacion';
 import { X, User, MapPin, ShirtIcon, Car, Activity, Edit, Save, XCircle, GraduationCap, Plus, Trash2, FileText, Upload, Download } from 'lucide-react';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { CursoModal } from './CursoModal';
@@ -43,8 +42,6 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
   const deleteCursoMutation = useDeleteCurso();
   const deleteDocumentoMutation = useDeleteDocumento();
   
-  // Hook de debug para documentación
-  const { data: debugInfo } = useDebugDocumentacion(personal?.rut);
 
 
   // Estados para modal de cursos
@@ -949,95 +946,6 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                 )}
               </div>
 
-              {/* Sección de Debug - Documentación */}
-              {debugInfo && (
-                <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-lg p-4 border border-purple-200 mt-4">
-                  <div className="flex items-center mb-4">
-                    <div className="h-5 w-5 mr-2 text-purple-600">🔍</div>
-                    <h3 className="text-lg font-semibold text-purple-900">Debug - Documentación</h3>
-                  </div>
-                  
-                  <div className="space-y-3 text-sm">
-                    <div className="bg-white rounded-lg p-3 border border-purple-100">
-                      <h4 className="font-medium text-purple-800 mb-2">📊 Información General</h4>
-                      <p><strong>Total documentos:</strong> {debugInfo.totalDocumentos || 0}</p>
-                      <p><strong>Tipos únicos:</strong> {debugInfo.tiposUnicos?.join(', ') || 'Ninguno'}</p>
-                    </div>
-                    
-                    {debugInfo.documentos && debugInfo.documentos.length > 0 && (
-                      <div className="bg-white rounded-lg p-3 border border-purple-100">
-                        <h4 className="font-medium text-purple-800 mb-2">📄 Documentos Detallados</h4>
-                        <div className="space-y-2">
-                          {debugInfo.documentos.map((doc: any, index: number) => (
-                            <div key={index} className="flex justify-between items-center bg-gray-50 rounded p-2">
-                              <div>
-                                <span className="font-medium">{doc.tipo_documento}</span>
-                                <span className="text-gray-600 ml-2">- {doc.nombre_documento}</span>
-                              </div>
-                              <div className="text-right">
-                                <span className={`px-2 py-1 rounded text-xs ${
-                                  doc.estado_calculado === 'vigente' ? 'bg-green-100 text-green-800' :
-                                  doc.estado_calculado === 'vencido' ? 'bg-red-100 text-red-800' :
-                                  doc.estado_calculado === 'por_vencer' ? 'bg-yellow-100 text-yellow-800' :
-                                  'bg-gray-100 text-gray-800'
-                                }`}>
-                                  {doc.estado_calculado || 'Sin estado'}
-                                </span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    
-                    <div className="bg-white rounded-lg p-3 border border-purple-100">
-                      <h4 className="font-medium text-purple-800 mb-2">🔍 Verificación de Documentación Completa</h4>
-                      <p className="text-gray-600">
-                        <strong>Documentos requeridos:</strong> certificado_curso, certificado_medico, licencia_conducir, certificado_seguridad
-                      </p>
-                      {debugInfo.verificacion ? (
-                        <div className="mt-2">
-                          <p className={`font-medium ${debugInfo.verificacion.tieneDocumentacionCompleta ? 'text-green-600' : 'text-red-600'}`}>
-                            <strong>Estado:</strong> {debugInfo.verificacion.tieneDocumentacionCompleta ? '✅ Documentación completa' : '❌ Documentación incompleta'}
-                          </p>
-                          <p className="text-gray-600 mt-1">
-                            <strong>Razón:</strong> {debugInfo.verificacion.razon}
-                          </p>
-                          {debugInfo.verificacion.documentosFaltantes && debugInfo.verificacion.documentosFaltantes.length > 0 && (
-                            <p className="text-red-600 mt-1">
-                              <strong>Documentos faltantes:</strong> {debugInfo.verificacion.documentosFaltantes.join(', ')}
-                            </p>
-                          )}
-                          {debugInfo.verificacion.documentosVencidos && debugInfo.verificacion.documentosVencidos.length > 0 && (
-                            <div className="text-red-600 mt-1">
-                              <strong>Documentos vencidos:</strong>
-                              <ul className="list-disc list-inside ml-4">
-                                {debugInfo.verificacion.documentosVencidos.map((doc: any, index: number) => (
-                                  <li key={index}>{doc.tipo} - {doc.nombre}</li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                          {debugInfo.verificacion.documentosPorVencer && debugInfo.verificacion.documentosPorVencer.length > 0 && (
-                            <div className="text-yellow-600 mt-1">
-                              <strong>Documentos por vencer:</strong>
-                              <ul className="list-disc list-inside ml-4">
-                                {debugInfo.verificacion.documentosPorVencer.map((doc: any, index: number) => (
-                                  <li key={index}>{doc.tipo} - {doc.nombre} ({doc.diasRestantes} días)</li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <p className="text-gray-600 mt-1">
-                          <strong>Estado:</strong> {debugInfo.totalDocumentos >= 4 ? '✅ Documentación completa' : '❌ Documentación incompleta'}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         </div>

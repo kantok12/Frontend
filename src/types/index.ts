@@ -886,16 +886,16 @@ export interface AcuerdoVencer {
 // Tipos para notificaciones
 export interface NotificacionDocumento {
   id: string;
-  tipo: 'documento_vencido' | 'documento_por_vencer' | 'documento_faltante' | 'documento_renovado';
+  tipo: 'documento_vencido' | 'documento_por_vencer' | 'documento_faltante' | 'documento_renovado' | 'personal_sin_asignacion' | 'servicios_sin_personal' | 'programacion_pendiente' | 'mantenimiento_proximo' | 'auditoria_critica' | 'auditoria_sistema' | 'auditoria_estadisticas';
   prioridad: 'alta' | 'media' | 'baja';
   titulo: string;
   mensaje: string;
-  personal_id: string;
-  personal_nombre: string;
-  documento_id?: string;
-  documento_nombre?: string;
-  fecha_vencimiento?: string;
-  dias_restantes?: number;
+  personal_id: string | null;
+  personal_nombre: string | null;
+  documento_id?: string | null;
+  documento_nombre?: string | null;
+  fecha_vencimiento?: string | null;
+  dias_restantes?: number | null;
   leida: boolean;
   fecha_creacion: string;
   accion_requerida?: string;
