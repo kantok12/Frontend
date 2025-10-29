@@ -1489,6 +1489,42 @@ class ApiService {
     return response.data;
   }
 
+  // ==================== MÉTODOS PARA PERSONAL POR CLIENTE ====================
+  
+  // GET /api/personal-por-cliente
+  async getPersonalPorCliente(params?: {
+    cliente_id?: number;
+    cartera_id?: number;
+    fecha_inicio?: string;
+    fecha_fin?: string;
+    activo?: boolean;
+    limit?: number;
+    offset?: number;
+  }): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.get('/personal-por-cliente', { params });
+    return response.data;
+  }
+
+  // GET /api/personal-por-cliente/:cliente_id
+  async getPersonalPorClienteId(clienteId: number, params?: {
+    fecha_inicio?: string;
+    fecha_fin?: string;
+    activo?: boolean;
+  }): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.get(`/personal-por-cliente/${clienteId}`, { params });
+    return response.data;
+  }
+
+  // GET /api/personal-por-cliente/resumen
+  async getResumenPersonalPorCliente(params?: {
+    cartera_id?: number;
+    fecha_inicio?: string;
+    fecha_fin?: string;
+  }): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.get('/personal-por-cliente/resumen', { params });
+    return response.data;
+  }
+
   // ==================== MÉTODOS PARA COMPATIBILIDAD ====================
 
   // GET /api/programacion-compatibilidad

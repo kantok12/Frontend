@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useProgramacionOptimizada } from '../hooks/useProgramacionOptimizada';
 import { useCarteras } from '../hooks/useCarteras';
 import { useClientes, useNodos } from '../hooks/useServicios';
 import { usePersonalList } from '../hooks/usePersonal';
@@ -25,19 +24,31 @@ const CalendarioPage: React.FC = () => {
   const { data: nodosData } = useNodos(); // Sin filtros para obtener todos los nodos
   const { data: personalData } = usePersonalList(1, 1000);
   
-  // Hook de programación semanal - Obtener TODAS las carteras
+  // Calcular fecha fin de semana (domingo)
+  const fechaFinSemana = useMemo(() => {
+    const fin = new Date(fechaInicioSemana);
+    fin.setDate(fin.getDate() + 6); // 7 días desde el lunes
+    return fin;
+  }, [fechaInicioSemana]);
+
+  // Hook de programación - Usar nuevo endpoint personal-por-cliente
   const { 
-    data: programacionData, 
+    data: personalPorClienteData, 
     isLoading: isLoadingProgramacion, 
     error: errorProgramacion
   } = useQuery({
-    queryKey: ['programacion-semana', fechaInicioSemana.toISOString().split('T')[0]], // Fecha de inicio de semana
+    queryKey: ['personal-por-cliente', fechaInicioSemana.toISOString().split('T')[0], fechaFinSemana.toISOString().split('T')[0]],
     queryFn: async () => {
       const { apiService } = await import('../services/api');
-      // Usar el endpoint que funciona
-      return await apiService.getProgramacionSemana(fechaInicioSemana.toISOString().split('T')[0]);
+      // Usar el nuevo endpoint personal-por-cliente con filtros de fecha
+      const response = await apiService.getPersonalPorCliente({
+        fecha_inicio: fechaInicioSemana.toISOString().split('T')[0],
+        fecha_fin: fechaFinSemana.toISOString().split('T')[0],
+        activo: true
+      });
+      
+      return response;
     },
-    enabled: true, // Siempre habilitado para obtener todas las carteras
     staleTime: 5 * 60 * 1000,
   });
   
@@ -90,39 +101,68 @@ const CalendarioPage: React.FC = () => {
     setFechaInicioSemana(getFechaInicioSemana(hoy));
   }, []);
   
-  // Procesar datos de programación - FORMATO SEMANAL
+  // Procesar datos del nuevo endpoint personal-por-cliente
   const programacion = useMemo(() => {
-    if (!programacionData) return [];
+    if (!personalPorClienteData) return [];
     
-    // Manejar diferentes estructuras de respuesta
-    if (Array.isArray(programacionData)) {
-      return programacionData;
+    console.log('🔍 Estructura completa de personalPorClienteData:', JSON.stringify(personalPorClienteData, null, 2));
+    
+    // El nuevo endpoint devuelve: { success: true, data: [{ cliente_id, cliente_nombre, personal: [{ rut, nombre, programaciones: [{ fecha_trabajo, ... }] }] }] }
+    const datos: any[] = [];
+    
+    if (personalPorClienteData?.data && Array.isArray(personalPorClienteData.data)) {
+      // Iterar sobre cada cliente
+      personalPorClienteData.data.forEach((clienteData: any) => {
+        if (clienteData.personal && Array.isArray(clienteData.personal)) {
+          // Iterar sobre cada persona del cliente
+          clienteData.personal.forEach((persona: any) => {
+            if (persona.programaciones && Array.isArray(persona.programaciones)) {
+              // Crear un registro por cada programación
+              persona.programaciones.forEach((programacion: any) => {
+                datos.push({
+                  id: programacion.id || null,
+                  rut: persona.rut,
+                  nombre_persona: persona.nombre,
+                  cargo: persona.cargo || '',
+                  cartera_id: clienteData.cartera_id,
+                  nombre_cartera: clienteData.cartera_nombre,
+                  cliente_id: clienteData.cliente_id,
+                  nombre_cliente: clienteData.cliente_nombre,
+                  nodo_id: programacion.nodo_id || null,
+                  nombre_nodo: programacion.nodo_nombre || null,
+                  fecha_trabajo: programacion.fecha_trabajo,
+                  horas_estimadas: programacion.horas_estimadas || 8,
+                  horas_reales: programacion.horas_reales || null,
+                  observaciones: programacion.observaciones || '',
+                  estado: programacion.estado || 'activo',
+                  created_at: programacion.created_at,
+                  updated_at: programacion.updated_at
+                });
+              });
+            }
+          });
+        }
+      });
     }
     
-    if (programacionData.data) {
-      if (Array.isArray(programacionData.data)) {
-        return programacionData.data;
-      }
-      if (programacionData.data.programacion && Array.isArray(programacionData.data.programacion)) {
-        return programacionData.data.programacion;
-      }
-      if (programacionData.data.items && Array.isArray(programacionData.data.items)) {
-        return programacionData.data.items;
-      }
-    }
-    
-    return [];
-  }, [programacionData]);
+    console.log('🔍 Datos de programación procesados:', datos.length, 'registros');
+    return datos;
+  }, [personalPorClienteData]);
 
-  console.log('🔍 Datos de programacionData:', programacionData);
+  console.log('🔍 Datos de personalPorClienteData:', personalPorClienteData);
   console.log('🔍 Datos de programación procesados:', programacion);
   console.log('🔍 Tipo de programacion:', typeof programacion, Array.isArray(programacion));
-  console.log('🔍 Estructura completa de programacionData:', JSON.stringify(programacionData, null, 2));
   console.log('🔍 Datos de carteras:', carterasData);
   console.log('🔍 Datos de clientes:', clientesData);
   console.log('🔍 Datos de nodos:', nodosData);
   console.log('🔍 Error de programación:', errorProgramacion);
   console.log('🔍 Timestamp de datos:', new Date().toISOString());
+  
+  // Logs adicionales para depuración
+  console.log('🔍 Fecha inicio semana:', fechaInicioSemana.toISOString().split('T')[0]);
+  console.log('🔍 Fecha fin semana:', fechaFinSemana.toISOString().split('T')[0]);
+  console.log('🔍 Carteras disponibles:', carterasData?.data?.length || 0);
+  console.log('🔍 Clientes disponibles:', clientesData?.data?.length || 0);
   
   // Verificar si hay programación para BAKERY - CARNES
   if (Array.isArray(programacion)) {
@@ -150,7 +190,7 @@ const CalendarioPage: React.FC = () => {
         const clientesDeCartera = clientesData?.data?.filter((cliente: any) => cliente.cartera_id === cartera.id) || [];
         const clientesNombres = clientesDeCartera.map((cliente: any) => cliente.nombre).join(', ');
         
-        // Crear fila de cartera con todos sus clientes
+        // Crear fila de cartera (sin clientes en esta fila)
         filas.push({
           tipo: 'cartera',
           cartera_id: cartera.id,
@@ -159,7 +199,7 @@ const CalendarioPage: React.FC = () => {
           personal_rut: '',
           personal_telefono: '',
           personal_cargo: '',
-          cliente_nombre: clientesNombres || 'Sin clientes',
+          cliente_nombre: '',
           nodo_nombre: '',
           lunes: false,
           martes: false,
@@ -170,53 +210,159 @@ const CalendarioPage: React.FC = () => {
           domingo: false
         });
         
-        // SEGUNDO: Agregar filas de personal para esta cartera
+        // Obtener personal asignado a los clientes de esta cartera
         if (Array.isArray(programacion)) {
-          const personalDeCartera = programacion.filter((item: any) => item.cartera_id === cartera.id);
+          console.log(`🔍 Buscando personal para cartera ${cartera.nombre} (ID: ${cartera.id})`);
+          console.log(`🔍 Total programación disponible: ${programacion.length}`);
           
-          personalDeCartera.forEach((item: any) => {
-            const dias = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'];
-            const diasAsignados = dias.filter(dia => {
-              return item[dia] === true || item[dia] === 1 || item[dia] === '1' || 
-                     (item.fecha_trabajo && item.fecha_trabajo.includes(dia)) ||
-                     (item.dias_trabajo && item.dias_trabajo.includes(dia));
+          // Obtener clientes de esta cartera
+          const clientesDeCartera = clientesData?.data?.filter((cliente: any) => 
+            cliente.cartera_id === cartera.id || cliente.cartera_id === parseInt(cartera.id)
+          ) || [];
+          
+          // Para cada cliente, obtener su personal asignado
+          clientesDeCartera.forEach((cliente: any) => {
+            // Crear fila del cliente
+            filas.push({
+              tipo: 'cliente',
+              cartera_id: cartera.id,
+              cartera_nombre: cartera.nombre,
+              personal_nombre: '',
+              personal_rut: '',
+              personal_telefono: '',
+              personal_cargo: '',
+              cliente_nombre: cliente.nombre,
+              nodo_nombre: '',
+              lunes: false,
+              martes: false,
+              miercoles: false,
+              jueves: false,
+              viernes: false,
+              sabado: false,
+              domingo: false
             });
             
-            // Solo crear fila si tiene al menos un día asignado
-            if (diasAsignados.length > 0) {
-              filas.push({
-                tipo: 'personal',
-                cartera_id: item.cartera_id,
-                cartera_nombre: item.nombre_cartera || 'Sin Cartera',
-                personal_nombre: item.nombre_persona || 'Sin Nombre',
-                personal_rut: item.rut,
-                personal_telefono: item.telefono || '',
-                personal_cargo: item.cargo || '',
-                cliente_nombre: item.nombre_cliente || 'Sin Cliente',
-                nodo_nombre: item.nombre_nodo || 'Sin Nodo',
-                lunes: item.lunes === true || item.lunes === 1 || item.lunes === '1' || 
-                       (item.fecha_trabajo && item.fecha_trabajo.includes('lunes')) ||
-                       (item.dias_trabajo && item.dias_trabajo.includes('lunes')),
-                martes: item.martes === true || item.martes === 1 || item.martes === '1' || 
-                        (item.fecha_trabajo && item.fecha_trabajo.includes('martes')) ||
-                        (item.dias_trabajo && item.dias_trabajo.includes('martes')),
-                miercoles: item.miercoles === true || item.miercoles === 1 || item.miercoles === '1' || 
-                           (item.fecha_trabajo && item.fecha_trabajo.includes('miercoles')) ||
-                           (item.dias_trabajo && item.dias_trabajo.includes('miercoles')),
-                jueves: item.jueves === true || item.jueves === 1 || item.jueves === '1' || 
-                        (item.fecha_trabajo && item.fecha_trabajo.includes('jueves')) ||
-                        (item.dias_trabajo && item.dias_trabajo.includes('jueves')),
-                viernes: item.viernes === true || item.viernes === 1 || item.viernes === '1' || 
-                         (item.fecha_trabajo && item.fecha_trabajo.includes('viernes')) ||
-                         (item.dias_trabajo && item.dias_trabajo.includes('viernes')),
-                sabado: item.sabado === true || item.sabado === 1 || item.sabado === '1' || 
-                        (item.fecha_trabajo && item.fecha_trabajo.includes('sabado')) ||
-                        (item.dias_trabajo && item.dias_trabajo.includes('sabado')),
-                domingo: item.domingo === true || item.domingo === 1 || item.domingo === '1' || 
-                         (item.fecha_trabajo && item.fecha_trabajo.includes('domingo')) ||
-                         (item.dias_trabajo && item.dias_trabajo.includes('domingo'))
+            // Obtener personal asignado a este cliente específico
+            const personalDelCliente = programacion.filter((item: any) => {
+              const matchCartera = item.cartera_id === cartera.id || item.cartera_id === parseInt(cartera.id);
+              const matchCliente = item.cliente_id === cliente.id || 
+                                 item.cliente_id === parseInt(cliente.id) ||
+                                 item.nombre_cliente === cliente.nombre;
+              
+              console.log(`🔍 Comparando personal:`, {
+                item_cartera_id: item.cartera_id,
+                cartera_id: cartera.id,
+                matchCartera,
+                item_cliente_id: item.cliente_id,
+                cliente_id: cliente.id,
+                item_nombre_cliente: item.nombre_cliente,
+                cliente_nombre: cliente.nombre,
+                matchCliente,
+                match: matchCartera && matchCliente
               });
-            }
+              
+              return matchCartera && matchCliente;
+            });
+            
+            console.log(`🔍 Personal encontrado para cliente ${cliente.nombre}: ${personalDelCliente.length} registros`);
+            
+            // Agrupar personal por rut (puede haber múltiples programaciones por persona)
+            const personalAgrupado = new Map<string, any>();
+            
+            personalDelCliente.forEach((item: any) => {
+              const rut = item.rut;
+              if (!personalAgrupado.has(rut)) {
+                personalAgrupado.set(rut, {
+                  ...item,
+                  fechas_trabajo: []
+                });
+              }
+              // Agregar fecha_trabajo al array
+              if (item.fecha_trabajo) {
+                const personal = personalAgrupado.get(rut);
+                personal.fechas_trabajo.push(item.fecha_trabajo);
+              }
+            });
+            
+            // Crear una fila por cada persona asignada a este cliente
+            personalAgrupado.forEach((item: any) => {
+              // Función auxiliar para determinar si una fecha está en un día específico de la semana
+              const fechaEstaEnDia = (fechaStr: string, diaIndex: number): boolean => {
+                try {
+                  const fecha = new Date(fechaStr);
+                  const fechaDia = fecha.getDay();
+                  // Convertir domingo (0) a 6 para que coincida con nuestro índice
+                  const diaNormalizado = fechaDia === 0 ? 6 : fechaDia - 1;
+                  return diaNormalizado === diaIndex;
+                } catch {
+                  return false;
+                }
+              };
+              
+              // Función auxiliar para verificar si una fecha está en el rango de la semana
+              const fechaEnRango = (fechaStr: string): boolean => {
+                try {
+                  const fecha = new Date(fechaStr);
+                  const fechaInicio = new Date(fechaInicioSemana);
+                  const fechaFin = new Date(fechaFinSemana);
+                  fechaInicio.setHours(0, 0, 0, 0);
+                  fechaFin.setHours(23, 59, 59, 999);
+                  fecha.setHours(0, 0, 0, 0);
+                  return fecha >= fechaInicio && fecha <= fechaFin;
+                } catch {
+                  return false;
+                }
+              };
+              
+              // Procesar fechas_trabajo del nuevo endpoint
+              const fechasTrabajo = Array.isArray(item.fechas_trabajo) ? item.fechas_trabajo : [];
+              console.log(`🔍 Procesando personal ${item.nombre_persona || item.nombre}:`, {
+                fechas_trabajo: fechasTrabajo,
+                cliente_nombre: cliente.nombre,
+                personal_original: item
+              });
+              
+              // Mapear fechas a días de la semana
+              const diasAsignados = [false, false, false, false, false, false, false]; // [lunes, martes, miércoles, jueves, viernes, sábado, domingo]
+              
+              fechasTrabajo.forEach((fechaStr: string) => {
+                console.log(`🔍 Procesando fecha: ${fechaStr}`);
+                if (fechaEnRango(fechaStr)) {
+                  console.log(`✅ Fecha ${fechaStr} está en rango`);
+                  for (let i = 0; i < 7; i++) {
+                    if (fechaEstaEnDia(fechaStr, i)) {
+                      diasAsignados[i] = true;
+                      console.log(`✅ Fecha ${fechaStr} asignada al día ${i} (${['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'][i]})`);
+                      break;
+                    }
+                  }
+                } else {
+                  console.log(`❌ Fecha ${fechaStr} NO está en rango`);
+                }
+              });
+              
+              // Solo crear fila si tiene al menos un día asignado
+              if (diasAsignados.some(dia => dia === true)) {
+                filas.push({
+                  tipo: 'personal',
+                  cartera_id: item.cartera_id,
+                  cartera_nombre: item.nombre_cartera || item.cartera_nombre || 'Sin Cartera',
+                  personal_nombre: item.nombre_persona || item.nombre || item.nombres || 'Sin Nombre',
+                  personal_rut: item.rut,
+                  personal_telefono: item.telefono || '',
+                  personal_cargo: item.cargo || '',
+                  cliente_nombre: cliente.nombre || item.nombre_cliente || 'Sin Cliente',
+                  nodo_nombre: item.nombre_nodo || item.nodo_nombre || 'Sin Nodo',
+                  lunes: diasAsignados[0],
+                  martes: diasAsignados[1],
+                  miercoles: diasAsignados[2],
+                  jueves: diasAsignados[3],
+                  viernes: diasAsignados[4],
+                  sabado: diasAsignados[5],
+                  domingo: diasAsignados[6]
+                });
+              }
+            });
           });
         }
       });
@@ -224,7 +370,7 @@ const CalendarioPage: React.FC = () => {
     
     console.log('🔍 Datos de tabla procesados con carteras y clientes:', filas);
     return filas;
-  }, [programacion, carterasData, clientesData]);
+  }, [programacion, carterasData, clientesData, fechaInicioSemana, fechaFinSemana]);
   
   // Filtrar datos
   const datosFiltrados = useMemo(() => {
@@ -638,24 +784,21 @@ const CalendarioPage: React.FC = () => {
             <table className="min-w-full border border-gray-300">
               <thead>
                 <tr className="bg-gray-50">
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32 border-r border-gray-300">
+                  <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24 border-r border-gray-300">
                     Cartera
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-64 border-r border-gray-300">
+                  <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-48 border-r border-gray-300">
                     Cliente/Nodo
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-48 border-r border-gray-300">
-                    Personal
-                  </th>
                   {fechasSemana.map((fecha, index) => (
-                    <th key={index} className="px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-16 border-r border-gray-300 last:border-r-0">
-                      <div className="text-xs">
+                    <th key={index} className="px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-24 border-r border-gray-300 last:border-r-0">
+                      <div className="text-xs leading-tight">
                         {['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'][fecha.getDay()]}
                       </div>
-                      <div className="text-xs font-bold">
+                      <div className="text-xs font-bold leading-tight">
                         {fecha.getDate()}
                       </div>
-                      <div className="text-xs">
+                      <div className="text-xs leading-tight">
                         {fecha.toLocaleDateString('es-ES', { month: 'short' })}
                       </div>
                     </th>
@@ -665,65 +808,49 @@ const CalendarioPage: React.FC = () => {
               <tbody className="bg-white divide-y divide-gray-200">
                 {datosFiltrados.map((fila: any, index: number) => (
                   <tr 
-                    key={`${fila.tipo}-${fila.cartera_id}-${fila.personal_rut || ''}-${index}`} 
-                    className={`${fila.tipo === 'cartera' ? 'bg-gray-100 font-semibold' : 'hover:bg-gray-50'}`}
+                    key={`${fila.tipo}-${fila.cartera_id}-${fila.personal_rut || fila.cliente_nombre || ''}-${index}`} 
+                    className={`${
+                      fila.tipo === 'cartera' ? 'bg-gray-100 font-semibold' : 
+                      fila.tipo === 'cliente' ? 'bg-gray-50 hover:bg-gray-100' : 
+                      'hover:bg-gray-50'
+                    }`}
                   >
                     {/* Columna Cartera */}
-                    <td className="px-4 py-3 whitespace-nowrap w-32 border-r border-gray-300">
+                    <td className="px-2 py-2 whitespace-nowrap w-24 border-r border-gray-300">
                       {fila.tipo === 'cartera' ? (
                         <div className="flex items-center">
-                          <Building2 className="w-4 h-4 mr-2 text-gray-600" />
-                          <div className="text-sm font-semibold text-gray-900">{fila.cartera_nombre}</div>
+                          <Building2 className="w-3 h-3 mr-1 text-gray-600" />
+                          <div className="text-xs font-semibold text-gray-900">{fila.cartera_nombre}</div>
+                        </div>
+                      ) : fila.tipo === 'cliente' ? (
+                        <div className="pl-2">
+                          {/* Espacio vacío para alinear con filas de personal */}
                         </div>
                       ) : (
-                        <div className="pl-4">
+                        <div className="pl-2">
                           {/* Espacio vacío para alinear con filas de personal */}
                         </div>
                       )}
                     </td>
                     
                     {/* Columna Cliente/Nodo */}
-                    <td className="px-4 py-3 w-64 border-r border-gray-300">
+                    <td className="px-2 py-2 w-48 border-r border-gray-300">
                       {fila.tipo === 'personal' ? (
-                        <div className="flex items-center">
-                          <MapPin className="w-4 h-4 mr-2 text-gray-400" />
+                        <div className="flex items-center pl-4">
+                          <Users className="w-3 h-3 mr-1 text-gray-400" />
                           <div>
-                            <div className="text-sm font-medium text-gray-900">{fila.nodo_nombre}</div>
-                            <div className="text-xs text-gray-500">{fila.cliente_nombre}</div>
+                            <div className="text-xs font-medium text-gray-900">{fila.personal_nombre}</div>
+                            <div className="text-xs text-gray-500">{fila.nodo_nombre}</div>
                           </div>
+                        </div>
+                      ) : fila.tipo === 'cliente' ? (
+                        <div className="flex items-center pl-2">
+                          <MapPin className="w-3 h-3 mr-1 text-gray-500" />
+                          <div className="text-xs text-gray-700">{fila.cliente_nombre}</div>
                         </div>
                       ) : (
-                        <div className="flex items-center">
-                          <MapPin className="w-4 h-4 mr-2 text-gray-600" />
-                          <div>
-                            <div className="text-sm font-semibold text-gray-900">Clientes:</div>
-                            <div className="text-xs text-gray-600 mt-1 max-h-20 overflow-y-auto">
-                              {fila.cliente_nombre || 'Sin clientes asignados'}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </td>
-                    
-                    {/* Columna Personal */}
-                    <td className="px-4 py-3 whitespace-nowrap w-48 border-r border-gray-300">
-                      {fila.tipo === 'personal' ? (
-                        <div className="flex items-center">
-                          <Users className="w-4 h-4 mr-2 text-gray-400" />
-                          <div>
-                            <div className="text-sm font-medium text-gray-900">{fila.personal_nombre}</div>
-                            <div className="text-xs text-gray-500">{fila.personal_rut}</div>
-                            {fila.personal_telefono && (
-                              <div className="text-xs text-gray-500">{fila.personal_telefono}</div>
-                            )}
-                            {fila.personal_cargo && (
-                              <div className="text-xs text-gray-500">{fila.personal_cargo}</div>
-                            )}
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="text-sm text-gray-500 italic">
-                          {fila.tipo === 'cartera' ? 'Personal asignado:' : ''}
+                        <div className="text-xs text-gray-500 italic">
+                          {fila.tipo === 'cartera' ? 'Clientes:' : ''}
                         </div>
                       )}
                     </td>
@@ -735,17 +862,23 @@ const CalendarioPage: React.FC = () => {
                       const estaAsignado = fila[dia];
                       
                       return (
-                        <td key={diaIndex} className="px-2 py-3 text-center w-16 border-r border-gray-300 last:border-r-0">
+                        <td key={diaIndex} className="px-2 py-2 text-left w-24 border-r border-gray-300 last:border-r-0">
                           {fila.tipo === 'cartera' ? (
-                            <div className="text-xs text-gray-500 font-medium">
+                            <div className="text-xs text-gray-500 font-medium text-center">
                               {['D', 'L', 'M', 'X', 'J', 'V', 'S'][fecha.getDay()]}
                             </div>
+                          ) : fila.tipo === 'cliente' ? (
+                            <div className="text-xs text-gray-500 italic text-center">
+                              {/* Vacío para filas de cliente */}
+                            </div>
                           ) : estaAsignado ? (
-                            <div className="w-6 h-6 mx-auto bg-green-500 text-white rounded-full flex items-center justify-center text-xs font-bold">
-                              ✓
+                            <div className="text-xs text-gray-700 font-medium break-words">
+                              {fila.personal_nombre || 'Sin nombre'}
                             </div>
                           ) : (
-                            <div className="w-6 h-6 mx-auto bg-gray-200 rounded-full"></div>
+                            <div className="text-xs text-gray-400 text-center">
+                              -
+                            </div>
                           )}
                         </td>
                       );
