@@ -13,18 +13,53 @@ export const useProgramacionOptimizada = (
   const optimizedQuery = useQuery({
     queryKey: ['programacion-optimizada', carteraId, fechaInicio, fechaFin],
     queryFn: async () => {
+      // Verificar parámetros
+      if (!carteraId) {
+        console.warn('⚠️ No se proporcionó cartera_id');
+        return {
+          success: true,
+          data: {
+            cartera: null,
+            programacion: [],
+            filters: { cartera_id: 0 },
+            timestamp: new Date().toISOString()
+          }
+        };
+      }
+
+      if (!fechaInicio || !fechaFin) {
+        console.warn('⚠️ No se proporcionaron fechas');
+        return {
+          success: true,
+          data: {
+            cartera: { id: carteraId },
+            programacion: [],
+            filters: { cartera_id: carteraId },
+            timestamp: new Date().toISOString()
+          }
+        };
+      }
+
+      console.log('🔄 Consultando programación optimizada:', {
+        cartera_id: carteraId,
+        fecha_inicio: fechaInicio,
+        fecha_fin: fechaFin
+      });
+
       return await apiService.getProgramacionOptimizada({
         cartera_id: carteraId,
         fecha_inicio: fechaInicio,
         fecha_fin: fechaFin
       });
     },
-    enabled: carteraId >= 0,
+    enabled: carteraId > 0,
     staleTime: 5 * 60 * 1000, // 5 minutos
-    retry: 0, // Sin reintentos - mostrar error inmediatamente
-    retryOnMount: false,
+    retry: 1, // Un reintento
+    retryDelay: 1000, // 1 segundo entre reintentos
+    onError: (error: any) => {
+      console.error('❌ Error en useProgramacionOptimizada:', error);
+    }
   });
-
 
   // Retornar directamente el sistema optimizado
   return {

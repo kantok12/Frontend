@@ -1393,23 +1393,92 @@ class ApiService {
     semana?: string;
     fecha?: string;
   }): Promise<ApiResponse<any>> {
-    const response: AxiosResponse<ApiResponse<any>> = await this.api.get('/programacion-optimizada', { params });
-    return response.data;
+    console.log('🔄 Consultando programación optimizada:', {
+      endpoint: '/programacion-optimizada',
+      params,
+      baseURL: this.api.defaults.baseURL
+    });
+    
+    try {
+      const response: AxiosResponse<ApiResponse<any>> = await this.api.get('/programacion-optimizada', { params });
+      console.log('✅ Respuesta de programación optimizada:', response.data);
+      
+      // Si no hay datos de programación, inicializar estructura
+      if (!response.data?.data?.programacion) {
+        console.log('⚠️ No hay datos de programación, inicializando estructura');
+        return {
+          success: true,
+          data: {
+            cartera: {
+              id: params.cartera_id,
+              nombre: ''
+            },
+            programacion: [],
+            filters: params,
+            timestamp: new Date().toISOString()
+          }
+        };
+      }
+      
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ Error consultando programación optimizada:', error);
+      console.error('❌ Response:', error.response?.data);
+      throw error;
+    }
   }
 
   // POST /api/programacion-optimizada
   async crearProgramacionOptimizada(data: {
-    rut: string;
-    cartera_id: number;
-    cliente_id?: number;
-    nodo_id?: number;
-    fechas_trabajo: string[];
-    horas_estimadas: number;
-    observaciones?: string;
-    estado?: string;
+    rut: string;                   // RUT del personal (requerido)
+    cartera_id: number;            // ID de la cartera (requerido)
+    cliente_id?: number;           // ID del cliente (opcional)
+    nodo_id?: number;             // ID del nodo (opcional)
+    fechas_trabajo: string[];     // Array de fechas ISO YYYY-MM-DD (requerido)
+    horas_estimadas?: number;     // Horas por día (default: 8)
+    observaciones?: string;       // Notas adicionales (opcional)
+    estado?: string;             // Estado de la programación (default: 'programado')
   }): Promise<ApiResponse<any>> {
-    const response: AxiosResponse<ApiResponse<any>> = await this.api.post('/programacion-optimizada', data);
-    return response.data;
+    // Validar datos requeridos
+    if (!data.rut) throw new Error('El RUT es requerido');
+    if (!data.cartera_id) throw new Error('El ID de cartera es requerido');
+    if (!data.fechas_trabajo?.length) throw new Error('Se requiere al menos una fecha de trabajo');
+
+    // Validar formato de fechas
+    const fechasValidas = data.fechas_trabajo.every(fecha => {
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      return dateRegex.test(fecha);
+    });
+    if (!fechasValidas) throw new Error('Las fechas deben tener formato YYYY-MM-DD');
+
+    // Asignar valores por defecto
+    const programacionData = {
+      ...data,
+      horas_estimadas: data.horas_estimadas || 8,
+      estado: data.estado || 'programado'
+    };
+
+    try {
+      const response: AxiosResponse<ApiResponse<any>> = await this.api.post('/programacion-optimizada', programacionData);
+      return response.data;
+    } catch (error: any) {
+      // Manejar errores específicos
+      if (error.response) {
+        switch (error.response.status) {
+          case 400:
+            throw new Error('Datos inválidos o incompletos: ' + error.response.data.message);
+          case 404:
+            throw new Error('No se encontró uno o más recursos: ' + error.response.data.message);
+          case 409:
+            // En caso de conflicto, el backend actualizará la programación existente
+            console.log('Conflicto detectado - el backend actualizará la programación existente');
+            return error.response.data;
+          default:
+            throw new Error('Error en el servidor: ' + error.response.data.message);
+        }
+      }
+      throw error;
+    }
   }
 
   // POST /api/programacion-optimizada/semana

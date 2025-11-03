@@ -25,43 +25,54 @@ export const ProgramacionSemanalCompleta: React.FC = () => {
   const clientes = clientesData?.data || [];
   const nodos = nodosData?.data || [];
 
-  // Cargar asignaciones de la semana actual (simulado)
+  // Cargar asignaciones de la semana actual desde la API
   useEffect(() => {
-    // Aquí cargarías las asignaciones reales de la API
-    const asignacionesSimuladas: AsignacionSemanal[] = [
-      {
-        id: '1',
-        personalId: '1',
-        personalNombre: 'Juan Pérez',
-        personalRut: '12345678-9',
-        carteraId: 1,
-        carteraNombre: 'Cartera A',
-        clienteId: 1,
-        clienteNombre: 'Cliente X',
-        dia: 'lunes',
-        fecha: '2024-01-15',
-        horaInicio: '08:00',
-        horaFin: '17:00',
-        observaciones: 'Asignación de prueba',
-        estado: 'confirmada'
-      },
-      {
-        id: '2',
-        personalId: '2',
-        personalNombre: 'María González',
-        personalRut: '98765432-1',
-        carteraId: 2,
-        carteraNombre: 'Cartera B',
-        dia: 'martes',
-        fecha: '2024-01-16',
-        horaInicio: '09:00',
-        horaFin: '18:00',
-        estado: 'pendiente'
+    const fetchProgramacionOptimizada = async () => {
+      try {
+        // Parámetros: cartera_id y fecha (puedes ajustar según tu lógica de selección)
+        const carteraId = carteras.length > 0 ? carteras[0].id : 6; // Por defecto 6 si no hay carteras
+  // Usar fecha fija hasta conocer la estructura real de semanaInfo
+  const fecha = '2025-11-03';
+        const url = `/api/programacion-optimizada?cartera_id=${carteraId}&fecha=${fecha}`;
+        const response = await fetch(url);
+        const result = await response.json();
+        if (result.success && result.data && Array.isArray(result.data.programacion)) {
+          // Mapear la respuesta a AsignacionSemanal[]
+          const asignacionesApi: AsignacionSemanal[] = [];
+          result.data.programacion.forEach((dia: any) => {
+            dia.trabajadores.forEach((trabajador: any) => {
+              asignacionesApi.push({
+                id: trabajador.id?.toString() || '',
+                personalId: trabajador.id?.toString() || '',
+                personalNombre: trabajador.nombre_persona,
+                personalRut: trabajador.rut,
+                carteraId: Number(trabajador.cartera_id),
+                carteraNombre: trabajador.nombre_cartera,
+                clienteId: trabajador.cliente_id ? Number(trabajador.cliente_id) : undefined,
+                clienteNombre: trabajador.nombre_cliente,
+                nodoId: trabajador.nodo_id ? Number(trabajador.nodo_id) : undefined,
+                nodoNombre: trabajador.nombre_nodo,
+                dia: trabajador.dia_semana,
+                fecha: trabajador.fecha_trabajo,
+                horaInicio: trabajador.horas_estimadas ? `${trabajador.horas_estimadas}:00` : '',
+                horaFin: trabajador.horas_reales ? `${trabajador.horas_reales}:00` : '',
+                observaciones: trabajador.observaciones || '',
+                estado: trabajador.estado || '',
+                // ...existing code...
+              });
+            });
+          });
+          setAsignaciones(asignacionesApi);
+        } else {
+          setAsignaciones([]);
+        }
+      } catch (error) {
+        console.error('Error al obtener programación optimizada:', error);
+        setAsignaciones([]);
       }
-    ];
-
-    setAsignaciones(asignacionesSimuladas);
-  }, [semanaInfo]);
+    };
+    fetchProgramacionOptimizada();
+  }, [semanaInfo, carteras]);
 
   // Manejar cambio de semana
   const handleSemanaCambiada = (nuevaSemanaInfo: any) => {

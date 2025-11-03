@@ -321,10 +321,11 @@ export const ProgramacionCalendarioModal: React.FC<ProgramacionCalendarioModalPr
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const erroresValidacion = [];
     
+    // Validar asignaciones
     if (asignaciones.length === 0) {
-      setErrors(['Debe agregar al menos una asignación']);
-      return;
+      erroresValidacion.push('Debe agregar al menos una asignación');
     }
 
     // Validar que todos los personal seleccionados estén disponibles
@@ -334,7 +335,61 @@ export const ProgramacionCalendarioModal: React.FC<ProgramacionCalendarioModalPr
     
     if (personalIdsInvalidos.length > 0) {
       const idsInvalidos = personalIdsInvalidos.map(a => a.personalId).join(', ');
-      setErrors([`Los siguientes personal no están disponibles: ${idsInvalidos}. Por favor, verifique que tengan documentación completa.`]);
+      erroresValidacion.push(`Los siguientes personal no están disponibles: ${idsInvalidos}. Por favor, verifique que tengan documentación completa.`);
+    }
+
+    // Validar cartera
+    if (!carteraId || carteraId <= 0) {
+      erroresValidacion.push('Debe seleccionar una cartera válida');
+    }
+
+    // Validar fechas
+    if (!semanaInicio) {
+      erroresValidacion.push('La fecha de inicio de semana es requerida');
+    }
+
+    // Validar horas
+    const horasInvalidas = asignaciones.filter(a => {
+      const horasEstimadas = calcularHorasEstimadas(a.horaInicio, a.horaFin);
+      return horasEstimadas <= 0 || horasEstimadas > 24;
+    });
+
+    if (horasInvalidas.length > 0) {
+      erroresValidacion.push('Hay asignaciones con horas inválidas. Las horas deben estar entre 0 y 24.');
+    }
+
+    // Validar conflictos entre asignaciones
+    const asignacionesPorDia = new Map<string, Asignacion[]>();
+    asignaciones.forEach(a => {
+      const key = `${a.personalId}-${a.dia}`;
+      if (!asignacionesPorDia.has(key)) {
+        asignacionesPorDia.set(key, []);
+      }
+      asignacionesPorDia.get(key)?.push(a);
+    });
+
+    asignacionesPorDia.forEach((asignacionesDia, key) => {
+      for (let i = 0; i < asignacionesDia.length; i++) {
+        for (let j = i + 1; j < asignacionesDia.length; j++) {
+          const a1 = asignacionesDia[i];
+          const a2 = asignacionesDia[j];
+          if (
+            (a1.horaInicio >= a2.horaInicio && a1.horaInicio < a2.horaFin) ||
+            (a1.horaFin > a2.horaInicio && a1.horaFin <= a2.horaFin) ||
+            (a1.horaInicio <= a2.horaInicio && a1.horaFin >= a2.horaFin)
+          ) {
+            const persona = personalConDocumentacion.find(p => p.id === a1.personalId);
+            erroresValidacion.push(
+              `Hay conflicto de horarios para ${persona?.nombre} ${persona?.apellido} el día ${a1.dia} ` +
+              `entre ${a1.horaInicio}-${a1.horaFin} y ${a2.horaInicio}-${a2.horaFin}`
+            );
+          }
+        }
+      }
+    });
+
+    if (erroresValidacion.length > 0) {
+      setErrors(erroresValidacion);
       return;
     }
 
@@ -425,17 +480,28 @@ export const ProgramacionCalendarioModal: React.FC<ProgramacionCalendarioModalPr
         const { apiService } = await import('../../services/api');
         
         // Convertir la asignación al formato de programación optimizada
-        const fechaTrabajo = new Date(semanaInicio);
-        // Ajustar la fecha según el día de la semana
-        const diasSemana = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
-        const indiceDia = diasSemana.indexOf(asignacion.dia);
-        if (indiceDia > 0) {
-          fechaTrabajo.setDate(fechaTrabajo.getDate() + indiceDia - 1);
+        // Calcular la fecha de trabajo basada en semanaSeleccionada
+        const fechaBase = new Date(getFechaInicioSemana(semanaSeleccionada));
+        
+        // Calcular el índice del día (0-6 donde 0 es domingo)
+        type DiaSemana = 'domingo' | 'lunes' | 'martes' | 'miercoles' | 'jueves' | 'viernes' | 'sabado';
+        const diasIndices: Record<DiaSemana, number> = {
+          'domingo': 0, 'lunes': 1, 'martes': 2, 'miercoles': 3,
+          'jueves': 4, 'viernes': 5, 'sabado': 6
+        };
+        
+        // Validar que el día sea válido
+        if (!Object.keys(diasIndices).includes(asignacion.dia)) {
+          throw new Error(`Día inválido: ${asignacion.dia}`);
         }
+        
+        const indiceDia = diasIndices[asignacion.dia as DiaSemana];
+        const fechaTrabajo = new Date(fechaBase);
+        fechaTrabajo.setDate(fechaBase.getDate() + indiceDia);
         
         // Validar fechas_trabajo
         const fechaTrabajoStr = fechaTrabajo.toISOString().split('T')[0];
-        if (!fechaTrabajoStr) {
+        if (!fechaTrabajoStr || isNaN(fechaTrabajo.getTime())) {
           throw new Error('Fecha de trabajo inválida');
         }
         
@@ -463,10 +529,48 @@ export const ProgramacionCalendarioModal: React.FC<ProgramacionCalendarioModalPr
         console.log('  - cartera_id:', programacionCompatibilidadData.cartera_id, typeof programacionCompatibilidadData.cartera_id);
         console.log('  - semana_inicio:', programacionCompatibilidadData.semana_inicio, typeof programacionCompatibilidadData.semana_inicio);
         
-        // Intentar crear la programación con compatibilidad
+        // Crear la programación optimizada
         try {
-          const result = await apiService.crearProgramacionCompatibilidad(programacionCompatibilidadData);
-          console.log('✅ Programación compatibilidad creada:', result);
+          // Calcular la fecha de inicio para la semana seleccionada
+          const fechaBase = new Date(getFechaInicioSemana(semanaSeleccionada));
+          
+          // Calcular el índice del día (0-6 donde 0 es domingo)
+          const diasIndices: { [key: string]: number } = {
+            'domingo': 0, 'lunes': 1, 'martes': 2, 'miercoles': 3,
+            'jueves': 4, 'viernes': 5, 'sabado': 6
+          };
+          
+          // Validar que el día sea válido
+          if (!(asignacion.dia in diasIndices)) {
+            throw new Error(`Día inválido: ${asignacion.dia}`);
+          }
+          
+          const indiceDia = diasIndices[asignacion.dia];
+          
+          // Crear fecha para el día específico
+          const fechaAsignacion = new Date(fechaBase);
+          fechaAsignacion.setDate(fechaBase.getDate() + indiceDia);
+          
+          // Validar la fecha calculada
+          if (isNaN(fechaAsignacion.getTime())) {
+            throw new Error('Fecha de asignación inválida');
+          }
+
+          // Preparar datos según la nueva especificación
+          const programacionOptimizadaData = {
+            rut: rutPersonal,
+            cartera_id: carteraId,
+            cliente_id: asignacion.clienteId || undefined,
+            nodo_id: asignacion.nodoId || undefined,
+            fechas_trabajo: [fechaAsignacion.toISOString().split('T')[0]],
+            horas_estimadas: calcularHorasEstimadas(asignacion.horaInicio, asignacion.horaFin),
+            observaciones: asignacion.observaciones || '',
+            estado: 'programado'
+          };
+
+          console.log('📤 Creando programación optimizada:', programacionOptimizadaData);
+          const result = await apiService.crearProgramacionOptimizada(programacionOptimizadaData);
+          console.log('✅ Programación optimizada creada:', result);
           return result;
         } catch (apiError) {
           console.error('❌ Error específico de API:', apiError);
@@ -478,25 +582,26 @@ export const ProgramacionCalendarioModal: React.FC<ProgramacionCalendarioModalPr
             console.error('📊 Data:', axiosError.response?.data);
             console.error('📊 Headers:', axiosError.response?.headers);
             
-            if (axiosError.response?.status === 409) {
-              console.log('⚠️ Conflicto 409 detectado - el sistema permite múltiples asignaciones');
-              console.log('📝 Mensaje del backend:', axiosError.response?.data?.message || 'Conflicto de programación');
-              
-              // Para permitir múltiples asignaciones, simplemente retornamos éxito
-              console.log('✅ Múltiples asignaciones permitidas - continuando con la siguiente');
-              
-              // Retornar un objeto de éxito simulado
-              return {
-                success: true,
-                message: 'Asignación múltiple procesada',
-                data: {
-                  id: Date.now(), // ID temporal
-                  rut: rutPersonal,
-                  cartera_id: carteraId,
-                  fechas_trabajo: [fechaTrabajo.toISOString().split('T')[0]],
-                  estado: 'activo'
-                }
-              };
+            switch (axiosError.response?.status) {
+              case 400:
+                throw new Error('Datos inválidos o incompletos en la programación');
+              case 404:
+                throw new Error('No se encontró la persona, cartera, cliente o nodo especificado');
+              case 409:
+                console.log('⚠️ Conflicto detectado - actualizando programación existente');
+                return {
+                  success: true,
+                  message: 'Programación actualizada',
+                  data: {
+                    id: Date.now(),
+                    rut: rutPersonal,
+                    cartera_id: carteraId,
+                    fechas_trabajo: [fechaTrabajo.toISOString().split('T')[0]],
+                    estado: 'programado'
+                  }
+                };
+              default:
+                throw new Error('Error al crear la programación: ' + (axiosError.response?.data?.message || 'Error desconocido'));
             }
           }
           
@@ -536,13 +641,32 @@ export const ProgramacionCalendarioModal: React.FC<ProgramacionCalendarioModalPr
         console.error('📊 Status:', axiosError.response?.status);
         console.error('📊 Data:', axiosError.response?.data);
         console.error('📊 Headers:', axiosError.response?.headers);
+
+        // Manejo específico por código de error
+        switch (axiosError.response?.status) {
+          case 400:
+            setErrors(['Los datos de programación son inválidos o incompletos. Por favor, revise la información.']);
+            break;
+          case 401:
+            setErrors(['No tiene autorización para realizar esta operación.']);
+            break;
+          case 404:
+            setErrors(['No se encontró alguno de los elementos seleccionados (personal, cartera, cliente o nodo).']);
+            break;
+          case 409:
+            setErrors(['Ya existe una programación para esta persona en la fecha seleccionada.']);
+            break;
+          case 500:
+            setErrors(['Error interno del servidor. Por favor, intente más tarde.']);
+            break;
+          default:
+            const errorMessage = axiosError.response?.data?.message || axiosError.response?.data || 'Error desconocido';
+            setErrors([`Error al guardar las asignaciones: ${errorMessage}`]);
+        }
+      } else {
+        const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+        setErrors(['Error al guardar las asignaciones: ' + errorMessage]);
       }
-      
-      const errorMessage = error && typeof error === 'object' && 'response' in error 
-        ? `Error ${(error as any).response?.status}: ${(error as any).response?.data?.message || (error as any).response?.data || 'Error del servidor'}`
-        : (error instanceof Error ? error.message : 'Error desconocido');
-        
-      setErrors(['Error al guardar las asignaciones: ' + errorMessage]);
     } finally {
       setIsLoading(false);
     }
