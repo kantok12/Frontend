@@ -4,33 +4,86 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 // Hook para obtener programaciones de todas las carteras
 type CarteraResult = { cartera_id: string; nombre: string; response: any };
-function useAllCarterasProgramacion(carterasData: any): CarteraResult[] {
+function useAllCarterasProgramacion(carterasData: any, fecha_inicio?: string, fecha_fin?: string): { results: CarteraResult[]; loading: boolean } {
   const [allResults, setAllResults] = useState<CarteraResult[]>([]);
+  const [loading, setLoading] = useState(false);
   useEffect(() => {
-    if (!carterasData?.data) return;
+    let mounted = true;
+    if (!carterasData?.data) {
+      setAllResults([]);
+      setLoading(false);
+      return;
+    }
     const fetchAll = async () => {
+      setLoading(true);
       const results: CarteraResult[] = [];
       for (const cartera of carterasData.data) {
         try {
-          const res = await fetch(`/api/programacion-optimizada?cartera_id=${cartera.id}`);
+          let url = `/api/programacion-optimizada?cartera_id=${cartera.id}`;
+          if (fecha_inicio) url += `&fecha_inicio=${encodeURIComponent(fecha_inicio)}`;
+          if (fecha_fin) url += `&fecha_fin=${encodeURIComponent(fecha_fin)}`;
+          const res = await fetch(url);
           const json = await res.json();
           results.push({ cartera_id: cartera.id, nombre: cartera.nombre, response: json });
         } catch (e) {
           results.push({ cartera_id: cartera.id, nombre: cartera.nombre, response: { error: true, message: String(e) } });
         }
       }
-      setAllResults(results);
+      if (mounted) setAllResults(results);
+      setLoading(false);
     };
     fetchAll();
-  }, [carterasData]);
-  return allResults;
+    return () => { mounted = false; };
+  }, [carterasData, fecha_inicio, fecha_fin]);
+  return { results: allResults, loading };
 }
 
 const CalendarioPage: React.FC = () => {
 
+  // Helper: convertir string fecha 'YYYY-MM-DD' a nombre de día en español (lowercase)
+  const fechaToDiaSemana = (fecha?: string) => {
+    if (!fecha) return undefined;
+    // Try to parse robustly:
+    // - If fecha looks like an ISO datetime (contains 'T' or timezone), use UTC day to avoid local TZ shifts.
+    // - If it's a plain YYYY-MM-DD, construct a local date for that calendar day.
+    const map = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+    try {
+      if (fecha.includes('T') || fecha.includes('Z') || /[+\-][0-9]{2}:[0-9]{2}$/.test(fecha)) {
+        const d = new Date(fecha);
+        if (isNaN(d.getTime())) return undefined;
+        // Use UTC day so the calendar column is determined by the server-provided date itself, not the client's timezone.
+        return map[d.getUTCDay()];
+      }
+      // Plain date like YYYY-MM-DD (or YYYY-MM-DDTHH:...), fallback to parse date parts safely
+      const parts = fecha.split('-');
+      if (parts.length < 3) return undefined;
+      const year = Number(parts[0]);
+      const month = Number(parts[1]);
+      const day = Number(parts[2].split('T')[0]);
+      if (Number.isNaN(year) || Number.isNaN(month) || Number.isNaN(day)) return undefined;
+      const d = new Date(year, month - 1, day);
+      return map[d.getDay()];
+    } catch (e) {
+      return undefined;
+    }
+  };
+
   // Filtros de búsqueda y cartera
   const [search, setSearch] = useState('');
   const [cartera, setCartera] = useState('');
+  // Semana seleccionada: fecha de inicio (Lunes) en formato YYYY-MM-DD
+  const getMonday = (d: Date) => {
+    const date = new Date(d);
+    const day = date.getDay();
+    const diff = (day === 0 ? -6 : 1) - day; // move to Monday (if Sunday, go back 6)
+    date.setDate(date.getDate() + diff);
+    return date;
+  };
+  const defaultMonday = (() => {
+    const m = getMonday(new Date());
+    return m.toISOString().split('T')[0];
+  })();
+  const [weekStart, setWeekStart] = useState<string>(defaultMonday);
   // Modal para nueva programación
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({
@@ -41,8 +94,9 @@ const CalendarioPage: React.FC = () => {
     cliente_id: '', // store cliente id (number as string)
     fecha_trabajo: '',
     dia_semana: '',
+    fix_dia_en_bd: false,
     horas_estimadas: '',
-    estado: '',
+    estado: 'activo',
   });
 
   // Estado para colapsar/minimizar paneles de debug (inicialmente minimizados)
@@ -124,10 +178,14 @@ const CalendarioPage: React.FC = () => {
         horas_estimadas: nuevo.horas_estimadas ? Number(nuevo.horas_estimadas) : undefined,
         estado: nuevo.estado,
       };
-      if (nuevo.cliente_id) payload.cliente_id = Number(nuevo.cliente_id);
-      if (nuevo.dia_semana) payload.dia_semana = nuevo.dia_semana;
+  if (nuevo.cliente_id) payload.cliente_id = Number(nuevo.cliente_id);
       if (nuevo.cargo) payload.cargo = nuevo.cargo;
       if (nuevo.nombre_persona) payload.nombre_persona = nuevo.nombre_persona;
+      // Optionally include dia_semana calculated from fecha_trabajo to correct backend DB
+      if (nuevo.fix_dia_en_bd && nuevo.fecha_trabajo) {
+        const computed = fechaToDiaSemana(nuevo.fecha_trabajo);
+        if (computed) payload.dia_semana = computed;
+      }
   // (El debug visual ahora se muestra en un panel flotante, no alert)
   // --- Debug visual: JSON que se enviará al backend ---
   // (debe estar justo antes del return para estar en scope del JSX)
@@ -146,9 +204,16 @@ const CalendarioPage: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries(['programacion-optimizada']);
       setShowModal(false);
-      setForm({
-        nombre_persona: '', rut: '', cargo: '', cartera_id: '', cliente_id: '', fecha_trabajo: '', dia_semana: '', horas_estimadas: '', estado: '',
-      });
+        setForm({
+          nombre_persona: '', rut: '', cargo: '', cartera_id: '', cliente_id: '', fecha_trabajo: '', dia_semana: '', fix_dia_en_bd: false, horas_estimadas: '', estado: 'activo',
+        });
+      // Recargar la página para asegurarnos de que todas las visualizaciones (incluyendo las respuestas por cartera) se actualicen.
+      // Esto evita inconsistencias si hay caches o fetches paralelos que no se invalidan automáticamente.
+      try {
+        window.location.reload();
+      } catch (e) {
+        // en entornos sin window (tests) simplemente ignorar
+      }
     },
   });
 
@@ -168,7 +233,20 @@ const CalendarioPage: React.FC = () => {
 
   // Panel flotante para mostrar el JSON de todas las carteras
 
-  const allCarterasResults = useAllCarterasProgramacion(carterasData);
+  // compute week end (Sunday) from weekStart
+  const weekEnd = (() => {
+    if (!weekStart) return '';
+    const parts = weekStart.split('-');
+    if (parts.length < 3) return '';
+    const y = Number(parts[0]);
+    const m = Number(parts[1]);
+    const d = Number(parts[2]);
+    const dt = new Date(y, m - 1, d);
+    dt.setDate(dt.getDate() + 6);
+    return dt.toISOString().split('T')[0];
+  })();
+
+  const { results: allCarterasResults, loading: loadingCarteras } = useAllCarterasProgramacion(carterasData, weekStart, weekEnd);
   // Procesar datos para tabla simple, mostrando registros de todas las carteras
   const programacion: any[] = [];
   if (allCarterasResults && allCarterasResults.length > 0) {
@@ -186,7 +264,8 @@ const CalendarioPage: React.FC = () => {
                 nombre_cartera: trabajador.nombre_cartera || carteraRes.nombre,
                 nombre_cliente: trabajador.nombre_cliente && trabajador.nombre_cliente !== '' ? trabajador.nombre_cliente : '-',
                 fecha_trabajo: trabajador.fecha_trabajo,
-                dia_semana: trabajador.dia_semana || prog.dia_semana,
+                // Preferir calcular el día desde la fecha (evita que el backend guarde por defecto 'domingo' por zona horaria)
+                dia_semana: fechaToDiaSemana(trabajador.fecha_trabajo) || (trabajador.dia_semana ? String(trabajador.dia_semana).toLowerCase() : undefined),
                 horas_estimadas: trabajador.horas_estimadas,
                 estado: trabajador.estado,
                 cartera_id: trabajador.cartera_id || carteraRes.cartera_id,
@@ -252,6 +331,27 @@ const CalendarioPage: React.FC = () => {
               <option key={c.id} value={c.nombre}>{c.nombre}</option>
             ))}
           </select>
+          {/* Week selector (start Monday) */}
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-gray-600">Semana inicio (Lun):</label>
+            <input type="date" className="border px-2 py-1 rounded-md text-sm" value={weekStart} onChange={e => {
+              const v = e.target.value;
+              // normalize to Monday for selected date
+              try {
+                const parts = v.split('-');
+                if (parts.length === 3) {
+                  const dt = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+                  const monday = getMonday(dt).toISOString().split('T')[0];
+                  setWeekStart(monday);
+                } else {
+                  setWeekStart(v);
+                }
+              } catch (e) {
+                setWeekStart(v);
+              }
+            }} />
+            <div className="text-sm text-gray-500">— {weekStart} → {weekEnd}</div>
+          </div>
         </div>
         <button
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium"
@@ -315,79 +415,85 @@ const CalendarioPage: React.FC = () => {
       {showModal && (
         <>
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
-            <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md relative">
-              <button className="absolute top-2 right-2 text-gray-400 hover:text-gray-600" onClick={() => setShowModal(false)}>&times;</button>
-              <h2 className="text-lg font-semibold mb-4">Nueva programación</h2>
+            <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-2xl relative ring-1 ring-gray-100">
+              <button aria-label="Cerrar" className="absolute top-3 right-3 text-gray-400 hover:text-gray-600 bg-white rounded-full w-7 h-7 flex items-center justify-center border border-transparent hover:shadow" onClick={() => setShowModal(false)}>×</button>
+              <div className="mb-4">
+                <h2 className="text-2xl md:text-3xl font-bold">Nueva programación</h2>
+                <p className="text-sm text-gray-500 mt-1">Selecciona persona, cartera, cliente y fecha para crear la programación.</p>
+              </div>
               <form
                 onSubmit={e => {
                   e.preventDefault();
                   mutation.mutate(form);
                 }}
-                className="space-y-3"
+                className="space-y-4"
               >
-              <select
-                className="border px-2 py-1 rounded w-full text-sm"
-                value={form.rut}
-                onChange={e => {
-                  const rut = e.target.value;
-                  const persona = personalDisponibleData?.data?.find((p: any) => p.rut === rut);
-                  setForm(f => ({
-                    ...f,
-                    rut,
-                    nombre_persona: persona ? (persona.nombre ? persona.nombre + (persona.apellido ? ' ' + persona.apellido : '') : persona.rut) : '',
-                    cargo: persona?.cargo || '',
-                  }));
-                }}
-                required
-                disabled={loadingPersonal}
-              >
-                <option value="">Selecciona persona disponible</option>
-                {personalDisponibleData?.data?.map((p: any) => (
-                  <option key={p.rut} value={p.rut}>
-                    {(p.nombres || p.nombre || '') + (p.apellido ? ' ' + p.apellido : '')} | {p.rut} | {p.cargo}
-                  </option>
-                ))}
-              </select>
-              <select className="border px-2 py-1 rounded w-full text-sm" value={form.cartera_id} onChange={e => setForm(f => ({ ...f, cartera_id: e.target.value, cliente_id: '' }))} required>
-                <option value="">Selecciona cartera</option>
-                {carterasData?.data?.map((c: any) => (
-                  <option key={c.id} value={c.id}>{c.nombre}</option>
-                ))}
-              </select>
-              <select
-                className="border px-2 py-1 rounded w-full text-sm"
-                value={form.cliente_id}
-                onChange={e => setForm(f => ({ ...f, cliente_id: e.target.value }))}
-                required
-                disabled={loadingClientes || !form.cartera_id}
-              >
-                <option value="">Selecciona cliente</option>
-                {clientesCartera.map((cli: any) => (
-                  <option key={cli.id} value={cli.id}>{cli.nombre}</option>
-                ))}
-              </select>
-              <input className="border px-2 py-1 rounded w-full text-sm" type="date" placeholder="Fecha" value={form.fecha_trabajo} onChange={e => setForm(f => ({ ...f, fecha_trabajo: e.target.value }))} required />
-              <select
-                className="border px-2 py-1 rounded w-full text-sm"
-                value={form.dia_semana}
-                onChange={e => setForm(f => ({ ...f, dia_semana: e.target.value }))}
-                required
-              >
-                <option value="">Selecciona día</option>
-                <option value="lunes">Lunes</option>
-                <option value="martes">Martes</option>
-                <option value="miércoles">Miércoles</option>
-                <option value="jueves">Jueves</option>
-                <option value="viernes">Viernes</option>
-                <option value="sábado">Sábado</option>
-                <option value="domingo">Domingo</option>
-              </select>
-              <input className="border px-2 py-1 rounded w-full text-sm" placeholder="Horas estimadas" value={form.horas_estimadas} onChange={e => setForm(f => ({ ...f, horas_estimadas: e.target.value }))} required />
-              <input className="border px-2 py-1 rounded w-full text-sm" placeholder="Estado" value={form.estado} onChange={e => setForm(f => ({ ...f, estado: e.target.value }))} required />
-              <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded font-medium mt-2" disabled={mutation.isLoading}>
-                {mutation.isLoading ? 'Guardando...' : 'Guardar'}
-              </button>
-              {mutation.isError && <div className="text-red-500 text-sm">Error al guardar</div>}
+              <div className="grid grid-cols-2 gap-3">
+                <select className="border px-3 py-2 rounded-md w-full text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-200" value={form.cartera_id} onChange={e => setForm(f => ({ ...f, cartera_id: e.target.value, cliente_id: '' }))} required>
+                  <option value="">Selecciona cartera</option>
+                  {carterasData?.data?.map((c: any) => (
+                    <option key={c.id} value={c.id}>{c.nombre}</option>
+                  ))}
+                </select>
+                <select
+                  className="border px-3 py-2 rounded-md w-full text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                  value={form.cliente_id}
+                  onChange={e => setForm(f => ({ ...f, cliente_id: e.target.value }))}
+                  required
+                  disabled={loadingClientes || !form.cartera_id}
+                >
+                  <option value="">Selecciona cliente</option>
+                  {clientesCartera.map((cli: any) => (
+                    <option key={cli.id} value={cli.id}>{cli.nombre}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <select
+                  className="border px-3 py-2 rounded-md w-full text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-200 mt-2"
+                  value={form.rut}
+                  onChange={e => {
+                    const rut = e.target.value;
+                    const persona = personalDisponibleData?.data?.find((p: any) => p.rut === rut);
+                    setForm(f => ({
+                      ...f,
+                      rut,
+                      nombre_persona: persona ? (persona.nombre ? persona.nombre + (persona.apellido ? ' ' + persona.apellido : '') : persona.rut) : '',
+                      cargo: persona?.cargo || '',
+                    }));
+                  }}
+                  required
+                  disabled={loadingPersonal}
+                >
+                  <option value="">Selecciona persona disponible</option>
+                  {personalDisponibleData?.data?.map((p: any) => (
+                    <option key={p.rut} value={p.rut}>
+                      {(p.nombres || p.nombre || '') + (p.apellido ? ' ' + p.apellido : '')} | {p.rut} | {p.cargo}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <input className="border px-3 py-2 rounded-md w-full text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200" type="date" placeholder="Fecha" value={form.fecha_trabajo} onChange={e => setForm(f => ({ ...f, fecha_trabajo: e.target.value }))} required />
+                <div className="mt-2 text-sm text-gray-600">Día (calculado): <strong className="capitalize text-gray-800">{fechaToDiaSemana(form.fecha_trabajo) || '-'}</strong></div>
+              </div>
+              <div className="flex items-center gap-2">
+                <input id="fix_dia" type="checkbox" checked={!!form.fix_dia_en_bd} onChange={e => setForm(f => ({ ...f, fix_dia_en_bd: e.target.checked }))} />
+                <label htmlFor="fix_dia" className="text-sm text-gray-700">Enviar día calculado para corregir DB</label>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <input className="border px-3 py-2 rounded-md w-full text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-200" placeholder="Horas estimadas" value={form.horas_estimadas} onChange={e => setForm(f => ({ ...f, horas_estimadas: e.target.value }))} required />
+                <select className="border px-3 py-2 rounded-md w-full text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-200" value={form.estado} onChange={e => setForm(f => ({ ...f, estado: e.target.value }))} required>
+                  <option value="activo">Activo</option>
+                  <option value="progreso">Progreso</option>
+                </select>
+              </div>
+              <div>
+                <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-md font-semibold shadow" disabled={mutation.isLoading}>
+                  {mutation.isLoading ? 'Guardando...' : 'Guardar'}
+                </button>
+                {mutation.isError && <div className="text-red-500 text-sm mt-2">Error al guardar</div>}
+              </div>
               </form>
             </div>
             {/* Panel flotante de debug JSON (minimizable) */}
@@ -433,25 +539,39 @@ const CalendarioPage: React.FC = () => {
         </>
       )}
 
-      <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+  <div className="bg-white rounded-lg shadow-lg border overflow-hidden relative" style={{ padding: 8 }}>
+        {(isLoading || loadingCarteras) && (
+          <div style={{ position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 40 }}>
+            <div style={{ textAlign: 'center' }}>
+              <svg width="56" height="56" viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <linearGradient id="g1" x1="0%" x2="100%">
+                    <stop offset="0%" stopColor="#06b6d4" />
+                    <stop offset="100%" stopColor="#3b82f6" />
+                  </linearGradient>
+                </defs>
+                <circle cx="25" cy="25" r="20" stroke="url(#g1)" strokeWidth="4" fill="none" strokeLinecap="round" strokeDasharray="31.4 31.4">
+                  <animateTransform attributeName="transform" type="rotate" from="0 25 25" to="360 25 25" dur="1s" repeatCount="indefinite" />
+                </circle>
+              </svg>
+              <div style={{ marginTop: 8, color: '#374151', fontWeight: 600 }}>Cargando programaciones...</div>
+            </div>
+          </div>
+        )}
         <div className="overflow-x-auto">
-          <table className="min-w-full border border-gray-300 mt-4">
+          <table className="min-w-full border border-gray-200 mt-4 bg-white" style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
             <thead>
               <tr className="bg-gray-50">
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nombre</th>
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">RUT</th>
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cargo</th>
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cartera</th>
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cartera ID</th>
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cliente</th>
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cliente ID</th>
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nodo ID</th>
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th>
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Día</th>
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Horas</th>
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Creado</th>
+                <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider" style={{ borderRight: 'none', position: 'sticky', left: 0, zIndex: 30, background: '#fff', minWidth: 160 }}>Cartera</th>
+                <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider" style={{ borderLeft: 'none', position: 'sticky', left: 160, zIndex: 29, background: '#fff', minWidth: 220 }}>Cliente</th>
+                {/* Weekday columns: Lunes..Domingo */}
+                <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Lunes</th>
+                <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Martes</th>
+                <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Miércoles</th>
+                <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Jueves</th>
+                <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Viernes</th>
+                <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Sábado</th>
+                <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Domingo</th>
               </tr>
             </thead>
             <tbody>
@@ -465,24 +585,82 @@ const CalendarioPage: React.FC = () => {
                 {filtered.length === 0 && !isLoading && !error && (
                   <tr><td colSpan={9} className="text-center py-4 text-gray-400">No hay datos</td></tr>
                 )}
-                {filtered.map((row: any, idx: number) => (
-                  <tr key={row.id || idx} className="border-t">
-                    <td className="px-2 py-2 text-xs">{row.id}</td>
-                    <td className="px-2 py-2 text-xs">{row.nombre_persona}</td>
-                    <td className="px-2 py-2 text-xs">{row.rut}</td>
-                    <td className="px-2 py-2 text-xs">{row.cargo}</td>
-                    <td className="px-2 py-2 text-xs">{row.nombre_cartera}</td>
-                    <td className="px-2 py-2 text-xs">{row.cartera_id}</td>
-                    <td className="px-2 py-2 text-xs">{row.nombre_cliente || '-'}</td>
-                    <td className="px-2 py-2 text-xs">{row.cliente_id}</td>
-                    <td className="px-2 py-2 text-xs">{row.nodo_id || '-'}</td>
-                    <td className="px-2 py-2 text-xs">{row.fecha_trabajo ? new Date(row.fecha_trabajo).toLocaleDateString() : '-'}</td>
-                    <td className="px-2 py-2 text-xs">{row.dia_semana}</td>
-                    <td className="px-2 py-2 text-xs">{row.horas_estimadas}</td>
-                    <td className="px-2 py-2 text-xs">{row.estado}</td>
-                    <td className="px-2 py-2 text-xs">{row.created_at ? new Date(row.created_at).toLocaleString() : '-'}</td>
-                  </tr>
-                ))}
+                {/* Agrupar filas por cartera: una fila por cartera. Mostrar lista vertical de clientes y lista vertical de personal (nombre/rut/cargo) alineadas por índice. */}
+                {(() => {
+                  // Build groups by cartera, and inside each cartera group clients with personnel assigned to that client
+                  type Person = { nombre_persona: string; rut: string; cargo: string; days: string[] };
+                  type ClientGroup = { id: any; name: string; personnel: Person[] };
+                  const groups: Record<string, { cartera: string; cartera_id: any; clients: ClientGroup[] }> = {};
+                  filtered.forEach((row: any) => {
+                    const key = row.nombre_cartera || 'Sin cartera';
+                    if (!groups[key]) groups[key] = { cartera: key, cartera_id: row.cartera_id, clients: [] };
+                    const clienteId = row.cliente_id || ('cli_' + (row.nombre_cliente || 'sin'));
+                    const clienteName = row.nombre_cliente && row.nombre_cliente !== '' ? row.nombre_cliente : '—';
+                    let client = groups[key].clients.find((c: ClientGroup) => String(c.id) === String(clienteId));
+                    if (!client) {
+                      client = { id: clienteId, name: clienteName, personnel: [] };
+                      groups[key].clients.push(client);
+                    }
+                    // add person to client if not present, and collect assigned days
+                    const pRut = row.rut || String(Math.random());
+                    let person = client.personnel.find((p: Person) => p.rut === pRut);
+                    if (!person) {
+                      person = { nombre_persona: row.nombre_persona || '—', rut: row.rut || '—', cargo: row.cargo || '—', days: [] };
+                      client.personnel.push(person);
+                    }
+                    const dia = row.dia_semana ? String(row.dia_semana).toLowerCase() : undefined;
+                    if (dia && !person.days.includes(dia)) person.days.push(dia);
+                  });
+                  const grouped = Object.values(groups);
+                  // Ahora generamos una fila por cliente (sub-filas) dentro de cada cartera.
+                  const dias = ['lunes','martes','miércoles','jueves','viernes','sábado','domingo'];
+                  return grouped.flatMap((g, gi) => {
+                    const clients = g.clients || [];
+                    // Precompute clients info: keep a stable persons order and build dayLists aligned to that order
+                    const clientsInfo = clients.map((client: any) => {
+                      const persons = (client.personnel as Person[]) || [];
+                      // Make ordering deterministic (sort by nombre_persona) so the same person keeps the same sub-row across all days
+                      const sortedPersons = [...persons].sort((a, b) => (a.nombre_persona || '').localeCompare(b.nombre_persona || ''));
+                      const dayLists = dias.map(day => sortedPersons.map(p => p.days.includes(day) ? p.nombre_persona : undefined));
+                      const maxRows = Math.max(1, sortedPersons.length);
+                      return { id: client.id, name: client.name, dayLists, maxRows, persons: sortedPersons };
+                    });
+                    const totalRowsForCartera = clientsInfo.reduce((s, c) => s + c.maxRows, 0) || 1;
+
+                    // For each client, render client.maxRows TRs. Show cartera cell once with rowspan=totalRowsForCartera.
+                    const rows: any[] = [];
+                    clientsInfo.forEach((ci, clientIndex) => {
+                      for (let r = 0; r < ci.maxRows; r++) {
+                          const trClass = r === 0 ? 'border-t align-top' : 'align-top';
+                          rows.push(
+                            <tr key={`${g.cartera}_${gi}_cli_${clientIndex}_row_${r}`} className={`${trClass} hover:bg-gray-50`}>
+                              {clientIndex === 0 && r === 0 && (
+                                <td className="px-3 py-3 text-xs font-medium align-top" rowSpan={totalRowsForCartera} style={{ borderRight: 'none', position: 'sticky', left: 0, zIndex: 20, background: '#fff' }}>{g.cartera}</td>
+                              )}
+                              {r === 0 ? (
+                                <td className="px-3 py-3 text-xs align-top" style={{ minWidth: 220, borderLeft: 'none', position: 'sticky', left: 160, zIndex: 19, background: '#fff' }} rowSpan={ci.maxRows}>{ci.name}</td>
+                              ) : null}
+                              {dias.map((day, dIdx) => {
+                                const name = (ci.dayLists[dIdx] && ci.dayLists[dIdx][r]) || undefined;
+                                return (
+                                  <td key={day} className="px-2 py-2 text-xs align-top border-l border-gray-200">
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', minHeight: 28 }}>
+                                      {name ? (
+                                        <div style={{ fontSize: 12, background: 'linear-gradient(90deg,#10b981,#06b6d4)', color: '#fff', padding: '6px 8px', borderRadius: 9999, boxShadow: '0 1px 3px rgba(16,185,129,0.12)', fontWeight: 600 }}>{name}</div>
+                                      ) : (
+                                        <div style={{ width: 20, height: 20, borderRadius: 10, border: '1px solid transparent', margin: '0 auto' }} />
+                                      )}
+                                    </div>
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          );
+                        }
+                    });
+                    return rows;
+                  });
+                })()}
               </>
             </tbody>
           </table>
