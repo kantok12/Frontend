@@ -53,7 +53,7 @@ export const Header: React.FC<HeaderProps> = ({ onMenuToggle, onNotificacionesTo
           </button>
 
           {/* Settings */}
-          <button 
+          <button
             onClick={() => navigate('/configuracion')}
             className="p-2.5 text-white hover:text-blue-100 hover:bg-white/10 rounded-xl transition-all duration-200"
             title="Configuración de usuario"

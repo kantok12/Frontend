@@ -138,6 +138,19 @@ export const ConfiguracionPage: React.FC = () => {
     fileInputRef.current?.click();
   };
 
+  // Safety: stringify unknown error for rendering
+  const errorText: string | null = (() => {
+    if (!error) return null;
+    if (typeof error === 'string') return error;
+    const anyErr = error as any;
+    if (anyErr?.message) return String(anyErr.message);
+    try {
+      return JSON.stringify(error, Object.getOwnPropertyNames(error), 2);
+    } catch (e) {
+      return String(error);
+    }
+  })();
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -153,7 +166,13 @@ export const ConfiguracionPage: React.FC = () => {
           <div className="flex flex-col items-center">
             <XCircle className="h-16 w-16 text-red-500 mb-4" />
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Error al cargar información</h2>
-            <p className="text-gray-600 mb-6">No se pudo obtener la información del usuario.</p>
+            <p className="text-gray-600 mb-4">No se pudo obtener la información del usuario.</p>
+            {errorText && (
+              <div className="w-full mb-4 p-3 bg-gray-50 rounded-md border border-gray-200 text-sm text-red-700">
+                <strong>Detalle:</strong>
+                <pre className="whitespace-pre-wrap text-xs mt-2">{errorText}</pre>
+              </div>
+            )}
             <button
               onClick={() => navigate(-1)}
               className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"

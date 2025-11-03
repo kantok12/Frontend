@@ -20,7 +20,7 @@ export const useNotificaciones = () => {
   
   
   // Estado local para notificaciones eliminadas (leídas)
-  const [notificacionesEliminadas, setNotificacionesEliminadas] = useState<Set<string>>(new Set());
+  // Ahora usamos las notificaciones del backend (/api/auditoria/notificaciones)
 
   // Obtener datos de documentos vencidos y por vencer
   const { data: documentosVencidos, isLoading: isLoadingVencidos } = useDocumentosVencidos();
@@ -56,320 +56,47 @@ export const useNotificaciones = () => {
   
   const { data: auditoriaEstadisticas, isLoading: isLoadingAuditoriaEstadisticas } = useAuditoriaEstadisticas(30);
 
-  // Cargar notificaciones eliminadas del localStorage al inicializar
-  useEffect(() => {
-    const eliminadasGuardadas = localStorage.getItem('notificaciones-eliminadas');
-    if (eliminadasGuardadas) {
-      try {
-        const eliminadas = JSON.parse(eliminadasGuardadas);
-        setNotificacionesEliminadas(new Set(eliminadas));
-      } catch (error) {
-        console.error('Error al cargar notificaciones eliminadas:', error);
-      }
-    }
-  }, []);
+  // NOTE: Notifications are now sourced from the backend via useAuditoriaNotificaciones
+  // The client no longer persists read/removed state in localStorage here.
 
-  // Guardar notificaciones eliminadas en localStorage cuando cambien
-  useEffect(() => {
-    localStorage.setItem('notificaciones-eliminadas', JSON.stringify(Array.from(notificacionesEliminadas)));
-  }, [notificacionesEliminadas]);
-
-  // Generar notificaciones basadas en los datos obtenidos
+  // Map server notifications (auditoriaNotificaciones) to our internal shape
   const generarNotificaciones = (): NotificacionDocumento[] => {
     const notificaciones: NotificacionDocumento[] = [];
 
-    // Notificaciones de documentos vencidos
-    if (documentosVencidos?.data) {
-      documentosVencidos.data.forEach((doc: any) => {
-        const notificacionId = `doc_vencido_${doc.id}`;
-        // Solo agregar si no está eliminada
-        if (!notificacionesEliminadas.has(notificacionId)) {
-          notificaciones.push({
-            id: notificacionId,
-            tipo: 'documento_vencido',
-            prioridad: 'alta',
-            titulo: 'Documento Vencido',
-            mensaje: `El documento "${doc.nombre_documento}" de ${doc.personal?.nombres || 'Personal'} está vencido hace ${Math.abs(doc.dias_restantes || 0)} días`,
-            personal_id: doc.rut_persona,
-            personal_nombre: doc.personal?.nombres,
-            documento_id: doc.id,
-            documento_nombre: doc.nombre_documento,
-            fecha_vencimiento: doc.fecha_vencimiento,
-            dias_restantes: doc.dias_restantes,
-            leida: false, // Todas las notificaciones activas son no leídas
-            fecha_creacion: new Date().toISOString(),
-            accion_requerida: 'Renovar Documento'
-          });
-        }
-      });
-    }
-
-    // Notificaciones de personal sin asignación esta semana
-    if (personalData?.data?.items && programacionData) {
-      const personalList = personalData.data.items;
-      const programacionList = programacionData;
-      
-      // Obtener RUTs de personal asignado esta semana
-      const rutAsignados = new Set();
-      programacionList.forEach((dia: any) => {
-        if (dia.trabajadores) {
-          dia.trabajadores.forEach((trabajador: any) => {
-            rutAsignados.add(trabajador.rut);
-          });
-        }
-      });
-
-      // Buscar personal activo sin asignación
-      personalList.forEach((personal: any) => {
-        if (personal.activo && !rutAsignados.has(personal.rut)) {
-          const notificacionId = `personal_sin_asignacion_${personal.rut}`;
-          if (!notificacionesEliminadas.has(notificacionId)) {
-            notificaciones.push({
-              id: notificacionId,
-              tipo: 'personal_sin_asignacion',
-              prioridad: 'media',
-              titulo: 'Personal Sin Asignación',
-              mensaje: `${personal.nombres} ${personal.apellidos} no tiene asignaciones para esta semana`,
-              personal_id: personal.rut,
-              personal_nombre: `${personal.nombres} ${personal.apellidos}`,
-              documento_id: null,
-              documento_nombre: null,
-              fecha_vencimiento: null,
-              dias_restantes: null,
-              leida: false,
-              fecha_creacion: new Date().toISOString(),
-              accion_requerida: 'Asignar Personal'
-            });
-          }
-        }
-      });
-    }
-
-    // Notificaciones de servicios con problemas
-    if (estadisticasServicios?.data) {
-      const serviciosData = estadisticasServicios.data;
-      
-      // Notificación si hay muchos nodos sin personal asignado
-      if (serviciosData.totales?.nodos > serviciosData.totales?.personal_asignado) {
-        const notificacionId = 'servicios_sin_personal';
-        if (!notificacionesEliminadas.has(notificacionId)) {
-          notificaciones.push({
-            id: notificacionId,
-            tipo: 'servicios_sin_personal',
-            prioridad: 'media',
-            titulo: 'Servicios Sin Personal',
-            mensaje: `Hay ${serviciosData.totales.nodos - serviciosData.totales.personal_asignado} nodos sin personal asignado`,
-            personal_id: null,
-            personal_nombre: null,
-            documento_id: null,
-            documento_nombre: null,
-            fecha_vencimiento: null,
-            dias_restantes: null,
-            leida: false,
-            fecha_creacion: new Date().toISOString(),
-            accion_requerida: 'Revisar Asignaciones'
-          });
-        }
-      }
-    }
-
-    // Notificaciones de auditoría - Dashboard de actividad crítica
-    if (auditoriaDashboard?.data) {
-      // Manejar diferentes estructuras de respuesta
-      const actividades = auditoriaDashboard.data.actividades || auditoriaDashboard.data.data || auditoriaDashboard.data || [];
-      
-      if (Array.isArray(actividades) && actividades.length > 0) {
-        actividades.forEach((actividad: any, index: number) => {
-          const notificacionId = `auditoria_critica_${actividad.id || actividad._id || index}`;
-          if (!notificacionesEliminadas.has(notificacionId)) {
-            notificaciones.push({
-              id: notificacionId,
-              tipo: 'auditoria_critica',
-              prioridad: 'alta',
-              titulo: 'Actividad Crítica Detectada',
-              mensaje: `${actividad.accion || actividad.action || 'Acción'} en ${actividad.tabla || actividad.table || 'sistema'}: ${actividad.descripcion || actividad.description || actividad.mensaje || 'Sin descripción'}`,
-              personal_id: actividad.usuario_id || actividad.usuarioId || actividad.user_id || null,
-              personal_nombre: actividad.usuario_nombre || actividad.usuarioNombre || actividad.user_name || null,
-              documento_id: null,
-              documento_nombre: null,
-              fecha_vencimiento: null,
-              dias_restantes: null,
-              leida: false,
-              fecha_creacion: actividad.fecha_creacion || actividad.fechaCreacion || actividad.created_at || new Date().toISOString(),
-              accion_requerida: 'Revisar Auditoría'
-            });
-          }
+    // Prefer server-provided notifications as authoritative
+    const notifs = auditoriaNotificaciones?.data?.notificaciones || auditoriaNotificaciones?.data?.data || auditoriaNotificaciones?.data || [];
+    if (Array.isArray(notifs)) {
+      notifs.forEach((notif: any) => {
+        notificaciones.push({
+          id: String(notif.id || notif._id || Math.random()),
+          tipo: notif.tipo || notif.type || 'auditoria_sistema',
+          prioridad: (notif.prioridad || notif.priority || 'media') as 'alta' | 'media' | 'baja',
+          titulo: notif.titulo || notif.title || 'Notificación del Sistema',
+          mensaje: notif.mensaje || notif.message || 'Sin mensaje',
+          personal_id: notif.usuario_id || notif.usuarioId || notif.user_id || null,
+          personal_nombre: notif.usuario_nombre || notif.usuarioNombre || notif.user_name || null,
+          documento_id: notif.documento_id || null,
+          documento_nombre: notif.documento_nombre || null,
+          fecha_vencimiento: notif.fecha_vencimiento || null,
+          dias_restantes: notif.dias_restantes || null,
+          leida: !!notif.leida || !!notif.read || false,
+          fecha_creacion: notif.fecha_creacion || notif.fechaCreacion || notif.created_at || new Date().toISOString(),
+          accion_requerida: notif.accion_requerida || notif.accionRequerida || notif.action_required || 'Revisar'
         });
-      }
-    }
-
-    // Notificaciones de auditoría - Notificaciones no leídas del sistema
-    if (auditoriaNotificaciones?.data) {
-      // Manejar diferentes estructuras de respuesta
-      const notifs = auditoriaNotificaciones.data.notificaciones || auditoriaNotificaciones.data.data || auditoriaNotificaciones.data || [];
-      
-      if (Array.isArray(notifs) && notifs.length > 0) {
-        notifs.forEach((notif: any) => {
-          const notificacionId = `auditoria_sistema_${notif.id || notif._id || Math.random()}`;
-          if (!notificacionesEliminadas.has(notificacionId)) {
-            notificaciones.push({
-              id: notificacionId,
-              tipo: 'auditoria_sistema',
-              prioridad: (notif.prioridad || notif.priority || 'media') as 'alta' | 'media' | 'baja',
-              titulo: notif.titulo || notif.title || 'Notificación del Sistema',
-              mensaje: notif.mensaje || notif.message || 'Sin mensaje',
-              personal_id: notif.usuario_id || notif.usuarioId || notif.user_id || null,
-              personal_nombre: notif.usuario_nombre || notif.usuarioNombre || notif.user_name || null,
-              documento_id: null,
-              documento_nombre: null,
-              fecha_vencimiento: null,
-              dias_restantes: null,
-              leida: notif.leida || notif.read || false,
-              fecha_creacion: notif.fecha_creacion || notif.fechaCreacion || notif.created_at || new Date().toISOString(),
-              accion_requerida: notif.accion_requerida || notif.accionRequerida || notif.action_required || 'Revisar'
-            });
-          }
-        });
-      }
-    }
-
-    // Notificaciones de auditoría - Estadísticas de los últimos 30 días
-    if (auditoriaEstadisticas?.data) {
-      // Manejar diferentes estructuras de respuesta
-      const stats = auditoriaEstadisticas.data.estadisticas || auditoriaEstadisticas.data.data || auditoriaEstadisticas.data || {};
-      
-      // Notificación si hay muchas actividades críticas
-      const actividadesCriticas = stats.actividades_criticas || stats.actividadesCriticas || stats.critical_activities || 0;
-      if (actividadesCriticas > 10) {
-        const notificacionId = 'auditoria_muchas_criticas';
-        if (!notificacionesEliminadas.has(notificacionId)) {
-          notificaciones.push({
-            id: notificacionId,
-            tipo: 'auditoria_estadisticas',
-            prioridad: 'alta',
-            titulo: 'Alto Número de Actividades Críticas',
-            mensaje: `Se han detectado ${actividadesCriticas} actividades críticas en los últimos 30 días`,
-            personal_id: null,
-            personal_nombre: null,
-            documento_id: null,
-            documento_nombre: null,
-            fecha_vencimiento: null,
-            dias_restantes: null,
-            leida: false,
-            fecha_creacion: new Date().toISOString(),
-            accion_requerida: 'Revisar Estadísticas'
-          });
-        }
-      }
-
-      // Notificación si hay muchas modificaciones en programación
-      const modificacionesProgramacion = stats.modificaciones_programacion || stats.modificacionesProgramacion || stats.programming_modifications || 0;
-      if (modificacionesProgramacion > 20) {
-        const notificacionId = 'auditoria_muchas_modificaciones';
-        if (!notificacionesEliminadas.has(notificacionId)) {
-          notificaciones.push({
-            id: notificacionId,
-            tipo: 'auditoria_estadisticas',
-            prioridad: 'media',
-            titulo: 'Frecuentes Modificaciones en Programación',
-            mensaje: `Se han realizado ${modificacionesProgramacion} modificaciones en programación en los últimos 30 días`,
-            personal_id: null,
-            personal_nombre: null,
-            documento_id: null,
-            documento_nombre: null,
-            fecha_vencimiento: null,
-            dias_restantes: null,
-            leida: false,
-            fecha_creacion: new Date().toISOString(),
-            accion_requerida: 'Revisar Patrones'
-          });
-        }
-      }
-    }
-
-    // Notificaciones de documentos por vencer
-    if (documentosPorVencer?.data) {
-      documentosPorVencer.data.forEach((doc: any) => {
-        const diasRestantes = doc.dias_restantes || 0;
-        let prioridad: 'alta' | 'media' | 'baja' = 'baja';
-        
-        if (diasRestantes <= 7) prioridad = 'alta';
-        else if (diasRestantes <= 15) prioridad = 'media';
-
-        const notificacionId = `doc_por_vencer_${doc.id}`;
-        // Solo agregar si no está eliminada
-        if (!notificacionesEliminadas.has(notificacionId)) {
-          notificaciones.push({
-            id: notificacionId,
-            tipo: 'documento_por_vencer',
-            prioridad,
-            titulo: 'Documento por Vencer',
-            mensaje: `El documento "${doc.nombre_documento}" de ${doc.personal?.nombres || 'Personal'} vence en ${diasRestantes} días`,
-            personal_id: doc.rut_persona,
-            personal_nombre: doc.personal?.nombres,
-            documento_id: doc.id,
-            documento_nombre: doc.nombre_documento,
-            fecha_vencimiento: doc.fecha_vencimiento,
-            dias_restantes: diasRestantes,
-            leida: false, // Todas las notificaciones activas son no leídas
-            fecha_creacion: new Date().toISOString(),
-            accion_requerida: 'Renovar Documento'
-          });
-        }
-      });
-    }
-
-    // Notificaciones de cursos vencidos
-    if (cursosVencidos?.data) {
-      cursosVencidos.data.forEach((curso: any) => {
-        const notificacionId = `curso_vencido_${curso.id}`;
-        // Solo agregar si no está eliminada
-        if (!notificacionesEliminadas.has(notificacionId)) {
-          notificaciones.push({
-            id: notificacionId,
-            tipo: 'documento_vencido', // Usar el mismo tipo para cursos
-            prioridad: 'alta',
-            titulo: 'Curso Vencido',
-            mensaje: `El curso "${curso.nombre_curso}" de ${curso.personal?.nombres || 'Personal'} está vencido`,
-            personal_id: curso.personal_id,
-            personal_nombre: curso.personal?.nombres,
-            documento_id: curso.id,
-            documento_nombre: curso.nombre_curso,
-            fecha_vencimiento: curso.fecha_vencimiento,
-            dias_restantes: curso.dias_restantes,
-            leida: false, // Todas las notificaciones activas son no leídas
-            fecha_creacion: new Date().toISOString(),
-            accion_requerida: 'Renovar Curso'
-          });
-        }
       });
     }
 
     return notificaciones;
   };
 
-  // Obtener notificaciones generadas - usar useMemo para recalcular cuando cambien los datos o el estado de eliminadas
-  // Obtener notificaciones generadas - usar useMemo para recalcular cuando cambien los datos
-  const notificaciones = React.useMemo(() => generarNotificaciones(), [
-    documentosVencidos?.data,
-    documentosPorVencer?.data,
-    cursosVencidos?.data,
-    personalData?.data?.items,
-    programacionData,
-    estadisticasServicios?.data,
-    auditoriaDashboard?.data,
-    auditoriaNotificaciones?.data,
-    auditoriaEstadisticas?.data,
-    notificacionesEliminadas
-  ]);
+  // Obtener notificaciones generadas - recalcular cuando cambien las notificaciones del backend
+  const notificaciones = React.useMemo(() => generarNotificaciones(), [auditoriaNotificaciones?.data]);
   
   // Contar notificaciones no leídas (todas las activas son no leídas)
   const notificacionesNoLeidas = notificaciones.length;
   
   // Debug: Log para verificar el contador
-  console.log('🔔 Notificaciones activas:', notificaciones.length);
-  console.log('🔔 Notificaciones eliminadas:', notificacionesEliminadas.size);
-  console.log('🔔 Total eliminadas:', Array.from(notificacionesEliminadas));
+  console.log('🔔 Notificaciones activas (server):', notificaciones.length);
   
   // Agrupar notificaciones por prioridad
   const notificacionesPorPrioridad = {
@@ -378,36 +105,36 @@ export const useNotificaciones = () => {
     baja: notificaciones.filter(n => n.prioridad === 'baja')
   };
 
-  // Mutation para eliminar notificación (marcar como leída)
+  // Mutation para marcar una notificación como leída en el backend
   const marcarComoLeida = useMutation({
-    mutationFn: (notificacionId: string) => {
-      // Agregar a notificaciones eliminadas
-      setNotificacionesEliminadas(prev => {
-        const nuevoSet = new Set(prev);
-        nuevoSet.add(notificacionId);
-        return nuevoSet;
-      });
-      return Promise.resolve({ success: true, id: notificacionId });
+    mutationFn: async (notificacionId: string) => {
+      // Llamada al endpoint PUT /api/auditoria/notificaciones/:id/marcar-leida
+      const url = `/api/auditoria/notificaciones/${encodeURIComponent(notificacionId)}/marcar-leida`;
+      const resp = await fetch(url, { method: 'PUT' });
+      if (!resp.ok) throw new Error('Error marcando notificación como leída');
+      return resp.json();
     },
     onSuccess: (_, notificacionId) => {
-      console.log(`Notificación ${notificacionId} eliminada (marcada como leída)`);
+      // Invalidar la query de notificaciones para refrescar el estado
+      queryClient.invalidateQueries(['auditoria', 'notificaciones', false]);
+      console.log(`Notificación ${notificacionId} marcada como leída en servidor`);
     },
   });
 
-  // Mutation para eliminar todas las notificaciones (marcar todas como leídas)
+  // Mutation para marcar todas las notificaciones como leídas (iterando en backend)
   const marcarTodasComoLeidas = useMutation({
-    mutationFn: () => {
-      // Eliminar todas las notificaciones actuales
-      const todasLasIds = notificaciones.map(n => n.id);
-      setNotificacionesEliminadas(prev => {
-        const nuevoSet = new Set(prev);
-        todasLasIds.forEach(id => nuevoSet.add(id));
-        return nuevoSet;
-      });
-      return Promise.resolve({ success: true });
+    mutationFn: async () => {
+      const ids = notificaciones.map(n => n.id);
+      // Ejecutar secuencialmente para simplicidad
+      for (const id of ids) {
+        const url = `/api/auditoria/notificaciones/${encodeURIComponent(id)}/marcar-leida`;
+        await fetch(url, { method: 'PUT' });
+      }
+      return { success: true };
     },
     onSuccess: () => {
-      console.log('Todas las notificaciones eliminadas (marcadas como leídas)');
+      queryClient.invalidateQueries(['auditoria', 'notificaciones', false]);
+      console.log('Todas las notificaciones marcadas como leídas en servidor');
     },
   });
 
@@ -468,9 +195,9 @@ export const useNotificaciones = () => {
 
   // Función para restaurar todas las notificaciones eliminadas (útil para testing)
   const limpiarNotificacionesLeidas = () => {
-    setNotificacionesEliminadas(new Set());
-    localStorage.removeItem('notificaciones-eliminadas');
-    console.log('Todas las notificaciones eliminadas han sido restauradas');
+    // Al usar notificaciones del backend, simplemente invalidamos la cache
+    queryClient.invalidateQueries(['auditoria', 'notificaciones']);
+    console.log('Solicitado refresco de notificaciones (backend).');
   };
 
 
@@ -495,7 +222,7 @@ export const useNotificaciones = () => {
     navegarADocumentos,
     
     // Estados de mutations
-    isMarkingAsRead: marcarComoLeida.isPending,
-    isMarkingAllAsRead: marcarTodasComoLeidas.isPending,
+    isMarkingAsRead: marcarComoLeida.isLoading,
+    isMarkingAllAsRead: marcarTodasComoLeidas.isLoading,
   };
 };

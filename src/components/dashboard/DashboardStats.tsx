@@ -17,11 +17,15 @@ import {
   LineChart,
   Line,
   Area,
-  AreaChart
+  AreaChart,
+  BarChart,
+  Bar,
+  Legend
 } from 'recharts';
 import { useDashboardStats } from '../../hooks/useDashboard';
 import { usePersonalList } from '../../hooks/usePersonal';
 import { useEstadisticasServicios } from '../../hooks/useServicios';
+import useResumenPersonalPorCliente from '../../hooks/useResumenPersonalPorCliente';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { PersonalInfoModal } from './PersonalInfoModal';
 import { PersonalTrabajandoModal } from './PersonalTrabajandoModal';
@@ -114,6 +118,11 @@ export const DashboardStats: React.FC = () => {
   
   const totalEventos = 0; // TODO: Implementar carga de eventos reales desde el backend
   const eventosHoy = 0; // TODO: Implementar carga de eventos reales desde el backend
+
+  // Obtener resumen de personal por cliente para calcular total personas asignadas
+  const { data: resumenData } = useResumenPersonalPorCliente();
+  const resumenRows: any[] = resumenData?.data || [];
+  const totalPersonasAsignadasResumen = resumenRows.reduce((s, r) => s + (Number(r.total_personal) || 0), 0);
 
   // Usar datos reales del backend
   const serviciosData = estadisticasServicios?.data;
@@ -271,8 +280,8 @@ export const DashboardStats: React.FC = () => {
         </div>
         <div className="stagger-item animate-delay-300">
           <StatCard
-            title="Eventos Programados"
-            value={dashboardStats.total_eventos}
+            title="Personal asignado"
+            value={totalPersonasAsignadasResumen || dashboardStats.total_eventos}
             icon={<Calendar className="h-6 w-6 text-white" />}
             color="bg-gradient-to-br from-purple-500 to-purple-600"
             onClick={() => setShowEventosModal(true)}
@@ -294,12 +303,11 @@ export const DashboardStats: React.FC = () => {
 
       {/* Gráfico de tendencia y eventos por día */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-        {/* Tendencia de servicios */}
+        {/* Comparativa de Personal: mini-sparklines para comparar tendencia de cada métrica */}
         <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-semibold text-gray-900">Programación de Servicios</h3>
+            <h3 className="text-lg font-semibold text-gray-900">Comparativa de Personal</h3>
             <div className="flex items-center space-x-2">
-              <TrendingUp className="h-5 w-5 text-gray-400" />
               <div className="flex bg-gray-100 rounded-lg p-1">
                 <button
                   onClick={() => setSemanaActualTendencias(true)}
@@ -324,75 +332,46 @@ export const DashboardStats: React.FC = () => {
               </div>
             </div>
           </div>
-          <ResponsiveContainer width="100%" height={300}>
-            <AreaChart data={tendenciaServicios}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="name" stroke="#6b7280" />
-              <YAxis stroke="#6b7280" />
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: '#fff', 
-                  border: '1px solid #e5e7eb', 
-                  borderRadius: '8px',
-                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-                }}
-                labelFormatter={(value, payload) => {
-                  if (payload && payload[0]) {
-                    const data = payload[0].payload;
-                    return `${data.name} - ${new Date(data.fecha).toLocaleDateString('es-CL')}`;
-                  }
-                  return value;
-                }}
-                formatter={(value, name) => {
-                  if (name === 'totalServicios') return [`${value} servicios`, 'Total Servicios'];
-                  if (name === 'totalPersonal') return [`${value} personas`, 'Personal Asignado'];
-                  if (name === 'serviciosCompletados') return [`${value} servicios`, 'Servicios Completados'];
-                  return [value, name];
-                }}
-              />
-              <Area 
-                type="monotone" 
-                dataKey="totalServicios" 
-                stackId="1" 
-                stroke="#3B82F6" 
-                fill="#3B82F6" 
-                fillOpacity={0.6}
-                name="Total Servicios"
-              />
-              <Area 
-                type="monotone" 
-                dataKey="totalPersonal" 
-                stackId="2" 
-                stroke="#10B981" 
-                fill="#10B981" 
-                fillOpacity={0.6}
-                name="Personal Asignado"
-              />
-              <Area 
-                type="monotone" 
-                dataKey="serviciosCompletados" 
-                stackId="3" 
-                stroke="#F59E0B" 
-                fill="#F59E0B" 
-                fillOpacity={0.6}
-                name="Servicios Completados"
-              />
-            </AreaChart>
+
+          {/* Datos agrupados por día (o single point si no hay tendencia) */}
+          <ResponsiveContainer width="100%" height={280}>
+            {
+              (tendenciaServicios && tendenciaServicios.length) ? (
+                <BarChart data={tendenciaServicios} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis dataKey="name" stroke="#6b7280" />
+                  <YAxis stroke="#6b7280" />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
+                    formatter={(value, name) => {
+                      if (name === 'totalPersonal') return [`${value} personas`, 'Total Personal'];
+                      if (name === 'personalTrabajando') return [`${value} personas`, 'Personal en Servicio'];
+                      if (name === 'personalAsignado') return [`${value} personas`, 'Personal Asignado'];
+                      return [value, name];
+                    }}
+                  />
+                  <Legend />
+                  <Bar dataKey="totalPersonal" name="Total Personal" fill="#3B82F6" />
+                  <Bar dataKey="personalTrabajando" name="Personal en Servicio" fill="#10B981" />
+                  <Bar dataKey="personalAsignado" name="Personal Asignado" fill="#8B5CF6" />
+                </BarChart>
+              ) : (
+                <BarChart data={[{ name: 'Actual', totalPersonal: dashboardStats.total_personal ?? 0, personalTrabajando: dashboardStats.personal_trabajando ?? 0, personalAsignado: totalPersonasAsignadasResumen ?? 0 }]} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis dataKey="name" stroke="#6b7280" />
+                  <YAxis stroke="#6b7280" />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
+                    formatter={(value, name) => [`${value} personas`, name]}
+                  />
+                  <Legend />
+                  <Bar dataKey="totalPersonal" name="Total Personal" fill="#3B82F6" />
+                  <Bar dataKey="personalTrabajando" name="Personal en Servicio" fill="#10B981" />
+                  <Bar dataKey="personalAsignado" name="Personal Asignado" fill="#8B5CF6" />
+                </BarChart>
+              )
+            }
           </ResponsiveContainer>
-          <div className="mt-4 flex justify-center space-x-6">
-            <div className="flex items-center">
-              <div className="w-3 h-3 bg-blue-500 rounded-full mr-2"></div>
-              <span className="text-sm text-gray-600">Total Servicios</span>
-            </div>
-            <div className="flex items-center">
-              <div className="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
-              <span className="text-sm text-gray-600">Personal Asignado</span>
-            </div>
-            <div className="flex items-center">
-              <div className="w-3 h-3 bg-orange-500 rounded-full mr-2"></div>
-              <span className="text-sm text-gray-600">Servicios Completados</span>
-            </div>
-          </div>
         </div>
 
         {/* Eventos por día */}
