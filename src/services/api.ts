@@ -1594,6 +1594,39 @@ class ApiService {
     return response.data;
   }
 
+  // Registrar un documento que existe en almacenamiento externo (p.e. Google Drive)
+  // POST /api/documentos/registrar-existente
+  async registerExistingDocument(payload: any): Promise<ApiResponse<any>> {
+    try {
+      // Extraer y mapear los campos del objeto file al formato que espera el backend
+      const mappedPayload = {
+        rut_persona: payload.rut_persona,
+        nombre_documento: payload.nombre_documento,
+        tipo_documento: payload.tipo_documento,
+        // Extraer campos del objeto file
+        nombre_archivo: payload.file?.nombre_archivo || payload.file?.nombre_original || payload.file?.name,
+        ruta_local: payload.file?.ruta_local || payload.file?.path || payload.file?.ruta,
+        // Metadatos opcionales
+        descripcion: payload.descripcion,
+        fecha_emision: payload.fecha_emision,
+        fecha_vencimiento: payload.fecha_vencimiento,
+        dias_validez: payload.dias_validez,
+        estado_documento: payload.estado_documento,
+        institucion_emisora: payload.institucion_emisora,
+      };
+
+      console.log('📤 Payload mapeado para registrar-existente:', mappedPayload);
+
+      const response: AxiosResponse<ApiResponse<any>> = await this.api.post('/documentos/registrar-existente', mappedPayload);
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ Error al registrar documento existente:', error);
+      console.error('❌ Payload original:', payload);
+      console.error('❌ Respuesta del servidor:', error.response?.data);
+      throw error;
+    }
+  }
+
   // ==================== MÉTODOS PARA COMPATIBILIDAD ====================
 
   // GET /api/programacion-compatibilidad

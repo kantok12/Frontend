@@ -157,34 +157,84 @@ export const useCursoById = (id: number) => {
 };
 
 
-// Hook para crear curso (según documentación de la API)
+// Hook para crear curso (según documentación actualizada de la API)
+// Ahora POST /api/cursos acepta multipart/form-data y maneja archivos
 export const useCreateCurso = () => {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: (data: CreateCursoData) => {
+    mutationFn: (data: CreateCursoData | FormData) => {
+      // Si ya viene como FormData (con archivo), enviarlo directamente
+      if (data instanceof FormData) {
+        return apiService.createCurso(data);
+      }
+      
+      // Si viene como objeto, validar y convertir si tiene archivo
+      const cursoData = data as CreateCursoData;
+      
       // Validar datos requeridos según la documentación
-      if (!data.rut_persona || !data.nombre_curso) {
+      if (!cursoData.rut_persona || !cursoData.nombre_curso) {
         throw new Error('RUT de la persona y nombre del curso son requeridos');
       }
       
-      // Asegurar que el estado tenga un valor por defecto
-      const cursoData = {
-        ...data,
-        estado: data.estado || 'completado' // Valor por defecto según documentación
+      // Si tiene archivo, crear FormData
+      if (cursoData.archivo) {
+        const formData = new FormData();
+        formData.append('rut_persona', cursoData.rut_persona);
+        formData.append('nombre_curso', cursoData.nombre_curso);
+        
+        if (cursoData.fecha_inicio) formData.append('fecha_inicio', cursoData.fecha_inicio);
+        if (cursoData.fecha_fin) formData.append('fecha_fin', cursoData.fecha_fin);
+        if (cursoData.fecha_vencimiento) formData.append('fecha_vencimiento', cursoData.fecha_vencimiento);
+        if (cursoData.fecha_obtencion) formData.append('fecha_obtencion', cursoData.fecha_obtencion);
+        formData.append('estado', cursoData.estado || 'completado');
+        if (cursoData.institucion) formData.append('institucion', cursoData.institucion);
+        if (cursoData.descripcion) formData.append('descripcion', cursoData.descripcion);
+        
+        // Agregar archivo (backend ahora lo guarda automáticamente en cursos_certificaciones/)
+        formData.append('archivo', cursoData.archivo);
+        
+        // Metadatos opcionales del documento
+        if (cursoData.fecha_emision) formData.append('fecha_emision', cursoData.fecha_emision);
+        if (cursoData.dias_validez) formData.append('dias_validez', cursoData.dias_validez.toString());
+        if (cursoData.institucion_emisora) formData.append('institucion_emisora', cursoData.institucion_emisora);
+        
+        return apiService.createCurso(formData);
+      }
+      
+      // Si no tiene archivo, enviar como JSON (comportamiento original)
+      const cursoDataToSend = {
+        ...cursoData,
+        estado: cursoData.estado || 'completado'
       };
       
-      return apiService.createCurso(cursoData);
+      return apiService.createCurso(cursoDataToSend);
     },
     onSuccess: (response, variables) => {
+      // Obtener RUT desde FormData o desde el objeto
+      let rutPersona: string | null = null;
+      
+      if (variables instanceof FormData) {
+        rutPersona = variables.get('rut_persona') as string;
+      } else if ('rut_persona' in variables) {
+        rutPersona = variables.rut_persona || null;
+      }
+      
       // eslint-disable-next-line no-console
-      console.log('✅ Curso creado exitosamente, invalidando queries para RUT:', variables.rut_persona);
+      console.log('✅ Curso creado exitosamente (con archivo si se incluyó), invalidando queries para RUT:', rutPersona);
+      
       // Invalidar queries relacionadas
       queryClient.invalidateQueries({ queryKey: ['cursos'] });
-      queryClient.invalidateQueries({ queryKey: ['cursos', 'persona', variables.rut_persona] });
+      if (rutPersona) {
+        queryClient.invalidateQueries({ queryKey: ['cursos', 'persona', rutPersona] });
+        // También invalidar documentos ya que el backend registra el archivo automáticamente
+        queryClient.invalidateQueries({ queryKey: ['documentos', 'persona', rutPersona] });
+      }
       queryClient.invalidateQueries({ queryKey: ['cursos', 'stats'] });
+      queryClient.invalidateQueries({ queryKey: ['documentos'] });
+      
       // eslint-disable-next-line no-console
-      console.log('🔄 Queries invalidadas para refrescar datos');
+      console.log('🔄 Queries invalidadas para refrescar datos (cursos y documentos)');
     },
     onError: (error: any) => {
       console.error('❌ Error al crear curso:', error);

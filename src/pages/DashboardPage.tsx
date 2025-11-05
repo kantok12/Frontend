@@ -2,8 +2,6 @@ import React from 'react';
 import { useDashboardStats } from '../hooks/useDashboard';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { DashboardStats } from '../components/dashboard/DashboardStats';
-import ResumenPersonalWidget from '../components/dashboard/ResumenPersonalWidget';
-import ResumenPersonalDetalle from '../components/dashboard/ResumenPersonalDetalle';
 
 export const DashboardPage: React.FC = () => {
   const { data: stats, isLoading, error } = useDashboardStats();
@@ -36,14 +34,6 @@ export const DashboardPage: React.FC = () => {
         {/* Stats Cards y Gráficos */}
         <div className="slide-up animate-delay-200">
           <DashboardStats />
-        </div>
-
-        {/* Información adicional: Resumen Personal y detalle */}
-        <div className="mt-8 grid grid-cols-1 gap-8">
-          <div className="grid grid-cols-1 gap-6">
-            <ResumenPersonalWidget />
-            <ResumenPersonalDetalle />
-          </div>
         </div>
 
       </div>

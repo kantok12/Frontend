@@ -725,9 +725,7 @@ export const ServiciosPage: React.FC = () => {
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Nodos
                           </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Mín. Personal
-                          </th>
+                          
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Fecha Creación
                           </th>
@@ -865,15 +863,7 @@ export const ServiciosPage: React.FC = () => {
                                 </div>
                               </Tooltip>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="flex items-center text-sm text-gray-900">
-                                <Users className="h-4 w-4 mr-1 text-green-500" />
-                                {(() => {
-                                  const minimoPersonal = getMinimoPersonalCliente((item as Cliente).id);
-                                  return minimoPersonal ? `${minimoPersonal} personas` : 'No definido';
-                                })()}
-                              </div>
-                            </td>
+                            
                             <td className="px-6 py-4 whitespace-nowrap">
                               <div className="text-sm text-gray-900">
                                 {new Date((item as Cliente).created_at).toLocaleDateString()}

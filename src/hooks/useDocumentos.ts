@@ -108,8 +108,8 @@ export const useDocumentosByPersona = (rut: string) => {
 
 // Tipos de documentos por defecto (según documentación de la API)
 const TIPOS_DOCUMENTOS_DEFAULT = [
-  // Documentos de Cursos y Certificados
-  { label: 'Certificado de Curso', value: 'certificado_curso', categoria: 'cursos' },
+  // Documentos de Cursos y Certificados (se guardan en cursos_certificaciones/)
+  { label: 'Certificado de Curso', value: 'certificado_curso', categoria: 'cursos' }, // ⭐ RECOMENDADO para cursos
   { label: 'Diploma', value: 'diploma', categoria: 'cursos' },
   { label: 'Certificado de Seguridad', value: 'certificado_seguridad', categoria: 'cursos' },
   { label: 'Certificado de Vencimiento', value: 'certificado_vencimiento', categoria: 'cursos' },
@@ -209,15 +209,14 @@ export const useUploadDocumento = () => {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: (documentoData: FormData) => {
+  mutationFn: (documentoData: FormData) => {
       // Validar que el FormData tenga los campos requeridos
       const rutPersona = documentoData.get('rut_persona');
       const nombreDocumento = documentoData.get('nombre_documento');
-      const tipoDocumento = documentoData.get('tipo_documento');
       const archivo = documentoData.get('archivo');
       
-      if (!rutPersona || !nombreDocumento || !tipoDocumento || !archivo) {
-        throw new Error('Faltan campos requeridos: rut_persona, nombre_documento, tipo_documento, archivo');
+      if (!rutPersona || !nombreDocumento || !archivo) {
+        throw new Error('Faltan campos requeridos: rut_persona, nombre_documento, archivo');
       }
       
       // Validar que el archivo sea una instancia de File
@@ -273,6 +272,54 @@ export const useDeleteDocumento = () => {
       queryClient.invalidateQueries({ queryKey: ['documentos', 'persona'] });
       queryClient.invalidateQueries({ queryKey: ['documentos', 'curso'] });
     },
+  });
+};
+
+// Hook para registrar un documento que ya existe en almacenamiento externo (p.e. Google Drive)
+export const useRegisterDocumentoExistente = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: any) => {
+      // Log para debugging: mostrar carpeta destino según tipo_documento
+      const esCurso = payload.tipo_documento && ['certificado_curso', 'diploma', 'curso', 'certificacion', 'certificación', 'curso/certificacion', 'curso/certificación']
+        .includes(payload.tipo_documento.toLowerCase());
+      const carpetaDestino = esCurso ? 'cursos_certificaciones/' : 'documentos/';
+      
+      console.log('📂 Registrando documento existente:', {
+        rut_persona: payload.rut_persona,
+        nombre_documento: payload.nombre_documento,
+        tipo_documento: payload.tipo_documento || '(no especificado)',
+        carpeta_destino: carpetaDestino,
+        file: payload.file
+      });
+      
+      return apiService.registerExistingDocument(payload);
+    },
+    onSuccess: (data: any, variables: any) => {
+      // Invalidar caches relacionados para refrescar la lista de documentos de la persona
+      const rut = variables?.rut_persona || variables?.rut || (variables && variables.rut_persona) || null;
+      queryClient.invalidateQueries({ queryKey: ['documentos'] });
+      if (rut) queryClient.invalidateQueries({ queryKey: ['documentos', 'persona', rut] });
+      queryClient.invalidateQueries({ queryKey: ['documentos', 'curso'] });
+    },
+    onError: (error: any) => {
+      console.error('❌ Error al registrar documento existente:', error);
+
+      // Manejar errores específicos según la respuesta del backend
+      if (error.response?.status === 409) { // Código 409 para conflicto (archivo duplicado)
+        throw new Error('El archivo ya existe en el backend o en la carpeta destino.');
+      } else if (error.response?.status === 400) {
+        throw new Error('Datos inválidos. Verifique que todos los campos estén correctamente completados.');
+      } else if (error.response?.status === 413) {
+        throw new Error('El archivo es demasiado grande. Máximo permitido: 100MB.');
+      } else if (error.response?.status === 500) {
+        throw new Error('Error interno del servidor. Por favor, intente nuevamente más tarde.');
+      }
+
+      // Lanzar error genérico para otros casos
+      throw error;
+    }
   });
 };
 
@@ -346,9 +393,7 @@ export const validateDocumentoData = (data: CreateDocumentoData): string[] => {
     errors.push('Nombre del documento es requerido');
   }
   
-  if (!data.tipo_documento || data.tipo_documento.trim().length === 0) {
-    errors.push('Tipo de documento es requerido');
-  }
+  // tipo_documento es opcional
   
   if (!data.archivo) {
     errors.push('Archivo es requerido');
@@ -370,8 +415,15 @@ export const createDocumentoFormData = (data: CreateDocumentoData): FormData => 
   // Usar 'rut_persona' en lugar de 'personal_id' según la documentación
   formData.append('rut_persona', data.personal_id); // El backend espera 'rut_persona'
   formData.append('nombre_documento', data.nombre_documento);
-  formData.append('tipo_documento', data.tipo_documento);
-  formData.append('archivo', data.archivo); // Campo requerido según documentación
+  
+  // tipo_documento es opcional - El backend usa este campo para decidir carpeta destino:
+  // - Si es 'curso', 'certificacion', etc. → guarda en cursos_certificaciones/
+  // - Si no se especifica o es otro valor → guarda en documentos/
+  if (data.tipo_documento) {
+    formData.append('tipo_documento', data.tipo_documento);
+  }
+  
+  formData.append('archivo', data.archivo); // Campo requerido según documentación (singular, no 'files')
   
   // Agregar descripción si existe
   if (data.descripcion) {
@@ -400,10 +452,15 @@ export const createDocumentoFormData = (data: CreateDocumentoData): FormData => 
   }
   
   // Debug: Log del FormData creado
+  const esCurso = data.tipo_documento && ['certificado_curso', 'diploma', 'curso', 'certificacion', 'certificación', 'curso/certificacion', 'curso/certificación']
+    .includes(data.tipo_documento.toLowerCase());
+  const carpetaDestino = esCurso ? 'cursos_certificaciones/' : 'documentos/';
+  
   console.log('🔍 FormData creado según documentación de la API:', {
     rut_persona: data.personal_id,
     nombre_documento: data.nombre_documento,
-    tipo_documento: data.tipo_documento,
+    tipo_documento: data.tipo_documento || '(no especificado)',
+    carpeta_destino: carpetaDestino,
     descripcion: data.descripcion || 'Sin descripción',
     fecha_emision: data.fecha_emision || 'Sin fecha',
     fecha_vencimiento: data.fecha_vencimiento || 'Sin fecha',

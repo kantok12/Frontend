@@ -1,6 +1,7 @@
-
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 // Hook para obtener programaciones de todas las carteras
 type CarteraResult = { cartera_id: string; nombre: string; response: any };
@@ -309,6 +310,54 @@ const CalendarioPage: React.FC = () => {
   // Panel flotante para mostrar el JSON de todas las carteras (declarado más arriba)
   
     // Panel flotante para mostrar el JSON de todas las carteras
+  const exportToPDF = () => {
+    const tableElement = document.querySelector('.min-w-full') as HTMLElement; // Selector for the table
+    if (!tableElement) {
+      console.error('No se encontró la tabla para exportar.');
+      return;
+    }
+
+    html2canvas(tableElement, { scale: 2 }).then(canvas => {
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('landscape', 'mm', 'a4');
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save('planificacion.pdf');
+    }).catch(error => {
+      console.error('Error al generar el PDF:', error);
+    });
+  };
+
+  const copyWeekSchedule = async () => {
+    try {
+      const response = await fetch('/api/programacion-optimizada/copiar-semana', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          fecha_inicio: weekStart, // Fecha de inicio de la semana actual
+          cartera_id: form.cartera_id, // ID de la cartera seleccionada
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Error al copiar la programación semanal');
+      }
+
+      const result = await response.json();
+      alert('Programación copiada exitosamente a la siguiente semana');
+      console.log('Resultado:', result);
+      // Opcional: Refrescar la vista
+      window.location.reload();
+    } catch (error) {
+      console.error('Error al copiar la programación:', error);
+      alert('Hubo un problema al copiar la programación.');
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Filtros y botón */}
@@ -353,12 +402,20 @@ const CalendarioPage: React.FC = () => {
             <div className="text-sm text-gray-500">— {weekStart} → {weekEnd}</div>
           </div>
         </div>
-        <button
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium"
-          onClick={() => setShowModal(true)}
-        >
-          + Nueva programación
-        </button>
+        <div className="flex gap-2">
+          <button
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+            onClick={() => setShowModal(true)}
+          >
+            + Nueva programación
+          </button>
+          <button
+            className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-md text-sm font-medium"
+            onClick={copyWeekSchedule}
+          >
+            Copiar Programación a la Siguiente Semana
+          </button>
+        </div>
       </div>
 
       {/* Modal de nueva programación */}
@@ -665,6 +722,15 @@ const CalendarioPage: React.FC = () => {
             </tbody>
           </table>
         </div>
+      </div>
+
+      <div className="flex justify-center mt-6">
+        <button
+          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium"
+          onClick={exportToPDF}
+        >
+          Exportar Programación a PDF
+        </button>
       </div>
     </div>
   );

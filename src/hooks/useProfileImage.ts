@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '../services/api';
+import { API_CONFIG } from '../config/api';
 import { ProfileImageResponse } from '../types';
 
 export const useProfileImage = (rut: string) => {
@@ -77,7 +78,24 @@ export const useProfileImage = (rut: string) => {
   // Actualizar la imagen local cuando cambien los datos
   useEffect(() => {
     if (profileImageData?.data?.profile_image_url) {
-      setProfileImage(profileImageData.data.profile_image_url);
+      let url = profileImageData.data.profile_image_url;
+
+      // Normalizar URL: si la API devuelve una ruta relativa (p.e. "/uploads/.."),
+      // convertirla a absoluta apuntando al host API (sin el sufijo /api).
+      try {
+        const isAbsolute = /^https?:\/\//i.test(url);
+        if (!isAbsolute) {
+          // API_CONFIG.BASE_URL suele ser 'http://host:port/api' — quitar '/api' si existe
+          const base = API_CONFIG.BASE_URL.replace(/\/api\/?$/i, '');
+          // Evitar duplicar slashes
+          url = `${base}${url.startsWith('/') ? '' : '/'}${url}`;
+        }
+      } catch (e) {
+        // En caso de error al normalizar, usar la URL tal cual
+        console.warn('⚠️ Error normalizando profile_image_url:', e);
+      }
+
+      setProfileImage(url);
     } else {
       setProfileImage(null);
     }

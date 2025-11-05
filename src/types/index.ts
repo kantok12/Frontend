@@ -388,6 +388,11 @@ export interface CreateCursoData {
   certificado?: boolean;
   observaciones?: string;
   activo?: boolean;
+  // Nuevos campos para soporte de archivos (POST /api/cursos ahora acepta multipart/form-data)
+  archivo?: File; // Archivo adjunto del curso (se guarda en cursos_certificaciones/)
+  fecha_emision?: string; // Fecha de emisión del documento
+  dias_validez?: number; // Días de validez del documento
+  institucion_emisora?: string; // Institución emisora del documento
 }
 
 export interface UpdateCursoData {
@@ -408,7 +413,7 @@ export interface UpdateCursoData {
 export interface CreateDocumentoData {
   personal_id: string;
   nombre_documento: string;
-  tipo_documento: string;
+  tipo_documento?: string;
   archivo: File;
   descripcion?: string; // Campo opcional según documentación de la API
   fecha_emision?: string;

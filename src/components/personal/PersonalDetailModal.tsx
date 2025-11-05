@@ -11,7 +11,7 @@ import { useProfileImage } from '../../hooks/useProfileImage';
 import { X, User, MapPin, ShirtIcon, Car, Activity, Edit, Save, XCircle, GraduationCap, Plus, Trash2, FileText, Upload, Download } from 'lucide-react';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { CursoModal } from './CursoModal';
-import DocumentModal from './DocumentModal';
+import SubirDocumentoModal from './SubirDocumentoModal';
 import CourseDocumentModal from './CourseDocumentModal';
 import EditDocumentModal from './EditDocumentModal';
 
@@ -92,25 +92,40 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
   // Filtrar documentos por categorías
   const todosDocumentos = (documentosData?.data as any)?.documentos || [];
   
+  console.log('� Documentos totales:', todosDocumentos.length);
+  
   // Documentos de cursos y certificados
-  const courseDocuments = todosDocumentos.filter((doc: any) => 
-    doc.tipo_documento === 'certificado_curso' || 
-    doc.tipo_documento === 'diploma' ||
-    doc.tipo_documento === 'certificado_seguridad' ||
-    doc.tipo_documento === 'certificado_vencimiento'
-  );
+  // Incluye: curso, certificacion, certificación y tipos legacy
+  const courseDocuments = todosDocumentos.filter((doc: any) => {
+    const tipo = doc.tipo_documento?.toLowerCase() || '';
+    return tipo === 'curso' || 
+           tipo === 'certificacion' || 
+           tipo === 'certificación' ||
+           tipo === 'curso/certificacion' ||
+           tipo === 'curso/certificación' ||
+           tipo === 'certificado_curso' || 
+           tipo === 'diploma' ||
+           tipo === 'certificado_seguridad' ||
+           tipo === 'certificado_vencimiento';
+  });
+  
+  console.log('� Documentos de cursos:', courseDocuments.length);
   
   // Documentos personales (carnet, exámenes, licencias, etc.)
-  const personalDocuments = todosDocumentos.filter((doc: any) => 
-    doc.tipo_documento === 'carnet_identidad' ||
-    doc.tipo_documento === 'examenes_preocupacionales' ||
-    doc.tipo_documento === 'licencia_conducir' ||
-    doc.tipo_documento === 'certificado_medico' ||
-    doc.tipo_documento === 'certificado_laboral' ||
-    doc.tipo_documento === 'contrato_trabajo' ||
-    doc.tipo_documento === 'fotografia_personal' ||
-    doc.tipo_documento === 'otro'
-  );
+  const personalDocuments = todosDocumentos.filter((doc: any) => {
+    const tipo = doc.tipo_documento?.toLowerCase() || '';
+    // Si no es un curso/certificación, entonces es documento personal
+    const esCurso = tipo === 'curso' || 
+                    tipo === 'certificacion' || 
+                    tipo === 'certificación' ||
+                    tipo === 'curso/certificacion' ||
+                    tipo === 'curso/certificación' ||
+                    tipo === 'certificado_curso' || 
+                    tipo === 'diploma' ||
+                    tipo === 'certificado_seguridad' ||
+                    tipo === 'certificado_vencimiento';
+    return !esCurso;
+  });
   const downloadMutation = useDownloadDocumento();
   
   // Función utilitaria para descargar archivos
@@ -826,7 +841,9 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                   <div className="flex justify-center py-4"><LoadingSpinner /></div>
                 ) : courseDocuments.length > 0 ? (
                   <div className="space-y-3">
-                    {courseDocuments.map((documento: any) => (
+                    {courseDocuments.map((documento: any) => {
+                      console.log('✅ Renderizando documento:', documento.nombre_documento);
+                      return (
                       <div key={documento.id} className="bg-white rounded-lg border border-purple-200 p-3 hover:shadow-md transition-shadow">
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
@@ -868,7 +885,7 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                           </div>
                         </div>
                       </div>
-                    ))}
+                    )})}
                   </div>
                 ) : (
                   <div className="text-center py-8">
@@ -973,14 +990,13 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
         personalId={personal?.id || ''}
       />
 
-      {/* Modal de Documentos */}
-      <DocumentModal
+      {/* Modal de Documentos (Nuevo SubirDocumentoModal) */}
+      <SubirDocumentoModal
         isOpen={showDocumentModal}
         onClose={handleDocumentModalClose}
         onSuccess={handleDocumentSuccess}
         rutPersona={personal?.rut || ''}
         nombrePersona={`${personal?.nombre || 'Sin nombre'} ${personal?.apellido || 'Sin apellido'}`.trim()}
-        personalId={personal?.id || ''}
       />
 
       {/* Modal de Documentos de Cursos */}
