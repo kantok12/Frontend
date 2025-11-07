@@ -1,6 +1,7 @@
 import React from 'react';
 import { User } from 'lucide-react';
 import { useProfileImage } from '../../hooks/useProfileImage';
+import { API_CONFIG } from '../../config/api';
 
 interface ProfileImageProps {
   rut: string;
@@ -18,6 +19,8 @@ export const ProfileImage: React.FC<ProfileImageProps> = ({
   className = ''
 }) => {
   const { profileImage, loading } = useProfileImage(rut);
+  const [imageError, setImageError] = React.useState(false);
+  const imageUrl = profileImage || `${API_CONFIG.BASE_URL}/personal/${encodeURIComponent(rut)}/image/download`;
 
   const sizeClasses = {
     sm: 'h-8 w-8',
@@ -37,16 +40,12 @@ export const ProfileImage: React.FC<ProfileImageProps> = ({
         <div className="animate-pulse">
           <User className={`${iconSizes[size]} text-primary-600`} />
         </div>
-      ) : profileImage ? (
-        <div 
-          className="h-full w-full rounded-full"
-          style={{
-            backgroundImage: `url(${profileImage})`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            backgroundRepeat: 'no-repeat'
-          }}
-          title={`Foto de ${nombre} ${apellido}`}
+      ) : !imageError && imageUrl ? (
+        <img
+          src={imageUrl}
+          alt={`Foto de ${nombre} ${apellido}`}
+          className="h-full w-full rounded-full object-cover"
+          onError={() => setImageError(true)}
         />
       ) : (
         <User className={`${iconSizes[size]} text-primary-600`} />

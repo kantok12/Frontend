@@ -6,6 +6,7 @@ import { useDocumentosByPersona, useRegisterDocumentoExistente, useUploadDocumen
 import { createDocumentoFormData, validateDocumentoData } from '../../hooks/useDocumentos';
 import { CreateDocumentoData } from '../../types';
 import { LoadingSpinner } from '../common/LoadingSpinner';
+import { useAllPrerrequisitos } from '../../hooks/useGestionPrerrequisitos';
 
 interface SubirDocumentoModalProps {
   isOpen: boolean;
@@ -37,6 +38,8 @@ const SubirDocumentoModal: React.FC<SubirDocumentoModalProps> = ({ isOpen, onClo
   const registerExistingMutation = useRegisterDocumentoExistente();
   const { data: documentosPersonaData, refetch: refetchDocumentosPersona } = useDocumentosByPersona(rutPersona);
   const documentosLocales: any[] = (documentosPersonaData as any)?.data?.documentos_locales || [];
+
+  const { data: prerrequisitos } = useAllPrerrequisitos();
 
   const isLoading = uploadMutation.isLoading || registerExistingMutation.isLoading;
 
@@ -107,6 +110,12 @@ const SubirDocumentoModal: React.FC<SubirDocumentoModalProps> = ({ isOpen, onClo
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
   const handleClose = () => { resetModalState(); onClose(); };
+
+  const tiposDocumentoUnicos = useMemo(() => {
+    const tiposEstaticos = ["cv", "epp", "examen_preocupacional", "otro"];
+    const tiposDinamicos = prerrequisitos?.map(p => p.tipo_documento.toLowerCase()) || [];
+    return Array.from(new Set([...tiposEstaticos, ...tiposDinamicos]));
+  }, [prerrequisitos]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -213,19 +222,25 @@ const SubirDocumentoModal: React.FC<SubirDocumentoModalProps> = ({ isOpen, onClo
               />
             </div>
 
-            {/* Tipo de documento (opcional/según backend) */}
+            {/* Tipo de documento (seleccionable) */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Tipo de Documento</label>
-              <input
-                type="text"
+              <label className="block text-sm font-medium text-gray-700 mb-2">Tipo de Documento *</label>
+              <select
                 value={formData.tipo_documento}
                 onChange={(e) => handleInputChange('tipo_documento', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                placeholder="Ej: contrato_trabajo, carnet_identidad, etc."
+                required
                 disabled={isLoading}
-              />
+              >
+                <option value="">Seleccione un tipo de documento</option>
+                {tiposDocumentoUnicos.map(tipo => (
+                  <option key={tipo} value={tipo}>
+                    {tipo.charAt(0).toUpperCase() + tipo.slice(1).replace(/_/g, ' ')}
+                  </option>
+                ))}
+              </select>
               <p className="mt-1 text-xs text-gray-500">
-                Opcional. Este campo es solo para documentos personales (ej: contrato_trabajo, carnet_identidad). Para cursos, usa la sección de Cursos y Certificaciones.
+                Seleccione el tipo de documento que desea subir.
               </p>
             </div>
 

@@ -7,6 +7,7 @@ import { PersonalDetailModal } from '../components/personal/PersonalDetailModal'
 import { ProfileImage } from '../components/common/ProfileImage';
 import { Search, Plus, Trash2, Eye, User, Mail, CheckCircle, XCircle, Activity, FileText } from 'lucide-react';
 import { Personal } from '../types';
+import { formatRUT } from '../utils/formatters';
 
 // Estados de actividad (para UI, no relacionados con backend)
 const estadosActividad = [
@@ -135,24 +136,13 @@ export const PersonalPage: React.FC = () => {
       
       // Filtro por tipo de documento específico
       if (filtroDocumento !== 'todos') {
-        switch (filtroDocumento) {
-          case 'contrato':
-            return mockDocumentacion.tieneContrato;
-          case 'identidad':
-            return mockDocumentacion.tieneIdentidad;
-          case 'medico':
-            return mockDocumentacion.tieneMedico;
-          case 'antecedentes':
-            return mockDocumentacion.tieneAntecedentes;
-          case 'vencidos':
-            return mockDocumentacion.documentosVencidos > 0;
-          case 'por_vencer':
-            return mockDocumentacion.documentosPorVencer > 0;
-          case 'faltantes':
-            return mockDocumentacion.documentosFaltantes > 0;
-          default:
-            return true;
-        }
+        // La lógica de filtrado real dependerá de cómo se obtienen los documentos.
+        // Por ahora, esta es una simulación.
+        // Para que el filtro funcione, necesitaríamos que el backend soporte
+        // un query param como &tipo_documento=CV
+        console.log(`Filtrando por tipo de documento: ${filtroDocumento}`);
+        // Aquí iría la lógica de filtrado real, por ejemplo:
+        // return persona.documentos.some(doc => doc.tipo === filtroDocumento);
       }
       
       // Filtro por documentación completa
@@ -506,10 +496,9 @@ export const PersonalPage: React.FC = () => {
               className="px-3 py-1 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
             >
               <option value="todos">Todos los documentos</option>
-              <option value="contrato">📄 Contrato</option>
-              <option value="identidad">🆔 Identidad</option>
-              <option value="medico">🏥 Médico</option>
-              <option value="antecedentes">📋 Antecedentes</option>
+              <option value="CV">📄 CV</option>
+              <option value="EPP">🆔 EPP</option>
+              <option value="Exámenes preocupacionales">🏥 Exámenes preocupacionales</option>
               <option value="vencidos">⚠️ Documentos vencidos</option>
               <option value="por_vencer">⏰ Por vencer</option>
               <option value="faltantes">❌ Documentos faltantes</option>
@@ -622,7 +611,7 @@ export const PersonalPage: React.FC = () => {
                             </div>
                           )}
                           <div className="text-xs text-gray-500 mt-1">
-                            RUT: {persona.rut}
+                            RUT: {formatRUT(persona.rut)}
                           </div>
                         </div>
                       </div>

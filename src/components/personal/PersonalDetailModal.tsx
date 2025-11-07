@@ -7,13 +7,14 @@ import { useUpdatePersonalData } from '../../hooks/useNombres';
 import { useEstados } from '../../hooks/useEstados';
 import { useCursosByRut, useDeleteCurso } from '../../hooks/useCursos';
 import { useDocumentosByPersona, useDownloadDocumento, useDeleteDocumento } from '../../hooks/useDocumentos';
-import { useProfileImage } from '../../hooks/useProfileImage';
 import { X, User, MapPin, ShirtIcon, Car, Activity, Edit, Save, XCircle, GraduationCap, Plus, Trash2, FileText, Upload, Download } from 'lucide-react';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { CursoModal } from './CursoModal';
 import SubirDocumentoModal from './SubirDocumentoModal';
 import CourseDocumentModal from './CourseDocumentModal';
 import EditDocumentModal from './EditDocumentModal';
+import { API_CONFIG } from '../../config/api';
+import { standardizeName, formatRUT } from '../../utils/formatters';
 
 interface PersonalDetailModalProps {
   personal: Personal | null;
@@ -34,6 +35,12 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
   const [currentEstadoId, setCurrentEstadoId] = useState<number>(personal?.estado_id || 1);
   const [showAsignaciones, setShowAsignaciones] = useState(false);
   
+  // State for profile image
+  const [imageUrl, setImageUrl] = useState('');
+  const [imageError, setImageError] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const updateMutation = useUpdatePersonal();
   const updatePersonalDataMutation = useUpdatePersonalData();
   const { data: estadosData, isLoading: estadosLoading } = useEstados();
@@ -42,8 +49,6 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
   const deleteCursoMutation = useDeleteCurso();
   const deleteDocumentoMutation = useDeleteDocumento();
   
-
-
   // Estados para modal de cursos
   const [showCursoModal, setShowCursoModal] = useState(false);
   const [editingCurso, setEditingCurso] = useState<any>(null);
@@ -58,26 +63,20 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
 
   // Estados para documentación
   const [showDocumentModal, setShowDocumentModal] = useState(false);
-  
-  // Hook para manejar imagen de perfil
-  const { 
-    profileImage, 
-    error: profileImageError, 
-    uploadImage, 
-    deleteImage, 
-    isUploading, 
-    isDeleting 
-  } = useProfileImage(personal?.rut || '');
 
   // Asignaciones por RUT (solo lectura, se muestran bajo demanda)
   const { asignaciones, isLoading: asignacionesLoading, error: asignacionesError } = useAsignaciones(personal?.rut || '');
 
-  // Mantener sincronizado el estado local cuando cambie la persona seleccionada
   useEffect(() => {
+    if (personal?.rut) {
+      const encodedRut = encodeURIComponent(personal.rut);
+      setImageUrl(`${API_CONFIG.BASE_URL}/personal/${encodedRut}/image/download?t=${new Date().getTime()}`);
+      setImageError(false);
+    }
     if (personal?.estado_id !== undefined) {
       setCurrentEstadoId(personal.estado_id);
     }
-  }, [personal?.estado_id]);
+  }, [personal]);
 
   // Obtener nombre del estado por id (usando datos de la API)
   const getEstadoNombreById = (id?: number) => {
@@ -205,7 +204,9 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
       const promises = [] as any[];
       let nombreActualizado = false;
       if (editData.nombre || editData.apellido) {
-        const nombreCompleto = `${editData.nombre || personal.nombre || 'Sin nombre'} ${editData.apellido || personal.apellido || 'Sin apellido'}`;
+        const nombreCompleto = standardizeName(
+          `${editData.nombre || personal.nombre || 'Sin nombre'} ${editData.apellido || personal.apellido || 'Sin apellido'}`
+        );
         const personalUpdateData = {
           sexo: editData.sexo || personal.sexo,
           fecha_nacimiento: personal.fecha_nacimiento,
@@ -222,7 +223,9 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
         promises.push(updatePersonalDataMutation.mutateAsync({ rut: personal.rut, data: personalUpdateData }));
         nombreActualizado = true;
       }
-      const nombreCompleto = `${editData.nombre || personal.nombre || ''} ${editData.apellido || personal.apellido || ''}`.trim();
+      const nombreCompleto = standardizeName(
+        `${editData.nombre || personal.nombre || ''} ${editData.apellido || personal.apellido || ''}`.trim()
+      );
       const updateData = {
         nombres: nombreCompleto,
         sexo: editData.sexo || personal.sexo,
@@ -318,15 +321,58 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
     try { await downloadFile(documento.id, documento.nombre_original || `${documento.nombre_documento}.pdf`); } catch {}
   };
 
-  // Imagen de perfil
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file) return;
-    try { await uploadImage(file); alert('Imagen de perfil actualizada exitosamente'); } catch {}
+    if (!file || !personal?.rut) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+    setIsUploading(true);
+
+    try {
+      const encodedRut = encodeURIComponent(personal.rut);
+      const response = await fetch(`${API_CONFIG.BASE_URL}/personal/${encodedRut}/upload`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('Error al subir la imagen');
+      }
+
+      // Update URL with a cache-busting timestamp
+      setImageUrl(`${API_CONFIG.BASE_URL}/personal/${encodedRut}/image/download?t=${new Date().getTime()}`);
+      setImageError(false);
+      alert('Imagen de perfil actualizada exitosamente');
+    } catch (error) {
+      console.error('Error al subir la imagen:', error);
+      alert('Hubo un error al subir la imagen. Por favor, inténtalo nuevamente.');
+    } finally {
+      setIsUploading(false);
+    }
   };
+
   const handleRemoveImage = async () => {
+    if (!personal?.rut) return;
     if (window.confirm('¿Estás seguro de que quieres eliminar la imagen de perfil?')) {
-      try { await deleteImage(); alert('Imagen de perfil eliminada exitosamente'); } catch {}
+      setIsDeleting(true);
+      try {
+        const encodedRut = encodeURIComponent(personal.rut);
+        const response = await fetch(`${API_CONFIG.BASE_URL}/personal/${encodedRut}/image/delete`, {
+          method: 'DELETE',
+        });
+        if (!response.ok) {
+          throw new Error('Error al eliminar la imagen');
+        }
+        setImageUrl('');
+        setImageError(true); // Force showing the user icon
+        alert('Imagen de perfil eliminada exitosamente');
+      } catch (error) {
+        console.error('Error al eliminar la imagen:', error);
+        alert('Hubo un error al eliminar la imagen.');
+      } finally {
+        setIsDeleting(false);
+      }
     }
   };
 
@@ -373,94 +419,27 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
             <div className="flex items-center space-x-4">
               <div className="relative">
                 <div className="h-16 w-16 rounded-full bg-white bg-opacity-20 flex items-center justify-center overflow-hidden">
-                  {profileImage ? (
-                    <div 
-                      className="h-full w-full rounded-full"
-                      style={{
-                        backgroundImage: `url(${profileImage})`,
-                        backgroundSize: 'cover',
-                        backgroundPosition: 'center',
-                        backgroundRepeat: 'no-repeat'
-                      }}
-                      title="Foto de perfil"
+                  {!imageError && imageUrl ? (
+                    <img 
+                      src={imageUrl}
+                      alt="Foto de perfil"
+                      className="h-full w-full rounded-full object-cover"
+                      onError={() => setImageError(true)}
                     />
                   ) : (
                     <User className="h-8 w-8 text-white" />
                   )}
                 </div>
-                {isEditing && (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    {isUploading || isDeleting ? (
-                      <div className="bg-blue-500 bg-opacity-90 text-white rounded-full p-2">
-                        <LoadingSpinner />
-                      </div>
-                    ) : (
-                      <label className="bg-blue-500 bg-opacity-90 hover:bg-opacity-100 text-white rounded-full p-2 cursor-pointer transition-all duration-200 shadow-lg">
-                        <Upload className="h-4 w-4" />
-                        <input
-                          type="file"
-                          accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
-                          onChange={handleImageUpload}
-                          className="hidden"
-                          disabled={isUploading || isDeleting}
-                        />
-                      </label>
-                    )}
-                  </div>
-                )}
-                {profileImage && isEditing && (
-                  <button
-                    onClick={handleRemoveImage}
-                    className="absolute -top-1 -right-1 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 transition-colors"
-                    title="Eliminar imagen"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                )}
               </div>
               <div>
                 <h2 className="text-2xl font-bold">
-                  {isEditing ? (
-                    <div className="flex space-x-2">
-                      <input
-                        type="text"
-                        value={editData.nombre || ''}
-                        onChange={(e) => handleInputChange('nombre', e.target.value)}
-                        className={`bg-white bg-opacity-20 text-white placeholder-blue-200 border ${
-                          errors.nombre ? 'border-red-300' : 'border-white border-opacity-30'
-                        } rounded px-2 py-1 text-lg focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50`}
-                        placeholder="Nombre"
-                      />
-                      <input
-                        type="text"
-                        value={editData.apellido || ''}
-                        onChange={(e) => handleInputChange('apellido', e.target.value)}
-                        className={`bg-white bg-opacity-20 text-white placeholder-blue-200 border ${
-                          errors.apellido ? 'border-red-300' : 'border-white border-opacity-30'
-                        } rounded px-2 py-1 text-lg focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50`}
-                        placeholder="Apellido"
-                      />
-                    </div>
-                  ) : (
-                    `${personal.nombre || 'Sin nombre'} ${personal.apellido || 'Sin apellido'}`
-                  )}
+                  {standardizeName(`${personal.nombre || 'Sin nombre'} ${personal.apellido || 'Sin apellido'}`)}
                 </h2>
                 <p className="text-blue-100 text-lg">
-                  {isEditing ? (
-                    <input
-                      type="text"
-                      value={editData.cargo || ''}
-                      onChange={(e) => handleInputChange('cargo', e.target.value)}
-                      className={`bg-white bg-opacity-20 text-blue-100 placeholder-blue-200 border ${
-                        errors.cargo ? 'border-red-300' : 'border-white border-opacity-30'
-                      } rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50`}
-                      placeholder="Cargo"
-                    />
-                  ) : (
-                    personal.cargo
-                  )}
+                  {personal.cargo || 'Sin cargo especificado'}
                 </p>
-                <p className="text-blue-200 text-sm">RUT: {personal.rut}</p>
+                <p className="text-blue-200 text-sm">{personal.zona_geografica || 'Sin ubicación especificada'}</p>
+                <p className="text-blue-200 text-sm">RUT: {formatRUT(personal.rut)}</p>
               </div>
             </div>
             
@@ -478,7 +457,7 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                   <button
                     onClick={handleSave}
                     disabled={updateMutation.isLoading}
-                    className="text-white hover:text-green-200 transition-colors p-2 rounded-full hover:bg-white hover:bg-opacity-20 disabled:opacity-50"
+                    className="text-white hover:text-green-200 transition-colores p-2 rounded-full hover:bg-white hover:bg-opacity-20 disabled:opacity-50"
                   >
                     {updateMutation.isLoading ? (
                       <LoadingSpinner />
@@ -489,7 +468,7 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                   <button
                     onClick={handleCancel}
                     disabled={updateMutation.isLoading}
-                    className="text-white hover:text-red-200 transition-colors p-2 rounded-full hover:bg-white hover:bg-opacity-20 disabled:opacity-50"
+                    className="text-white hover:text-red-200 transition-colores p-2 rounded-full hover:bg-white hover:bg-opacity-20 disabled:opacity-50"
                   >
                     <XCircle className="h-6 w-6" />
                   </button>
@@ -497,14 +476,14 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
               ) : (
                 <button
                   onClick={() => setIsEditing(true)}
-                  className="text-white hover:text-blue-200 transition-colors p-2 rounded-full hover:bg-white hover:bg-opacity-20"
+                  className="text-white hover:text-blue-200 transition-colores p-2 rounded-full hover:bg-white hover:bg-opacity-20"
                 >
                   <Edit className="h-6 w-6" />
                 </button>
               )}
               <button
                 onClick={onClose}
-                    className="text-white hover:text-blue-200 transition-colors p-2 rounded-full hover:bg-white hover:bg-opacity-20"
+                    className="text-white hover:text-blue-200 transition-colores p-2 rounded-full hover:bg-white hover:bg-opacity-20"
               >
                 <X className="h-6 w-6" />
               </button>
@@ -569,11 +548,6 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
           {errors.general && (
             <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
               {errors.general}
-            </div>
-          )}
-          {profileImageError && (
-            <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
-              <strong>Error de imagen de perfil:</strong> {profileImageError}
             </div>
           )}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -863,21 +837,21 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                           <div className="flex flex-col space-y-1 ml-3">
                             <button 
                               onClick={() => downloadFile(documento.id, documento.nombre_original)}
-                              className="text-blue-500 hover:text-blue-700 p-1 rounded hover:bg-blue-50 transition-colors" 
+                              className="text-blue-500 hover:text-blue-700 p-1 rounded hover:bg-blue-50 transition-colores" 
                               title="Descargar documento"
                             >
                               <Download className="h-3 w-3" />
                             </button>
                             <button 
                               onClick={() => handleEditDocumento(documento)}
-                              className="text-green-500 hover:text-green-700 p-1 rounded hover:bg-green-50 transition-colors" 
+                              className="text-green-500 hover:text-green-700 p-1 rounded hover:bg-green-50 transition-colores" 
                               title="Editar documento"
                             >
                               <Edit className="h-3 w-3" />
                             </button>
                             <button 
                               onClick={() => handleDeleteDocumento(documento)}
-                              className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50 transition-colors" 
+                              className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50 transition-colores" 
                               title="Eliminar documento"
                             >
                               <Trash2 className="h-3 w-3" />
@@ -893,7 +867,7 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                     <h4 className="text-purple-700 font-medium mb-2">Sin documentos de cursos</h4>
                     <p className="text-purple-600 text-sm mb-4">{personal.nombre || 'Sin nombre'} {personal.apellido || 'Sin apellido'} no tiene documentos de cursos o certificaciones</p>
                     <div className="flex justify-center">
-                      <button onClick={handleAddCurso} className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                      <button onClick={handleAddCurso} className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colores">
                         <Plus className="h-4 w-4 mr-1 inline" />
                         Agregar curso
                       </button>
@@ -910,7 +884,7 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                     <h3 className="text-lg font-semibold text-orange-900">Documentación Personal</h3>
                     <span className="ml-2 bg-orange-200 text-orange-800 text-xs px-2 py-1 rounded-full">{personalDocuments.length} documento{personalDocuments.length !== 1 ? 's' : ''}</span>
                   </div>
-                  <button onClick={handleAddDocument} className="bg-orange-600 hover:bg-orange-700 text-white px-3 py-1 rounded-lg text-sm font-medium transition-colors flex items-center" title="Agregar documento">
+                  <button onClick={handleAddDocument} className="bg-orange-600 hover:bg-orange-700 text-white px-3 py-1 rounded-lg text-sm font-medium transition-colores flex items-center" title="Agregar documento">
                     <Upload className="h-4 w-4 mr-1" />
                     Subir
                   </button>
@@ -939,10 +913,10 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                             </div>
                           </div>
                           <div className="flex flex-col space-y-1 ml-3">
-                            <button onClick={() => handleDownloadDocument(documento)} className="text-green-500 hover:text-green-700 p-1 rounded hover:bg-green-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title="Descargar documento" disabled={downloadMutation.isLoading}>
+                            <button onClick={() => handleDownloadDocument(documento)} className="text-green-500 hover:text-green-700 p-1 rounded hover:bg-green-50 transition-colores disabled:opacity-50 disabled:cursor-not-allowed" title="Descargar documento" disabled={downloadMutation.isLoading}>
                               {downloadMutation.isLoading ? (<div className="animate-spin rounded-full h-3 w-3 border-b-2 border-green-500"></div>) : (<Download className="h-3 w-3" />)}
                             </button>
-                            <button onClick={() => handleDeleteDocument(documento.id)} className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50 transition-colors" title="Eliminar documento">
+                            <button onClick={() => handleDeleteDocument(documento.id)} className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50 transition-colores" title="Eliminar documento">
                               <Trash2 className="h-3 w-3" />
                             </button>
                           </div>
@@ -955,7 +929,7 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                     <FileText className="h-16 w-16 text-orange-300 mx-auto mb-4" />
                     <h4 className="text-orange-700 font-medium mb-2">Sin documentos personales</h4>
                     <p className="text-orange-600 text-sm mb-4">{personal.nombre || 'Sin nombre'} {personal.apellido || 'Sin apellido'} no tiene documentos personales subidos</p>
-                    <button onClick={handleAddDocument} className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                    <button onClick={handleAddDocument} className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colores">
                       <Upload className="h-4 w-4 mr-1 inline" />
                       Subir primer documento
                     </button>
@@ -974,7 +948,7 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
               <span className="font-medium">RUT:</span> {personal.rut} • 
               <span className="font-medium ml-2">Zona:</span> {personal.zona_geografica}
             </div>
-            <button onClick={onClose} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium">Cerrar</button>
+            <button onClick={onClose} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colores font-medium">Cerrar</button>
           </div>
         </div>
       </div>

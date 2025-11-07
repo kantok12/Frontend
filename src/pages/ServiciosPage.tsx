@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useCallback } from 'react';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
-import { Search, Plus, Settings, Users, Building2, MapPin, AlertCircle, ChevronRight } from 'lucide-react';
+import { Search, Plus, Settings, Users, Building2, MapPin, AlertCircle, ChevronRight, Globe } from 'lucide-react';
 import { useServiciosPage } from '../hooks/useServicios';
 import { Tooltip } from '../components/common/Tooltip';
 import { Cartera, Cliente, Nodo } from '../types';
@@ -13,6 +13,9 @@ import { useNavigationState } from '../hooks/useNavigationState';
 import { useUIState } from '../hooks/useUIState';
 import { apiService } from '../services/api';
 import { useQueryClient } from '@tanstack/react-query';
+import { PrerrequisitosCliente } from '../components/servicios/PrerrequisitosCliente';
+import { PrerrequisitosModal } from '../components/servicios/PrerrequisitosModal';
+import { GlobalPrerrequisitosModal } from '../components/servicios/GlobalPrerrequisitosModal';
 
 export const ServiciosPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -283,6 +286,22 @@ export const ServiciosPage: React.FC = () => {
           
           {/* Botones de acción según pestaña activa */}
           <div className="flex gap-3">
+            <button
+              onClick={() => handleModalToggle('showGlobalPrerrequisitosModal', true)}
+              className="bg-gray-700 hover:bg-gray-800 text-white px-6 py-3 rounded-lg font-medium transition-colors flex items-center shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+            >
+              <Globe className="h-5 w-5 mr-2" />
+              Prerrequisitos Globales
+            </button>
+            {navigationState.selectedCliente && (
+              <button
+                onClick={() => handleModalToggle('showPrerrequisitosModal', true)}
+                className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg font-medium transition-colors flex items-center shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+              >
+                <AlertCircle className="h-5 w-5 mr-2" />
+                Gestionar Prerrequisitos
+              </button>
+            )}
             {uiState.activeTab === 'clientes' && (
             <button
               onClick={() => handleModalToggle('showAgregarClienteModal', true)}
@@ -412,7 +431,8 @@ export const ServiciosPage: React.FC = () => {
               placeholder={
                 uiState.activeTab === 'carteras' ? 'Buscar carteras por nombre...' :
                 uiState.activeTab === 'clientes' ? 'Buscar clientes por nombre...' :
-                'Buscar nodos por nombre...'
+                uiState.activeTab === 'nodos' ? 'Buscar nodos por nombre...' :
+                'Buscar...'
               }
               value={uiState.search}
               onChange={handleSearchInputChange}
@@ -446,12 +466,14 @@ export const ServiciosPage: React.FC = () => {
               <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center mr-3">
                 {uiState.activeTab === 'carteras' ? <Building2 className="h-4 w-4 text-gray-600" /> :
                  uiState.activeTab === 'clientes' ? <Users className="h-4 w-4 text-gray-600" /> :
-                 <MapPin className="h-4 w-4 text-gray-600" />}
+                 uiState.activeTab === 'nodos' ? <MapPin className="h-4 w-4 text-gray-600" /> :
+                 <AlertCircle className="h-4 w-4 text-gray-600" />}
               </div>
               <div>
                 <span className="text-sm text-gray-500">
                   {uiState.activeTab === 'carteras' ? 'Carteras' : 
-                   uiState.activeTab === 'clientes' ? 'Clientes' : 'Nodos'}
+                   uiState.activeTab === 'clientes' ? 'Clientes' : 
+                   uiState.activeTab === 'nodos' ? 'Nodos' : 'Prerrequisitos'}
                 </span>
                 <span className="ml-2 text-lg font-semibold text-gray-900">
                   {isLoading ? '...' : currentData.length}
@@ -504,15 +526,6 @@ export const ServiciosPage: React.FC = () => {
               <h3 className="text-lg font-semibold text-gray-900">
                 Personal asignado a {navigationState.selectedNodo ? 'Nodo' : navigationState.selectedCliente ? 'Cliente' : 'Cartera'}
               </h3>
-              {navigationState.selectedCliente && (
-                <button
-                  onClick={() => handleModalToggle('showPrereqPanel', !uiState.showPrereqPanel)}
-                  className="px-3 py-2 text-sm rounded-md border hover:bg-gray-50"
-                  title="Ver prerrequisitos del cliente"
-                >
-                  {uiState.showPrereqPanel ? 'Ocultar Prerrequisitos' : 'Ver Prerrequisitos'}
-                </button>
-              )}
             </div>
             {/* Formulario de asignación: seleccionar personal de una lista */}
             <div className="flex items-center gap-2 mb-4">
@@ -584,78 +597,11 @@ export const ServiciosPage: React.FC = () => {
           </div>
         )}
 
-        {/* Panel de Prerrequisitos por Cliente (match con RUT) */}
-        {uiState.showPrereqPanel && navigationState.selectedCliente && (
-          <div className="mb-6 bg-white rounded-lg border border-blue-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-3">Prerrequisitos del Cliente</h3>
-            <div className="flex items-center gap-2 mb-4">
-              <select
-                value={prereqState.selectedRutForMatch}
-                onChange={(e) => updatePrereqState({ selectedRutForMatch: e.target.value })}
-                className="w-80 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-              >
-                <option value="">Seleccionar trabajador asignado</option>
-                {(assignmentState.assignedPersonal || []).map((p) => (
-                  <option key={p.rut} value={p.rut}>{p.nombre ? `${p.nombre} (${p.rut})` : p.rut}</option>
-                ))}
-              </select>
-              <button
-                onClick={() => handlePrerequisitosMatch()}
-                disabled={!prereqState.selectedRutForMatch || prereqState.prereqLoading}
-                className="px-3 py-2 text-sm text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50"
-              >
-                {prereqState.prereqLoading ? 'Cargando...' : 'Ver estado'}
-              </button>
-            </div>
-            {prereqState.prereqError && <div className="text-sm text-red-600 mb-2">{prereqState.prereqError}</div>}
-            {prereqState.prereqLoading ? (
-              <div className="flex items-center text-gray-600 text-sm"><LoadingSpinner size="sm" /><span className="ml-2">Cargando...</span></div>
-            ) : prereqState.prereqData ? (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
-                <div>
-                  <h4 className="font-medium text-gray-800 mb-2">Requisitos para trabajar a este cliente</h4>
-                  <ul className="list-disc pl-5 space-y-1">
-                    {(prereqState.prereqData.requisitos || []).map((r: any, idx: number) => (
-                      <li key={idx}>{r.tipo_documento}{r.obligatorio ? ' (Obligatorio)' : ''}</li>
-                    ))}
-                  </ul>
-                </div>
-                <div>
-                  <h4 className="font-medium text-green-700 mb-2">Cumplidos por el trabajador</h4>
-                  <ul className="list-disc pl-5 space-y-1 text-green-700">
-                    {(prereqState.prereqData.cumplidos || []).map((r: any, idx: number) => (
-                      <li key={idx}>{r.tipo_documento}</li>
-                    ))}
-                  </ul>
-                </div>
-                <div>
-                  <h4 className="font-medium text-red-700 mb-2">Faltantes para habilitar al trabajador</h4>
-                  <ul className="list-disc pl-5 space-y-1 text-red-700">
-                    {(prereqState.prereqData.faltantes || []).map((r: any, idx: number) => (
-                      <li key={idx}>{r.tipo_documento}{r.obligatorio ? ' (Obligatorio)' : ''}</li>
-                    ))}
-                  </ul>
-                  {(prereqState.prereqData.por_vencer || []).length > 0 && (
-                    <div className="mt-3">
-                      <h5 className="font-medium text-yellow-700 mb-1">Documentos por vencer</h5>
-                      <ul className="list-disc pl-5 space-y-1 text-yellow-700">
-                        {(prereqState.prereqData.por_vencer || []).map((r: any, idx: number) => (
-                          <li key={idx}>{r.tipo_documento}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <p className="text-sm text-gray-500">Selecciona un trabajador asignado y pulsa "Ver estado" para ver si cumple con los prerrequisitos del cliente.</p>
-            )}
-          </div>
-        )}
         <div className="mb-4">
           <h2 className="text-lg font-semibold text-gray-900">
             {uiState.activeTab === 'carteras' ? 'Carteras' : 
-             uiState.activeTab === 'clientes' ? 'Clientes' : 'Nodos'} ({total} registros)
+             uiState.activeTab === 'clientes' ? 'Clientes' : 
+             uiState.activeTab === 'nodos' ? 'Nodos' : 'Prerrequisitos'} ({total} registros)
           </h2>
         </div>
 
@@ -731,7 +677,7 @@ export const ServiciosPage: React.FC = () => {
                           </th>
                           {/* Sin acciones */}
                         </>
-                      ) : (
+                      ) : uiState.activeTab === 'nodos' ? (
                         <>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Nodo
@@ -747,7 +693,7 @@ export const ServiciosPage: React.FC = () => {
                           </th>
                           {/* Sin acciones */}
                         </>
-                      )}
+                      ) : null}
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
@@ -760,7 +706,8 @@ export const ServiciosPage: React.FC = () => {
                         onClick={
                           uiState.activeTab === 'carteras' ? () => handleCarteraClickWithUI(item as Cartera) :
                           uiState.activeTab === 'clientes' ? () => handleClienteClickWithUI(item as Cliente) :
-                          () => handleNodoClick(item as Nodo)
+                          uiState.activeTab === 'nodos' ? () => handleNodoClick(item as Nodo) :
+                          undefined
                         }
                       >
                         {uiState.activeTab === 'carteras' ? (
@@ -871,7 +818,7 @@ export const ServiciosPage: React.FC = () => {
                             </td>
                             {/* Sin acciones */}
                           </>
-                        ) : (
+                        ) : uiState.activeTab === 'nodos' ? (
                           <>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <div className="flex items-center">
@@ -905,7 +852,7 @@ export const ServiciosPage: React.FC = () => {
                             </td>
                             {/* Sin acciones */}
                           </>
-                        )}
+                        ) : null}
                       </tr>
                     ))}
                   </tbody>
@@ -985,6 +932,18 @@ export const ServiciosPage: React.FC = () => {
           handleModalToggle('showAgregarNodoModal', false);
         }}
         clientes={clientes || []}
+      />
+
+      <PrerrequisitosModal
+        isOpen={uiState.showPrerrequisitosModal}
+        onClose={() => handleModalToggle('showPrerrequisitosModal', false)}
+        clienteId={navigationState.selectedCliente?.id || null}
+        clienteNombre={navigationState.selectedCliente?.nombre || ''}
+      />
+
+      <GlobalPrerrequisitosModal
+        isOpen={uiState.showGlobalPrerrequisitosModal}
+        onClose={() => handleModalToggle('showGlobalPrerrequisitosModal', false)}
       />
     </div>
   );

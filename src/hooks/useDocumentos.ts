@@ -308,7 +308,8 @@ export const useRegisterDocumentoExistente = () => {
 
       // Manejar errores específicos según la respuesta del backend
       if (error.response?.status === 409) { // Código 409 para conflicto (archivo duplicado)
-        throw new Error('El archivo ya existe en el backend o en la carpeta destino.');
+        console.warn('⚠️ El archivo ya existe en el backend o en la carpeta destino.');
+        throw new Error('El archivo ya existe. No es necesario volver a subirlo.');
       } else if (error.response?.status === 400) {
         throw new Error('Datos inválidos. Verifique que todos los campos estén correctamente completados.');
       } else if (error.response?.status === 413) {

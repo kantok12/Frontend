@@ -145,7 +145,7 @@ class ApiService {
           };
         } else {
           // Si falla crear personal, deberíamos considerar eliminar el usuario creado
-          // Por ahora solo devolvemos el error
+          // Por ahora solo devolemos el error
           throw new Error('Error al crear el registro de personal disponible');
         }
       } catch (error) {
@@ -809,7 +809,7 @@ class ApiService {
 
       const response: AxiosResponse<ApiResponse<any>> = await uploadApi.post(`/personal/${rut}/upload`, formData, {
         headers: {
-          // No establecer Content-Type para que axios lo establezca automáticamente con boundary
+          'Content-Type': 'multipart/form-data',
         },
       });
       
@@ -824,7 +824,7 @@ class ApiService {
   // Obtener imagen de perfil
   async getProfileImage(rut: string): Promise<ApiResponse<any>> {
     try {
-      const url = `/personal/${rut}/image`;
+      const url = `/personal/${rut}/image/download`;
       console.log('🖼️ API - getProfileImage URL:', url, 'Base URL:', this.api.defaults.baseURL);
       const response: AxiosResponse<ApiResponse<any>> = await this.api.get(url);
       console.log('🖼️ API - getProfileImage response:', response.data);
@@ -1773,21 +1773,32 @@ class ApiService {
 
   // ==================== MÉTODOS PARA PRERREQUISITOS ====================
   
+  // GET /api/prerrequisitos/cliente/:cliente_id
+  async getPrerrequisitosByCliente(clienteId: number): Promise<ApiResponse<any[]>> {
+    const response: AxiosResponse<ApiResponse<any[]>> = await this.api.get(`/prerrequisitos/cliente/${clienteId}`);
+    return response.data;
+  }
+
+  // GET /api/prerrequisitos/globales
+  async getGlobalPrerrequisitos(): Promise<ApiResponse<any[]>> {
+    const response: AxiosResponse<ApiResponse<any[]>> = await this.api.get('/prerrequisitos/globales');
+    return response.data;
+  }
+
   // GET /api/prerrequisitos
   async getPrerrequisitos(): Promise<ApiResponse<any[]>> {
     const response: AxiosResponse<ApiResponse<any[]>> = await this.api.get('/prerrequisitos');
     return response.data;
   }
 
-  // GET /api/prerrequisitos/:id
-  async getPrerrequisitoById(id: number): Promise<ApiResponse<any>> {
-    const response: AxiosResponse<ApiResponse<any>> = await this.api.get(`/prerrequisitos/${id}`);
-    return response.data;
-  }
-
   // POST /api/prerrequisitos
   async crearPrerrequisito(data: any): Promise<ApiResponse<any>> {
-    const response: AxiosResponse<ApiResponse<any>> = await this.api.post('/prerrequisitos', data);
+    const payload = { ...data };
+    // Si cliente_id es null, el backend puede rechazarlo. Lo eliminamos si es el caso.
+    if (payload.cliente_id === null) {
+      delete payload.cliente_id;
+    }
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.post('/prerrequisitos', payload);
     return response.data;
   }
 

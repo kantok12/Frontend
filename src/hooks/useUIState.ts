@@ -1,13 +1,17 @@
 import { useState, useCallback } from 'react';
 
+type Tab = 'carteras' | 'clientes' | 'nodos' | 'prerrequisitos';
+
 interface UIState {
-  activeTab: 'carteras' | 'clientes' | 'nodos';
+  activeTab: Tab;
   page: number;
   search: string;
   showAgregarClienteModal: boolean;
   showAgregarNodoModal: boolean;
   showPrereqPanel: boolean;
   showModal: boolean;
+  showPrerrequisitosModal: boolean;
+  showGlobalPrerrequisitosModal: boolean;
 }
 
 export const useUIState = () => {
@@ -18,16 +22,13 @@ export const useUIState = () => {
     showAgregarClienteModal: false,
     showAgregarNodoModal: false,
     showPrereqPanel: false,
-    showModal: false
+    showModal: false,
+    showPrerrequisitosModal: false,
+    showGlobalPrerrequisitosModal: false
   });
 
-  const handleTabChange = useCallback((tab: 'carteras' | 'clientes' | 'nodos') => {
-    setUiState(prev => ({ 
-      ...prev, 
-      activeTab: tab,
-      page: 1,
-      search: ''
-    }));
+  const handleTabChange = useCallback((tab: Tab) => {
+    setUiState(prev => ({ ...prev, activeTab: tab, page: 1, search: '' }));
   }, []);
 
   const handlePageChange = useCallback((page: number) => {
@@ -42,7 +43,7 @@ export const useUIState = () => {
     setUiState(prev => ({ ...prev, search: '', page: 1 }));
   }, []);
 
-  const handleModalToggle = useCallback((modal: keyof Pick<UIState, 'showAgregarClienteModal' | 'showAgregarNodoModal' | 'showPrereqPanel' | 'showModal'>, show: boolean) => {
+  const handleModalToggle = useCallback((modal: keyof Pick<UIState, 'showAgregarClienteModal' | 'showAgregarNodoModal' | 'showPrereqPanel' | 'showModal' | 'showPrerrequisitosModal' | 'showGlobalPrerrequisitosModal'>, show: boolean) => {
     setUiState(prev => ({ ...prev, [modal]: show }));
   }, []);
 
