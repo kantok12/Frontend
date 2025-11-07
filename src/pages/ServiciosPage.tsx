@@ -40,14 +40,13 @@ export const ServiciosPage: React.FC = () => {
     carteras, 
     clientes, 
     nodos, 
+    minimoPersonal: minimosPersonal,
     isLoading, 
     error 
   } = useServiciosPage('', uiState.activeTab);
 
-  // Obtener mínimos de personal (deshabilitado temporalmente por error 500)
-  // const { data: minimoPersonalData } = useMinimoPersonal({ limit: 1000 });
-  // const minimosPersonal = minimoPersonalData?.data || [];
-  const minimosPersonal: any[] = []; // Array vacío temporal
+  // Obtener mínimos de personal (traído desde useServiciosPage)
+  // `minimosPersonal` viene ahora desde el hook `useServiciosPage` (usa /api/servicios/minimo-personal)
   
 
   // Funciones helper optimizadas con useMemo
@@ -55,6 +54,9 @@ export const ServiciosPage: React.FC = () => {
     const cartera = carteras.find((c: Cartera) => c.id === carteraId);
     return cartera ? cartera.nombre : `Cartera ID: ${carteraId}`;
   }, [carteras]);
+
+  // DEBUG: mostrar mínimos cargados
+  console.log('🔎 minimosPersonal (desde useServiciosPage):', minimosPersonal?.length, minimosPersonal?.slice(0,3));
 
   const getClienteNombre = useCallback((clienteId: number) => {
     const cliente = clientes.find((c: Cliente) => c.id === clienteId);
@@ -66,7 +68,14 @@ export const ServiciosPage: React.FC = () => {
   }, [nodos]);
 
   const getMinimoPersonalCliente = useCallback((clienteId: number) => {
-    const minimo = minimosPersonal.find((mp: any) => mp.cliente_id === clienteId);
+    // Comparar como strings por si vienen como number o string
+    const minimo = minimosPersonal.find((mp: any) => {
+      try {
+        return String(mp.cliente_id) === String(clienteId);
+      } catch (e) {
+        return false;
+      }
+    });
     return minimo ? minimo.minimo_personal : null;
   }, [minimosPersonal]);
 
@@ -286,13 +295,16 @@ export const ServiciosPage: React.FC = () => {
           
           {/* Botones de acción según pestaña activa */}
           <div className="flex gap-3">
-            <button
-              onClick={() => handleModalToggle('showGlobalPrerrequisitosModal', true)}
-              className="bg-gray-700 hover:bg-gray-800 text-white px-6 py-3 rounded-lg font-medium transition-colors flex items-center shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
-            >
-              <Globe className="h-5 w-5 mr-2" />
-              Prerrequisitos Globales
-            </button>
+            {/* Mostrar el botón de Prerrequisitos Globales sólo en la pestaña "clientes" */}
+            {uiState.activeTab === 'clientes' && (
+              <button
+                onClick={() => handleModalToggle('showGlobalPrerrequisitosModal', true)}
+                className="bg-gray-700 hover:bg-gray-800 text-white px-6 py-3 rounded-lg font-medium transition-colors flex items-center shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+              >
+                <Globe className="h-5 w-5 mr-2" />
+                Prerrequisitos Globales
+              </button>
+            )}
             {navigationState.selectedCliente && (
               <button
                 onClick={() => handleModalToggle('showPrerrequisitosModal', true)}

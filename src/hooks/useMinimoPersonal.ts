@@ -22,6 +22,19 @@ export const useMinimoPersonal = (params?: {
     queryKey: ['minimo-personal', params],
     queryFn: () => apiService.getMinimoPersonal(params),
     select: (data) => data,
+    onSuccess: (data) => {
+      try {
+        // Mostrar resultado bruto en consola para diagnóstico
+        // eslint-disable-next-line no-console
+        console.log('useMinimoPersonal - onSuccess:', Array.isArray(data?.data) ? data.data.length : 'no-data', data?.data?.slice?.(0,3));
+      } catch (e) {
+        // ignore
+      }
+    },
+    onError: (err: any) => {
+      // eslint-disable-next-line no-console
+      console.error('useMinimoPersonal - onError:', err?.response?.status || err?.message || err);
+    },
     staleTime: 5 * 60 * 1000, // 5 minutos
     retry: 2,
   });

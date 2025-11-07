@@ -38,6 +38,8 @@ const SubirDocumentoModal: React.FC<SubirDocumentoModalProps> = ({ isOpen, onClo
   const registerExistingMutation = useRegisterDocumentoExistente();
   const { data: documentosPersonaData, refetch: refetchDocumentosPersona } = useDocumentosByPersona(rutPersona);
   const documentosLocales: any[] = (documentosPersonaData as any)?.data?.documentos_locales || [];
+  // Documentos ya registrados en la aplicación (puede venir en data.documentos o ser la propia data cuando es un array)
+  const existingDocs: any[] = (documentosPersonaData as any)?.data?.documentos || (Array.isArray((documentosPersonaData as any)?.data) ? (documentosPersonaData as any).data : []);
 
   const { data: prerrequisitos } = useAllPrerrequisitos();
 
@@ -327,7 +329,41 @@ const SubirDocumentoModal: React.FC<SubirDocumentoModalProps> = ({ isOpen, onClo
 
       {/* Ventanas auxiliares */}
       <UploadOptionsModal isOpen={showOptionsModal} onClose={() => setShowOptionsModal(false)} onSubirDesdeEquipo={triggerFileSelect} onSeleccionarPendiente={triggerSelectPending} />
-      <PendientesRegistroModal isOpen={showPendientesModal} onClose={() => setShowPendientesModal(false)} documentos={documentosLocales} onSelect={(f, displayName) => { setSelectedPendiente({ file: f, displayName }); setShowPendientesModal(false); }} />
+      <PendientesRegistroModal
+          isOpen={showPendientesModal}
+          onClose={() => setShowPendientesModal(false)}
+          documentos={documentosLocales}
+          existingDocs={existingDocs}
+          onSelect={async (f, displayName) => {
+            // Registro inmediato del archivo seleccionado como existente
+            setShowPendientesModal(false);
+            setSelectedPendiente({ file: f, displayName });
+
+            try {
+              // Construir payload mínimo según docs
+              await registerExistingMutation.mutateAsync({
+                rut_persona: rutPersona,
+                file: f,
+                nombre_documento: formData.nombre_documento || displayName || (f.nombre_original || f.nombre_archivo || f.name || f.title),
+                tipo_documento: formData.tipo_documento || 'otro',
+                fecha_emision: formData.fecha_emision_documento || undefined,
+                fecha_vencimiento: formData.fecha_vencimiento_documento || undefined,
+                dias_validez: formData.dias_validez_documento ? parseInt(formData.dias_validez_documento) : undefined,
+                estado_documento: formData.estado_documento || undefined,
+                institucion_emisora: formData.institucion_emisora || undefined,
+              });
+
+              // Refrescar documentos de la persona para que el UI muestre el nuevo registro
+              await refetchDocumentosPersona();
+            } catch (err: any) {
+              // Mostrar error en pantalla
+              // eslint-disable-next-line no-console
+              console.error('Error al registrar pendiente automáticamente:', err);
+              setErrors([err?.message || 'Error al registrar el documento pendiente.']);
+              // dejar selectedPendiente para permitir reintento manual
+            }
+          }}
+      />
     </div>
   );
 };

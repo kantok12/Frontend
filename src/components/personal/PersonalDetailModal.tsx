@@ -6,7 +6,7 @@ import { useAsignaciones } from '../../hooks/useAsignaciones';
 import { useUpdatePersonalData } from '../../hooks/useNombres';
 import { useEstados } from '../../hooks/useEstados';
 import { useCursosByRut, useDeleteCurso } from '../../hooks/useCursos';
-import { useDocumentosByPersona, useDownloadDocumento, useDeleteDocumento } from '../../hooks/useDocumentos';
+import { useDocumentosByPersona, useDownloadDocumento, useDeleteDocumento, useDeleteDocumentoAndDrive } from '../../hooks/useDocumentos';
 import { X, User, MapPin, ShirtIcon, Car, Activity, Edit, Save, XCircle, GraduationCap, Plus, Trash2, FileText, Upload, Download } from 'lucide-react';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { CursoModal } from './CursoModal';
@@ -43,11 +43,15 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
 
   const updateMutation = useUpdatePersonal();
   const updatePersonalDataMutation = useUpdatePersonalData();
-  const { data: estadosData, isLoading: estadosLoading } = useEstados();
+  const { data: estadosData, isLoading: estadosLoading } = useEstados({ limit: 100 });
   const { data: cursosData, isLoading: cursosLoading, refetch: refetchCursos } = useCursosByRut(personal?.rut || '');
   
+  // Log para debug de estados
+  console.log('🔍 PersonalDetailModal - Estados recibidos:', estadosData?.data);
+  console.log('🔍 PersonalDetailModal - Cantidad de estados:', estadosData?.data?.length);
+  
   const deleteCursoMutation = useDeleteCurso();
-  const deleteDocumentoMutation = useDeleteDocumento();
+  const deleteDocumentoAndDriveMutation = useDeleteDocumentoAndDrive();
   
   // Estados para modal de cursos
   const [showCursoModal, setShowCursoModal] = useState(false);
@@ -130,8 +134,23 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
   // Función utilitaria para descargar archivos
   const downloadFile = async (documentId: number, fileName: string) => {
     try {
-      const { blob, filename } = await downloadMutation.mutateAsync(documentId);
+      console.log('🔍 downloadFile - Iniciando descarga:', { documentId, fileName });
+      const result = await downloadMutation.mutateAsync(documentId);
+      console.log('✅ downloadFile - Respuesta recibida:', { 
+        blobSize: result.blob?.size, 
+        blobType: result.blob?.type,
+        filename: result.filename 
+      });
+      
+      const { blob, filename } = result;
+      
+      if (!blob || blob.size === 0) {
+        throw new Error('El archivo descargado está vacío');
+      }
+      
       const url = window.URL.createObjectURL(blob);
+      console.log('🔗 downloadFile - URL creada:', url);
+      
       const link = document.createElement('a');
       link.href = url;
       link.download = filename || fileName;
@@ -139,9 +158,16 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
+      
+      console.log('✅ downloadFile - Descarga completada');
       return true;
-    } catch (error) {
-      console.error('❌ Error al descargar archivo:', error);
+    } catch (error: any) {
+      console.error('❌ downloadFile - Error detallado:', {
+        message: error?.message,
+        response: error?.response?.data,
+        status: error?.response?.status,
+        error: error
+      });
       throw error;
     }
   };
@@ -245,7 +271,13 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
       if (newEstadoId !== undefined) setCurrentEstadoId(newEstadoId);
       setIsEditing(false);
       onUpdate?.();
-      alert(nombreActualizado ? 'Personal actualizado exitosamente (incluyendo nombre en ambos sistemas)' : 'Personal actualizado exitosamente');
+      
+      // Guardar el RUT del usuario antes de recargar para volver a abrir el modal
+      sessionStorage.setItem('reopenPersonalModal', personal.rut);
+      console.log('💾 Guardando RUT en sessionStorage para reabrir modal:', personal.rut);
+      
+      // Recargar la página inmediatamente (el alert se mostrará después del reload)
+      window.location.reload();
     } catch (error: any) {
       console.error('Error al actualizar:', error);
       setErrors({ general: 'Error al actualizar el personal. Verifique los datos ingresados.' });
@@ -289,12 +321,14 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
   const handleDeleteDocumento = async (documento: any) => {
     if (window.confirm(`¿Está seguro que desea eliminar el documento "${documento.nombre_documento}"?\n\nEsta acción no se puede deshacer.`)) {
       try {
-        await deleteDocumentoMutation.mutateAsync(documento.id);
+        await deleteDocumentoAndDriveMutation.mutateAsync({ id: documento.id, driveFileId: documento.drive_file_id });
         refetchDocumentos();
         alert('Documento eliminado exitosamente.');
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error al eliminar documento:', error);
-        alert('Error al eliminar el documento. Por favor, intente nuevamente.');
+        // Si la respuesta indica que el registro fue eliminado pero Drive no, mostrar mensaje diferenciado
+        const msg = error?.message || 'Error al eliminar el documento. Por favor, intente nuevamente.';
+        alert(msg);
       }
     }
   };
@@ -311,14 +345,77 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
   const handleAddDocument = () => { setShowDocumentModal(true); };
   const handleDocumentSuccess = () => { refetchDocumentos(); };
   const handleDocumentModalClose = () => { setShowDocumentModal(false); };
-  const handleDeleteDocument = async (documentId: number) => {
+  const handleDeleteDocument = async (documentoOrId: any) => {
+    // Acepta tanto el objeto documento como el id
+    const documento = typeof documentoOrId === 'number' ? todosDocumentos.find((d: any) => d.id === documentoOrId) : documentoOrId;
+    if (!documento) {
+      alert('No se encontró el documento para eliminar');
+      return;
+    }
+
     if (window.confirm('¿Está seguro de que desea eliminar este documento?')) {
-      try { await deleteDocumentoMutation.mutateAsync(documentId); refetchDocumentos(); } catch {}
+      try {
+        await deleteDocumentoAndDriveMutation.mutateAsync({ id: documento.id, driveFileId: documento.drive_file_id });
+        refetchDocumentos();
+        alert('Documento eliminado exitosamente');
+      } catch (error: any) {
+        console.error('Error al eliminar documento:', error);
+        alert(error?.message || 'Error al eliminar el documento');
+      }
     }
   };
   const handleDownloadDocument = async (documento: any) => {
-    if (!documento.id) return;
-    try { await downloadFile(documento.id, documento.nombre_original || `${documento.nombre_documento}.pdf`); } catch {}
+    if (!documento.id) {
+      alert('Error: No se encontró el ID del documento');
+      return;
+    }
+    
+    try {
+      console.log('📥 handleDownloadDocument - Datos completos del documento:', documento);
+      console.log('📥 handleDownloadDocument - Descargando:', {
+        id: documento.id,
+        nombre: documento.nombre_documento,
+        nombreOriginal: documento.nombre_original,
+        rutaArchivo: documento.ruta_archivo,
+        url: documento.url,
+        driveFileId: documento.drive_file_id
+      });
+      
+      // Si el documento tiene drive_file_id, podemos intentar abrir en Google Drive
+      if (documento.drive_file_id) {
+        const driveUrl = `https://drive.google.com/file/d/${documento.drive_file_id}/view`;
+        console.log('📂 Abriendo en Google Drive:', driveUrl);
+        window.open(driveUrl, '_blank');
+        return;
+      }
+      
+      await downloadFile(documento.id, documento.nombre_original || `${documento.nombre_documento}.pdf`);
+      console.log('✅ handleDownloadDocument - Descarga completada exitosamente');
+    } catch (error: any) {
+      console.error('❌ handleDownloadDocument - Error:', error);
+      
+      let errorMessage = 'Error al descargar el documento.';
+      
+      if (error?.response?.status === 404) {
+        errorMessage = 'El endpoint de descarga no está implementado en el backend. ';
+        if (documento.drive_file_id) {
+          errorMessage += 'Abriendo en Google Drive...';
+          const driveUrl = `https://drive.google.com/file/d/${documento.drive_file_id}/view`;
+          window.open(driveUrl, '_blank');
+          return;
+        } else {
+          errorMessage += 'Contacte al administrador del sistema.';
+        }
+      } else if (error?.response?.status === 403) {
+        errorMessage = 'No tiene permisos para descargar este documento.';
+      } else if (error?.response?.status === 500) {
+        errorMessage = 'Error interno del servidor. Intente nuevamente.';
+      } else if (error?.message) {
+        errorMessage = `Error: ${error.message}`;
+      }
+      
+      alert(errorMessage);
+    }
   };
 
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -417,7 +514,7 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
         <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6 rounded-t-xl">
           <div className="flex justify-between items-start">
             <div className="flex items-center space-x-4">
-              <div className="relative">
+              <div className="relative group">
                 <div className="h-16 w-16 rounded-full bg-white bg-opacity-20 flex items-center justify-center overflow-hidden">
                   {!imageError && imageUrl ? (
                     <img 
@@ -430,6 +527,42 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                     <User className="h-8 w-8 text-white" />
                   )}
                 </div>
+                {/* Botones de imagen en hover */}
+                <div className="absolute inset-0 bg-black bg-opacity-50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex space-x-1">
+                    <label 
+                      htmlFor="image-upload" 
+                      className="cursor-pointer bg-blue-500 hover:bg-blue-600 p-2 rounded-full transition-colors"
+                      title="Subir imagen"
+                    >
+                      <Upload className="h-4 w-4 text-white" />
+                      <input
+                        id="image-upload"
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                        className="hidden"
+                        disabled={isUploading}
+                      />
+                    </label>
+                    {!imageError && imageUrl && (
+                      <button
+                        onClick={handleRemoveImage}
+                        disabled={isDeleting}
+                        className="bg-red-500 hover:bg-red-600 p-2 rounded-full transition-colors disabled:opacity-50"
+                        title="Eliminar imagen"
+                      >
+                        <Trash2 className="h-4 w-4 text-white" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {/* Indicador de carga */}
+                {(isUploading || isDeleting) && (
+                  <div className="absolute inset-0 bg-black bg-opacity-70 rounded-full flex items-center justify-center">
+                    <LoadingSpinner />
+                  </div>
+                )}
               </div>
               <div>
                 <h2 className="text-2xl font-bold">
@@ -645,13 +778,23 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                   <div className="flex justify-between items-center">
                     <span className="text-gray-600 font-medium">Licencia de Conducir:</span>
                     {isEditing ? (
-                      <input
-                        type="text"
+                      <select
                         value={editData.licencia_conducir || ''}
                         onChange={(e) => handleInputChange('licencia_conducir', e.target.value)}
                         className={`px-2 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.licencia_conducir ? 'border-red-500' : 'border-gray-300'}`}
-                        placeholder="Ej: B, A1, C"
-                      />
+                      >
+                        <option value="">Seleccione una clase</option>
+                        <option value="A1">A1</option>
+                        <option value="A2">A2</option>
+                        <option value="A3">A3</option>
+                        <option value="A4">A4</option>
+                        <option value="A5">A5</option>
+                        <option value="B">B</option>
+                        <option value="C">C</option>
+                        <option value="D">D</option>
+                        <option value="E">E</option>
+                        <option value="F">F</option>
+                      </select>
                     ) : (
                       <span className="text-gray-900 font-semibold">{personal.licencia_conducir || 'No especificada'}</span>
                     )}
@@ -836,11 +979,16 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                           </div>
                           <div className="flex flex-col space-y-1 ml-3">
                             <button 
-                              onClick={() => downloadFile(documento.id, documento.nombre_original)}
-                              className="text-blue-500 hover:text-blue-700 p-1 rounded hover:bg-blue-50 transition-colores" 
+                              onClick={() => handleDownloadDocument(documento)}
+                              disabled={downloadMutation.isLoading}
+                              className="text-blue-500 hover:text-blue-700 p-1 rounded hover:bg-blue-50 transition-colores disabled:opacity-50 disabled:cursor-not-allowed" 
                               title="Descargar documento"
                             >
-                              <Download className="h-3 w-3" />
+                              {downloadMutation.isLoading ? (
+                                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-500"></div>
+                              ) : (
+                                <Download className="h-3 w-3" />
+                              )}
                             </button>
                             <button 
                               onClick={() => handleEditDocumento(documento)}
@@ -916,7 +1064,7 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                             <button onClick={() => handleDownloadDocument(documento)} className="text-green-500 hover:text-green-700 p-1 rounded hover:bg-green-50 transition-colores disabled:opacity-50 disabled:cursor-not-allowed" title="Descargar documento" disabled={downloadMutation.isLoading}>
                               {downloadMutation.isLoading ? (<div className="animate-spin rounded-full h-3 w-3 border-b-2 border-green-500"></div>) : (<Download className="h-3 w-3" />)}
                             </button>
-                            <button onClick={() => handleDeleteDocument(documento.id)} className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50 transition-colores" title="Eliminar documento">
+                            <button onClick={() => handleDeleteDocument(documento)} className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50 transition-colores" title="Eliminar documento">
                               <Trash2 className="h-3 w-3" />
                             </button>
                           </div>

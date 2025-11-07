@@ -115,7 +115,7 @@ export const useCrearProgramacionSemanaOptimizada = () => {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: (data: any) => apiService.crearProgramacionSemanaOptimizada(data),
+    mutationFn: (data: any) => apiService.crearProgramacionOptimizada(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['programacion-optimizada'] });
       queryClient.invalidateQueries({ queryKey: ['programacion'] });

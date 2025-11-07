@@ -275,6 +275,25 @@ export const useDeleteDocumento = () => {
   });
 };
 
+// Hook para eliminar documento y su archivo en Drive cuando sea posible
+export const useDeleteDocumentoAndDrive = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, driveFileId }: { id: number; driveFileId?: string }) => apiService.deleteDocumentoAndDrive(id, driveFileId),
+    onSuccess: () => {
+      // Invalidar queries relacionadas
+      queryClient.invalidateQueries({ queryKey: ['documentos'] });
+      queryClient.invalidateQueries({ queryKey: ['documentos', 'persona'] });
+      queryClient.invalidateQueries({ queryKey: ['documentos', 'curso'] });
+    },
+    onError: (error: any) => {
+      console.error('❌ useDeleteDocumentoAndDrive - error:', error);
+      throw error;
+    }
+  });
+};
+
 // Hook para registrar un documento que ya existe en almacenamiento externo (p.e. Google Drive)
 export const useRegisterDocumentoExistente = () => {
   const queryClient = useQueryClient();

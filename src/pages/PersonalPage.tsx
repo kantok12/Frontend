@@ -330,7 +330,31 @@ export const PersonalPage: React.FC = () => {
     };
   }, [personalData, refetch, isLoading]);
 
-
+  // Verificar si hay que reabrir un modal después de un reload (por edición de usuario)
+  useEffect(() => {
+    const rutToReopen = sessionStorage.getItem('reopenPersonalModal');
+    console.log('🔍 Verificando sessionStorage al cargar página:', { rutToReopen, isLoading, hasData: !!personalData?.data?.items });
+    
+    if (rutToReopen && !isLoading && personalData?.data?.items) {
+      console.log('✅ Reabriendo modal para RUT:', rutToReopen);
+      // Limpiar el sessionStorage para que no se reabra cada vez
+      sessionStorage.removeItem('reopenPersonalModal');
+      
+      // Despachar evento para abrir el modal con ese RUT
+      setTimeout(() => {
+        console.log('🚀 Despachando evento openPersonalDetailModal para RUT:', rutToReopen);
+        const event = new CustomEvent('openPersonalDetailModal', {
+          detail: { 
+            personalId: rutToReopen, 
+            rutPersona: rutToReopen,
+            source: 'after-edit-reload',
+            timestamp: new Date().toISOString()
+          }
+        });
+        window.dispatchEvent(event);
+      }, 300); // Delay para asegurar que todo esté renderizado
+    }
+  }, [isLoading, personalData]);
 
   // Extraer datos de la respuesta
   const personalListOriginal = personalData?.data?.items || [];

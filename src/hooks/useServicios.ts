@@ -1,7 +1,7 @@
 import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '../services/api';
-// import { useMinimoPersonal } from './useMinimoPersonal'; // Deshabilitado temporalmente
+import { useMinimoPersonal } from './useMinimoPersonal';
 
 // ==================== HOOKS PARA CARTERAS ====================
 
@@ -166,21 +166,44 @@ export const useServiciosPage = (searchTerm: string = '', activeTab: 'carteras' 
   const { data: nodos, isLoading: nodosLoading, error: nodosError } = useNodos({ 
     limit: 1000 // Aumentar límite para tener todos los datos
   });
-  // Deshabilitado temporalmente por error 500
-  // const { data: minimoPersonal, isLoading: minimoPersonalLoading, error: minimoPersonalError } = useMinimoPersonal({ 
-  //   limit: 1000 
-  // });
-  const minimoPersonal: any[] = []; // Array vacío temporal
-  const minimoPersonalLoading = false;
-  const minimoPersonalError = null;
+  const { data: minimoPersonal, isLoading: minimoPersonalLoading, error: minimoPersonalError } = useMinimoPersonal({ 
+    limit: 1000 
+  });
 
   const isLoading = estadisticasLoading || estructuraLoading || carterasLoading || clientesLoading || nodosLoading || minimoPersonalLoading;
   const hasError = estadisticasError || estructuraError || carterasError || clientesError || nodosError || minimoPersonalError;
 
   // Enriquecer datos de clientes con nombres de carteras y mínimo personal
+  // Construir array de mínimos (incluye fallback si el endpoint devuelve vacío)
+  const minimosArray = React.useMemo(() => {
+    let arr: any[] = minimoPersonal?.data || [];
+    if ((arr?.length || 0) === 0 && clientes?.data) {
+      try {
+        arr = clientes.data.map((c: any) => ({
+          cliente_id: c.id,
+          minimo_personal: c.minimo_personal || 1,
+          activo: true
+        }));
+        // eslint-disable-next-line no-console
+        console.warn('useServicios - usando fallback de minimos desde clientes, total:', arr.length);
+      } catch (e) {
+        // ignore
+      }
+    }
+    return arr;
+  }, [minimoPersonal?.data, clientes?.data]);
+
   const clientesEnriquecidos = React.useMemo(() => {
-    if (!clientes?.data || !carteras?.data || !minimoPersonal) {
+    if (!clientes?.data || !carteras?.data) {
       return clientes?.data || [];
+    }
+
+    // Debug: mostrar resumen de mínimo personal
+    try {
+      // eslint-disable-next-line no-console
+      console.log('useServicios - minimoPersonal raw:', minimosArray?.length, minimosArray?.slice?.(0,3));
+    } catch (e) {
+      // ignore
     }
 
     return clientes.data.map((cliente: any) => {
@@ -189,9 +212,13 @@ export const useServiciosPage = (searchTerm: string = '', activeTab: 'carteras' 
       const carteraNombre = cartera?.nombre || `Cartera ID: ${cliente.cartera_id}`;
 
       // Buscar el mínimo personal para este cliente
-      const minimoCliente = minimoPersonal.find((mp: any) => 
-        mp.cliente_id === cliente.id && mp.activo
-      );
+      let minimoCliente: any = undefined;
+      try {
+        minimoCliente = (minimosArray || []).find((mp: any) => String(mp.cliente_id) === String(cliente.id) && mp.activo)
+          || (minimosArray || []).find((mp: any) => String(mp.cliente_id) === String(cliente.id));
+      } catch (e) {
+        minimoCliente = undefined;
+      }
       const minimoPersonalCliente = minimoCliente?.minimo_personal || 0;
 
       return {
@@ -200,7 +227,7 @@ export const useServiciosPage = (searchTerm: string = '', activeTab: 'carteras' 
         minimo_personal: minimoPersonalCliente
       };
     });
-  }, [clientes?.data, carteras?.data, minimoPersonal]);
+  }, [clientes?.data, carteras?.data, minimosArray]);
 
   // Enriquecer datos de nodos con nombres de clientes y carteras
   const nodosEnriquecidos = React.useMemo(() => {
@@ -239,7 +266,7 @@ export const useServiciosPage = (searchTerm: string = '', activeTab: 'carteras' 
     carteras: carteras?.data || [],
     clientes: clientesEnriquecidos,
     nodos: nodosEnriquecidos,
-    minimoPersonal: minimoPersonal || [],
+  minimoPersonal: minimosArray || [],
     isLoading,
     error: hasError
   };

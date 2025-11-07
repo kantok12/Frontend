@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { 
   Users, 
   Calendar,
@@ -16,16 +17,19 @@ import {
   ResponsiveContainer,
   LineChart,
   Line,
-  Area,
-  AreaChart
+  BarChart,
+  Bar
 } from 'recharts';
 import { useDashboardStats } from '../../hooks/useDashboard';
 import useResumenPersonalPorCliente from '../../hooks/useResumenPersonalPorCliente';
 import { usePersonalList } from '../../hooks/usePersonal';
 import { useEstadisticasServicios } from '../../hooks/useServicios';
+import { useEstados } from '../../hooks/useEstados';
+import { apiService } from '../../services/api';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { PersonalInfoModal } from './PersonalInfoModal';
 import { PersonalTrabajandoModal } from './PersonalTrabajandoModal';
+import { PersonalAsignadoModal } from './PersonalAsignadoModal';
 import { EventosModal } from './EventosModal';
 import { NodosInfoModal } from './NodosInfoModal';
 import { CarterasInfoModal } from './CarterasInfoModal';
@@ -92,26 +96,83 @@ export const DashboardStats: React.FC = () => {
   const { isLoading } = useDashboardStats();
   const [showPersonalModal, setShowPersonalModal] = useState(false);
   const [showPersonalTrabajandoModal, setShowPersonalTrabajandoModal] = useState(false);
+  const [showPersonalAsignadoModal, setShowPersonalAsignadoModal] = useState(false);
   const [showEventosModal, setShowEventosModal] = useState(false);
   const [showNodosModal, setShowNodosModal] = useState(false);
   const [showCarterasModal, setShowCarterasModal] = useState(false);
   const [semanaActual, setSemanaActual] = useState(true); // true = semana actual, false = próxima semana
   const [semanaActualTendencias, setSemanaActualTendencias] = useState(true); // true = semana actual, false = próxima semana
 
+  // Obtener datos de personal por cliente para el gráfico
+  const { data: personalPorClienteData } = useQuery(
+    ['personal-por-cliente-grafico'],
+    async () => {
+      const res = await fetch('/api/personal-por-cliente');
+      return await res.json();
+    },
+    { 
+      staleTime: 5 * 60 * 1000
+    }
+  );
+
   // Obtener datos reales del backend
   const { data: personalData, isLoading: personalLoading } = usePersonalList(1, 100, '');
   const { data: estadisticasServicios, isLoading: serviciosLoading } = useEstadisticasServicios();
+  
+  // Obtener datos de estados
+  const { data: estadosData } = useEstados({ limit: 100 });
+  const estadosList = estadosData?.data || [];
+  
+  // Log para ver todos los estados disponibles
+  console.log('📋 Estados disponibles en la BD:', estadosList.map((e: any) => ({ id: e.id, nombre: e.nombre })));
   
   // Calcular estadísticas reales de los datos del backend
   const personalList = personalData?.data?.items || [];
   const totalPersonal = personalData?.data?.total || 0;
   const personalActivo = personalList.filter(p => p.activo).length;
   
+  // Log para ver la distribución de estado_id en el personal
+  const distribucionEstadoIds = personalList.reduce((acc: any, p: any) => {
+    const key = `estado_${p.estado_id}`;
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+  console.log('👥 Distribución de estado_id en el personal:', distribucionEstadoIds);
+  console.log('👥 Ejemplos de personal:', personalList.slice(0, 5).map((p: any) => ({ 
+    nombre: p.nombre, 
+    estado_id: p.estado_id,
+    activo: p.activo 
+  })));
+  
   const personalTrabajando = personalList.filter(p => p.activo).length;
   
-  const personalAcreditacion = personalList.filter(p => 
-    p.activo && p.comentario_estado?.toLowerCase().includes('acreditación')
-  ).length;
+  // Calcular distribución por estado dinámicamente
+  const distribucionEstados = estadosList
+    .map((estado: any) => {
+      const cantidad = personalList.filter(p => p.estado_id === estado.id).length;
+      const porcentaje = totalPersonal > 0 ? Math.round((cantidad / totalPersonal) * 100) : 0;
+      
+      // Asignar colores basados en el nombre del estado
+      let color = 'gray';
+      const nombreLower = estado.nombre.toLowerCase();
+      if (nombreLower.includes('activo') || nombreLower.includes('disponible')) color = 'green';
+      else if (nombreLower.includes('examen') || nombreLower.includes('exámenes')) color = 'yellow';
+      else if (nombreLower.includes('capacitación') || nombreLower.includes('capacitacion')) color = 'purple';
+      else if (nombreLower.includes('vacaciones')) color = 'blue';
+      else if (nombreLower.includes('licencia')) color = 'orange';
+      else if (nombreLower.includes('inactivo')) color = 'red';
+      else if (nombreLower.includes('asignado')) color = 'indigo';
+      else if (nombreLower.includes('desvinculado')) color = 'slate';
+      
+      return {
+        id: estado.id,
+        nombre: estado.nombre,
+        cantidad,
+        porcentaje,
+        color
+      };
+    })
+    .sort((a: any, b: any) => b.cantidad - a.cantidad); // Ordenar por cantidad descendente
   
   const totalEventos = 0; // TODO: Implementar carga de eventos reales desde el backend
   const eventosHoy = 0; // TODO: Implementar carga de eventos reales desde el backend
@@ -144,6 +205,17 @@ export const DashboardStats: React.FC = () => {
     inicio.setDate(diff);
     inicio.setHours(0, 0, 0, 0);
     return inicio;
+  };
+
+  // Calcular número ISO de semana a partir de una fecha
+  const getISOWeekNumber = (date: Date) => {
+    const tmp = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    // Set to nearest Thursday: current date + 4 - current day number
+    const dayNum = (tmp.getUTCDay() + 6) % 7; // Monday=0, Sunday=6
+    tmp.setUTCDate(tmp.getUTCDate() + 3 - dayNum);
+    const firstThursday = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 4));
+    const weekNumber = 1 + Math.round(((tmp.getTime() - firstThursday.getTime()) / 86400000 - 3 + ((firstThursday.getUTCDay() + 6) % 7)) / 7);
+    return weekNumber;
   };
 
   // Función para generar datos de eventos por día
@@ -184,58 +256,78 @@ export const DashboardStats: React.FC = () => {
 
   // Función para generar datos de tendencias de servicios por día
   const generarTendenciasServicios = (esSemanaActual: boolean) => {
-    const hoy = new Date();
-    const inicioSemana = getInicioSemana(hoy);
+    console.log('📊 Generando tendencias servicios...');
+    console.log('Datos personal por cliente:', personalPorClienteData);
     
-    // Si es próxima semana, agregar 7 días
-    if (!esSemanaActual) {
-      inicioSemana.setDate(inicioSemana.getDate() + 7);
+    // Si no hay datos de personal por cliente, retornar array vacío
+    if (!personalPorClienteData?.data || !Array.isArray(personalPorClienteData.data)) {
+      console.log('❌ No hay datos de personal por cliente');
+      return [];
     }
 
-    const diasSemana = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
-    const tiposServicios = [
-      'Mantenimiento Industrial',
-      'Servicio Spot', 
-      'Servicio Integral',
-      'Programa de Lubricación',
-      'Levantamientos',
-      'Instalaciones'
-    ];
-    
-    const tendenciasServicios = [];
-
-    for (let i = 0; i < 7; i++) {
-      const fecha = new Date(inicioSemana);
-      fecha.setDate(inicioSemana.getDate() + i);
-      
-      // Generar datos estables basados en la fecha (no aleatorios)
-      const seed = fecha.getDate() + (esSemanaActual ? 0 : 200); // Diferente seed para cada semana
-      const totalServicios = (seed % 8) + 2; // 2-9 servicios
-      const totalPersonal = (seed % 12) + 3; // 3-14 personas
-      const serviciosCompletados = Math.min(totalServicios, (seed % 5) + 1); // 1-5 completados, máximo totalServicios
-      
-      // Generar distribución de tipos de servicios
-      const serviciosPorTipo = tiposServicios.map((tipo, index) => ({
-        tipo: tipo,
-        cantidad: (seed + index) % 3, // 0-2 servicios por tipo
-        personalAsignado: ((seed + index) % 4) + 1 // 1-4 personas por tipo
-      }));
-
-      tendenciasServicios.push({
-        name: diasSemana[i],
-        fecha: fecha.toISOString().split('T')[0],
-        totalServicios: totalServicios,
-        totalPersonal: totalPersonal,
-        serviciosCompletados: serviciosCompletados,
-        serviciosPorTipo: serviciosPorTipo
+    // Filtrar solo clientes con personal asignado y mapear todos los clientes
+    const clientesConDatos = personalPorClienteData.data
+      .filter((cliente: any) => cliente.total_personal_asignado > 0) // Solo clientes con personal
+      .map((cliente: any) => {
+        const personalAsignado = cliente.total_personal_asignado || 0;
+        const personalMinimo = cliente.personal_minimo || 0;
+        let clienteNombre = cliente.cliente_nombre || `Cliente ${cliente.cliente_id}`;
+        
+        // Acortar nombres largos para mejor visualización
+        if (clienteNombre.length > 25) {
+          // Tomar las primeras palabras significativas
+          const palabras = clienteNombre.split(' - ');
+          clienteNombre = palabras[0];
+          
+          // Si sigue siendo muy largo, tomar solo las primeras 3 palabras
+          if (clienteNombre.length > 25) {
+            const primerasPalabras = clienteNombre.split(' ').slice(0, 3).join(' ');
+            clienteNombre = primerasPalabras + '...';
+          }
+        }
+        
+        return {
+          name: clienteNombre,
+          fecha: new Date().toISOString().split('T')[0],
+          personalMinimo: personalMinimo,
+          personalAsignado: personalAsignado,
+          cliente_id: cliente.cliente_id
+        };
       });
-    }
 
-    return tendenciasServicios;
+    console.log('✅ Clientes con datos para gráfico:', clientesConDatos);
+    return clientesConDatos;
   };
 
   // Datos para gráfico de tendencia de servicios
   const tendenciaServicios = generarTendenciasServicios(semanaActualTendencias);
+
+  // Información de la semana mostrada en el gráfico (usa la misma bandera semanaActualTendencias)
+  const semanaInfo = useMemo(() => {
+    const hoy = new Date();
+    const inicio = getInicioSemana(hoy);
+    if (!semanaActualTendencias) inicio.setDate(inicio.getDate() + 7);
+    const fin = new Date(inicio);
+    fin.setDate(inicio.getDate() + 6);
+    const weekNumber = getISOWeekNumber(inicio);
+    return {
+      weekNumber,
+      start: inicio.toLocaleDateString('es-CL'),
+      end: fin.toLocaleDateString('es-CL')
+    };
+  }, [semanaActualTendencias]);
+
+  // Ensure data fetching hooks are correctly implemented
+  useEffect(() => {
+    if (!personalPorClienteData) {
+      console.error('Error: Missing data from API endpoints');
+    }
+  }, [personalPorClienteData]);
+
+  // Add fallback logic for empty data
+  if (!personalPorClienteData?.data || personalPorClienteData.data.length === 0) {
+    console.warn('Warning: No personal data available');
+  }
 
   if (isLoading || personalLoading || serviciosLoading) {
     return (
@@ -267,7 +359,7 @@ export const DashboardStats: React.FC = () => {
         </div>
         <div className="stagger-item animate-delay-200">
           <StatCard
-            title="Personal en Servicio"
+            title="Personal Activo"
             value={dashboardStats.personal_trabajando}
             icon={<Activity className="h-6 w-6 text-white" />}
             color="bg-gradient-to-br from-green-500 to-green-600"
@@ -281,49 +373,38 @@ export const DashboardStats: React.FC = () => {
             value={resumenLoading ? dashboardStats.total_personal : totalPersonasAsignadas}
             icon={<Users className="h-6 w-6 text-white" />}
             color="bg-gradient-to-br from-purple-500 to-purple-600"
-            onClick={() => setShowPersonalModal(true)}
+            onClick={() => setShowPersonalAsignadoModal(true)}
             trend={{ value: 5, isPositive: true }}
           />
         </div>
       </div>
 
 
-      {/* Gráfico de tendencia y eventos por día */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-        {/* Tendencia de servicios */}
+      {/* Gráfico de Programación de Servicios - Expandido */}
+      <div className="mb-8">
+        {/* Programación de servicios */}
         <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-semibold text-gray-900">Programación de Servicios</h3>
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">Programación de Servicios</h3>
+              <div className="text-sm text-gray-500">Semana {semanaInfo.weekNumber} — {semanaInfo.start} → {semanaInfo.end}</div>
+            </div>
             <div className="flex items-center space-x-2">
               <TrendingUp className="h-5 w-5 text-gray-400" />
-              <div className="flex bg-gray-100 rounded-lg p-1">
-                <button
-                  onClick={() => setSemanaActualTendencias(true)}
-                  className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
-                    semanaActualTendencias
-                      ? 'bg-white text-blue-600 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  Semana Actual
-                </button>
-                <button
-                  onClick={() => setSemanaActualTendencias(false)}
-                  className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
-                    !semanaActualTendencias
-                      ? 'bg-white text-blue-600 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  Próxima Semana
-                </button>
-              </div>
             </div>
           </div>
           <ResponsiveContainer width="100%" height={300}>
-            <AreaChart data={tendenciaServicios}>
+            <BarChart data={tendenciaServicios}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="name" stroke="#6b7280" />
+              <XAxis 
+                dataKey="name" 
+                stroke="#6b7280"
+                angle={-25}
+                textAnchor="end"
+                height={100}
+                interval={0}
+                style={{ fontSize: '12px' }}
+              />
               <YAxis stroke="#6b7280" />
               <Tooltip 
                 contentStyle={{ 
@@ -332,66 +413,40 @@ export const DashboardStats: React.FC = () => {
                   borderRadius: '8px',
                   boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
                 }}
-                labelFormatter={(value, payload) => {
-                  if (payload && payload[0]) {
-                    const data = payload[0].payload;
-                    return `${data.name} - ${new Date(data.fecha).toLocaleDateString('es-CL')}`;
-                  }
-                  return value;
-                }}
                 formatter={(value, name) => {
-                  if (name === 'totalServicios') return [`${value} servicios`, 'Total Servicios'];
-                  if (name === 'totalPersonal') return [`${value} personas`, 'Personal Asignado'];
-                  if (name === 'serviciosCompletados') return [`${value} servicios`, 'Servicios Completados'];
+                  if (name === 'personalMinimo') return [`${value} personas`, 'Personal Mínimo'];
+                  if (name === 'personalAsignado') return [`${value} personas`, 'Personal Asignado'];
                   return [value, name];
                 }}
               />
-              <Area 
-                type="monotone" 
-                dataKey="totalServicios" 
-                stackId="1" 
-                stroke="#3B82F6" 
-                fill="#3B82F6" 
-                fillOpacity={0.6}
-                name="Total Servicios"
+              <Bar 
+                dataKey="personalMinimo" 
+                fill="#3B82F6"
+                name="Personal Mínimo"
+                radius={[4, 4, 0, 0]}
               />
-              <Area 
-                type="monotone" 
-                dataKey="totalPersonal" 
-                stackId="2" 
-                stroke="#10B981" 
-                fill="#10B981" 
-                fillOpacity={0.6}
+              <Bar 
+                dataKey="personalAsignado" 
+                fill="#10B981"
                 name="Personal Asignado"
+                radius={[4, 4, 0, 0]}
               />
-              <Area 
-                type="monotone" 
-                dataKey="serviciosCompletados" 
-                stackId="3" 
-                stroke="#F59E0B" 
-                fill="#F59E0B" 
-                fillOpacity={0.6}
-                name="Servicios Completados"
-              />
-            </AreaChart>
+            </BarChart>
           </ResponsiveContainer>
           <div className="mt-4 flex justify-center space-x-6">
             <div className="flex items-center">
               <div className="w-3 h-3 bg-blue-500 rounded-full mr-2"></div>
-              <span className="text-sm text-gray-600">Total Servicios</span>
+              <span className="text-sm text-gray-600">Personal Mínimo</span>
             </div>
             <div className="flex items-center">
               <div className="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
               <span className="text-sm text-gray-600">Personal Asignado</span>
             </div>
-            <div className="flex items-center">
-              <div className="w-3 h-3 bg-orange-500 rounded-full mr-2"></div>
-              <span className="text-sm text-gray-600">Servicios Completados</span>
-            </div>
           </div>
         </div>
 
-        {/* Eventos por día */}
+        {/* Eventos por día - OCULTO (comentado para uso futuro) */}
+        {false && (
         <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-lg font-semibold text-gray-900">Eventos por Día</h3>
@@ -470,6 +525,7 @@ export const DashboardStats: React.FC = () => {
             </div>
           </div>
         </div>
+        )}
       </div>
 
       {/* Tarjetas secundarias */}
@@ -480,7 +536,7 @@ export const DashboardStats: React.FC = () => {
             value={dashboardStats.total_carteras}
             icon={<Users className="h-6 w-6 text-white" />}
             color="bg-gradient-to-br from-purple-500 to-purple-600"
-            onClick={() => setShowCarterasModal(true)}
+            href="/servicios"
           />
         </div>
         <div className="stagger-item animate-delay-600">
@@ -498,7 +554,7 @@ export const DashboardStats: React.FC = () => {
             value={dashboardStats.total_servicios}
             icon={<Settings className="h-6 w-6 text-white" />}
             color="bg-gradient-to-br from-orange-500 to-orange-600"
-            onClick={() => setShowNodosModal(true)}
+            href="/servicios"
           />
         </div>
       </div>
@@ -509,31 +565,59 @@ export const DashboardStats: React.FC = () => {
         isOpen={showPersonalModal}
         onClose={() => setShowPersonalModal(false)}
         totalPersonal={dashboardStats.total_personal}
-        personalActivo={dashboardStats.personal_activo}
-        personalTrabajando={dashboardStats.personal_trabajando}
-        personalAcreditacion={personalAcreditacion}
+        distribucionEstados={distribucionEstados}
       />
 
-      {/* Modal de personal en servicio */}
+      {/* Modal de personal activo */}
       <PersonalTrabajandoModal
         isOpen={showPersonalTrabajandoModal}
         onClose={() => setShowPersonalTrabajandoModal(false)}
-        personalTrabajando={personalList.filter(p => p.activo).map(p => ({
-          id: p.id,
-          nombre: p.nombre,
-          apellido: p.apellido,
-          cargo: p.cargo,
-          ubicacion: p.zona_geografica || 'No especificada',
-          servicioAsignado: {
-            id: p.servicio_id || '1',
-            nombre: 'Servicio Asignado',
-            categoria: 'General',
-            zonaGestion: p.zona_geografica || 'No especificada'
-          },
-          estadoActividad: {
-            label: p.activo ? 'Trabajando' : 'Inactivo'
-          }
-        }))}
+        personalTrabajando={(() => {
+          // Buscar el estado "Activo" (id: 1 según la BD)
+          const estadoActivo = estadosList.find((e: any) => 
+            e.nombre.toLowerCase() === 'activo'
+          );
+          
+          console.log('🔍 Estado Activo:', estadoActivo);
+          
+          const personalFiltrado = personalList.filter(p => {
+            if (!estadoActivo) {
+              console.warn('⚠️ No se encontró el estado "Activo"');
+              return false;
+            }
+            return p.estado_id === estadoActivo.id;
+          });
+          
+          console.log('👥 Personal con estado Activo:', personalFiltrado.length, 'personas');
+          console.log('👥 Lista completa:', personalFiltrado.map(p => ({ 
+            nombre: p.nombre, 
+            cargo: p.cargo,
+            estado_id: p.estado_id 
+          })));
+          
+          return personalFiltrado.map(p => ({
+            id: p.id,
+            nombre: p.nombre,
+            apellido: p.apellido || '',
+            cargo: p.cargo,
+            ubicacion: p.zona_geografica || 'No especificada',
+            servicioAsignado: {
+              id: p.servicio_id || '1',
+              nombre: 'Servicio Asignado',
+              categoria: 'General',
+              zonaGestion: p.zona_geografica || 'No especificada'
+            },
+            estadoActividad: {
+              label: 'Trabajando'
+            }
+          }));
+        })()}
+      />
+
+      {/* Modal de personal asignado */}
+      <PersonalAsignadoModal
+        isOpen={showPersonalAsignadoModal}
+        onClose={() => setShowPersonalAsignadoModal(false)}
       />
 
       {/* Modal de eventos */}

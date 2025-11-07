@@ -58,6 +58,8 @@ export const CursoModal: React.FC<CursoModalProps> = ({
 
   // Extraer lista de archivos locales/pendientes según la estructura devuelta por el backend
   const documentosLocales: any[] = (documentosPersonaData as any)?.data?.documentos_locales || [];
+  // Documentos ya registrados en la aplicación
+  const existingDocs: any[] = (documentosPersonaData as any)?.data?.documentos || (Array.isArray((documentosPersonaData as any)?.data) ? (documentosPersonaData as any).data : []);
 
   // Modal de opciones y selección de pendientes
   const [showOptionsModal, setShowOptionsModal] = useState(false);
@@ -660,6 +662,7 @@ export const CursoModal: React.FC<CursoModalProps> = ({
         isOpen={showPendientesModal}
         onClose={() => setShowPendientesModal(false)}
         documentos={documentosLocales}
+        existingDocs={existingDocs}
         onSelect={(f, displayName) => {
           setSelectedPendiente({ file: f, displayName });
           setShowPendientesModal(false);

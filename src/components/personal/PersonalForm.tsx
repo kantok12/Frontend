@@ -40,7 +40,13 @@ export const PersonalForm: React.FC<PersonalFormProps> = ({
 
   const createMutation = useCreatePersonal();
   const updateMutation = useUpdatePersonal();
-  const { data: estadosData, isLoading: estadosLoading } = useEstados();
+  const { data: estadosData, isLoading: estadosLoading, error: estadosError } = useEstados({ limit: 100 });
+  
+  // Log para debug
+  console.log('🔍 PersonalForm - Estados:', estadosData);
+  console.log('🔍 PersonalForm - Data completo:', estadosData?.data);
+  console.log('🔍 PersonalForm - Loading:', estadosLoading);
+  console.log('🔍 PersonalForm - Error:', estadosError);
 
   // Función para calcular la edad basada en la fecha de nacimiento
   const calculateAge = (fechaNacimiento: string): string => {
@@ -430,16 +436,26 @@ export const PersonalForm: React.FC<PersonalFormProps> = ({
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Licencia de Conducir *
                 </label>
-                <input
-                  type="text"
+                <select
                   name="licencia_conducir"
                   value={formData.licencia_conducir}
                   onChange={handleInputChange}
                   className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                     errors.licencia_conducir ? 'border-red-500' : 'border-gray-300'
                   }`}
-                  placeholder="Ej: B, A1, C, etc."
-                />
+                >
+                  <option value="">Seleccione una clase</option>
+                  <option value="A1">A1</option>
+                  <option value="A2">A2</option>
+                  <option value="A3">A3</option>
+                  <option value="A4">A4</option>
+                  <option value="A5">A5</option>
+                  <option value="B">B</option>
+                  <option value="C">C</option>
+                  <option value="D">D</option>
+                  <option value="E">E</option>
+                  <option value="F">F</option>
+                </select>
                 {errors.licencia_conducir && (
                   <p className="mt-1 text-xs text-red-600">{errors.licencia_conducir}</p>
                 )}

@@ -32,6 +32,11 @@ class ApiService {
       withCredentials: false, // Cambiar a false para evitar problemas CORS
     });
 
+    // Mostrar baseURL en consola al iniciar el cliente API para diagnóstico
+    // (ayuda a verificar que el frontend está llamando al backend correcto)
+    // eslint-disable-next-line no-console
+    console.log('ApiService - baseURL:', this.api.defaults.baseURL, 'withCredentials:', this.api.defaults.withCredentials);
+
     // Interceptor para agregar token a las peticiones
     this.api.interceptors.request.use(
       (config) => {
@@ -382,7 +387,9 @@ class ApiService {
   
   // Obtener todos los estados (con soporte para paginación y búsqueda)
   async getEstados(params?: { limit?: number; offset?: number; search?: string }): Promise<ApiResponse<any[]>> {
+    console.log('🌐 Haciendo petición a /estados con params:', params);
     const response: AxiosResponse<ApiResponse<any[]>> = await this.api.get('/estados', { params });
+    console.log('✅ Respuesta de /estados:', response.data);
     return response.data;
   }
 
@@ -602,13 +609,57 @@ class ApiService {
   // Descargar documento
   async downloadDocumento(id: number): Promise<{ blob: Blob; filename: string }> {
     try {
-      console.log('🌐 Descargando documento ID:', id);
-      const response = await this.api.get(`/documentos/${id}/descargar`, {
-        responseType: 'blob',
-        headers: {
-          'Accept': 'application/octet-stream, application/pdf, */*'
+      console.log('🌐 API - Descargando documento ID:', id);
+      console.log('🔗 API - URL base:', API_CONFIG.BASE_URL);
+      
+      // Intentar con el endpoint principal
+      let response: any = undefined;
+      try {
+        console.log('🔍 API - Intentando con /documentos/:id/descargar');
+        response = await this.api.get(`/documentos/${id}/descargar`, {
+          responseType: 'blob',
+          headers: {
+            'Accept': 'application/octet-stream, application/pdf, */*'
+          }
+        });
+      } catch (firstError: any) {
+        console.warn('⚠️ API - Primer intento falló, probando rutas alternativas');
+        
+        // Intentar rutas alternativas
+        const alternativeRoutes = [
+          `/documentos/${id}/download`,
+          `/documentos/download/${id}`,
+          `/api/documentos/${id}/descargar`,
+          `/api/documentos/${id}/download`
+        ];
+        
+        let success = false;
+        for (const route of alternativeRoutes) {
+          try {
+            console.log(`🔍 API - Intentando con ${route}`);
+            response = await this.api.get(route, {
+              responseType: 'blob',
+              headers: {
+                'Accept': 'application/octet-stream, application/pdf, */*'
+              }
+            });
+            console.log(`✅ API - Éxito con ${route}`);
+            success = true;
+            break;
+          } catch (altError) {
+            console.log(`❌ API - Falló con ${route}`);
+            continue;
+          }
         }
-      });
+        
+        if (!success || !response) {
+          throw firstError;
+        }
+      }
+      
+      if (!response) {
+        throw new Error('No se pudo obtener respuesta del servidor');
+      }
       
       // Extraer nombre del archivo de los headers
       const contentDisposition = response.headers['content-disposition'];
@@ -618,18 +669,34 @@ class ApiService {
         const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
         if (filenameMatch && filenameMatch[1]) {
           filename = filenameMatch[1].replace(/['"]/g, '');
+          // Decodificar si viene en UTF-8
+          try {
+            filename = decodeURIComponent(filename);
+          } catch (e) {
+            // Si falla la decodificación, usar el nombre tal cual
+          }
         }
       }
       
-      console.log('📁 Nombre del archivo:', filename);
-      console.log('📦 Tamaño del blob:', response.data.size, 'bytes');
+      console.log('📁 API - Nombre del archivo:', filename);
+      console.log('📦 API - Tipo de blob:', response.data.type);
+      console.log('📦 API - Tamaño del blob:', response.data.size, 'bytes');
+      
+      if (!response.data || response.data.size === 0) {
+        throw new Error('El archivo descargado está vacío');
+      }
       
       return {
         blob: response.data,
         filename: filename
       };
-    } catch (error) {
-      console.error('❌ Error en descarga del documento:', error);
+    } catch (error: any) {
+      console.error('❌ API - Error en descarga del documento:', {
+        message: error?.message,
+        status: error?.response?.status,
+        statusText: error?.response?.statusText,
+        data: error?.response?.data
+      });
       throw error;
     }
   }
@@ -638,6 +705,65 @@ class ApiService {
   async deleteDocumento(id: number): Promise<ApiResponse<any>> {
     const response: AxiosResponse<ApiResponse<any>> = await this.api.delete(`/documentos/${id}`);
     return response.data;
+  }
+
+  // Eliminar documento y, si aplica, su archivo en Google Drive (intentos con fallbacks)
+  async deleteDocumentoAndDrive(id: number, driveFileId?: string): Promise<ApiResponse<any>> {
+    // Intento principal: pedir al backend que elimine registro y archivo en Drive en una sola llamada
+    try {
+      const response: AxiosResponse<ApiResponse<any>> = await this.api.delete(`/documentos/${id}?delete_drive=1`);
+      return response.data;
+    } catch (primaryError: any) {
+      console.warn('⚠️ Intento inicial de deleteDocumentoAndDrive falló, haciendo fallback:', primaryError?.message || primaryError);
+
+      // Fallback 1: intentar eliminar solo el registro
+      try {
+        const respRegistro: AxiosResponse<ApiResponse<any>> = await this.api.delete(`/documentos/${id}`);
+        console.log('✅ Registro eliminado en backend:', respRegistro.data);
+      } catch (deleteRegistroError: any) {
+        console.error('❌ Error al eliminar registro de documento:', deleteRegistroError);
+        // Si falla eliminar el registro, devolver el error original
+        throw primaryError;
+      }
+
+      // Si no hay driveFileId, devolvemos éxito por haber eliminado el registro
+      if (!driveFileId) {
+        return {
+          success: true,
+          data: null,
+          message: 'Registro eliminado. No se proporcionó drive_file_id para eliminar en Drive.'
+        } as ApiResponse<any>;
+      }
+
+      // Fallback 2: intentar eliminar archivo en Drive vía endpoints alternativos del backend
+      // Intento: DELETE /documentos/drive/:driveId
+      try {
+        const respDriveDelete: AxiosResponse<ApiResponse<any>> = await this.api.delete(`/documentos/drive/${encodeURIComponent(driveFileId)}`);
+        console.log('✅ Archivo en Drive eliminado vía /documentos/drive/:', respDriveDelete.data);
+        return {
+          success: true,
+          data: null,
+          message: 'Registro y archivo en Drive eliminados (vía /documentos/drive/:id)'
+        } as ApiResponse<any>;
+      } catch (driveDeleteError1: any) {
+        console.warn('⚠️ Eliminación en Drive vía /documentos/drive/:id falló:', driveDeleteError1?.message || driveDeleteError1);
+      }
+
+      // Intento: POST /documentos/drive-delete { drive_file_id }
+      try {
+        const respDriveDelete2: AxiosResponse<ApiResponse<any>> = await this.api.post('/documentos/drive-delete', { drive_file_id: driveFileId });
+        console.log('✅ Archivo en Drive eliminado vía /documentos/drive-delete:', respDriveDelete2.data);
+        return respDriveDelete2.data;
+      } catch (driveDeleteError2: any) {
+        console.warn('⚠️ Eliminación en Drive vía /documentos/drive-delete falló:', driveDeleteError2?.message || driveDeleteError2);
+        // Finalmente retornamos éxito parcial: registro eliminado, pero archivo en Drive no pudo ser eliminado por los endpoints disponibles
+        return {
+          success: false,
+          data: null,
+          message: 'Registro eliminado, pero no se pudo eliminar el archivo en Drive. Por favor elimínelo manualmente si es necesario.'
+        } as ApiResponse<any>;
+      }
+    }
   }
 
   // Actualizar documento
@@ -1429,71 +1555,14 @@ class ApiService {
   }
 
   // POST /api/programacion-optimizada
-  async crearProgramacionOptimizada(data: {
-    rut: string;                   // RUT del personal (requerido)
-    cartera_id: number;            // ID de la cartera (requerido)
-    cliente_id?: number;           // ID del cliente (opcional)
-    nodo_id?: number;             // ID del nodo (opcional)
-    fechas_trabajo: string[];     // Array de fechas ISO YYYY-MM-DD (requerido)
-    horas_estimadas?: number;     // Horas por día (default: 8)
-    observaciones?: string;       // Notas adicionales (opcional)
-    estado?: string;             // Estado de la programación (default: 'programado')
-  }): Promise<ApiResponse<any>> {
-    // Validar datos requeridos
-    if (!data.rut) throw new Error('El RUT es requerido');
-    if (!data.cartera_id) throw new Error('El ID de cartera es requerido');
-    if (!data.fechas_trabajo?.length) throw new Error('Se requiere al menos una fecha de trabajo');
-
-    // Validar formato de fechas
-    const fechasValidas = data.fechas_trabajo.every(fecha => {
-      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-      return dateRegex.test(fecha);
-    });
-    if (!fechasValidas) throw new Error('Las fechas deben tener formato YYYY-MM-DD');
-
-    // Asignar valores por defecto
-    const programacionData = {
-      ...data,
-      horas_estimadas: data.horas_estimadas || 8,
-      estado: data.estado || 'programado'
-    };
-
-    try {
-      const response: AxiosResponse<ApiResponse<any>> = await this.api.post('/programacion-optimizada', programacionData);
-      return response.data;
-    } catch (error: any) {
-      // Manejar errores específicos
-      if (error.response) {
-        switch (error.response.status) {
-          case 400:
-            throw new Error('Datos inválidos o incompletos: ' + error.response.data.message);
-          case 404:
-            throw new Error('No se encontró uno o más recursos: ' + error.response.data.message);
-          case 409:
-            // En caso de conflicto, el backend actualizará la programación existente
-            console.log('Conflicto detectado - el backend actualizará la programación existente');
-            return error.response.data;
-          default:
-            throw new Error('Error en el servidor: ' + error.response.data.message);
-        }
-      }
-      throw error;
-    }
+  async crearProgramacionOptimizada(payload: any): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.post('/programacion-optimizada', payload);
+    return response.data;
   }
 
-  // POST /api/programacion-optimizada/semana
-  async crearProgramacionSemanaOptimizada(data: {
-    rut: string;
-    cartera_id: number;
-    cliente_id?: number;
-    nodo_id?: number;
-    semana_inicio: string;
-    dias_trabajo: string[];
-    horas_estimadas: number;
-    observaciones?: string;
-    estado?: string;
-  }): Promise<ApiResponse<any>> {
-    const response: AxiosResponse<ApiResponse<any>> = await this.api.post('/programacion-optimizada/semana', data);
+  // DELETE /api/programacion-optimizada/:id
+  async deleteProgramacionOptimizada(id: number): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.delete(`/programacion-optimizada/${id}`);
     return response.data;
   }
 
@@ -1599,30 +1668,87 @@ class ApiService {
   async registerExistingDocument(payload: any): Promise<ApiResponse<any>> {
     try {
       // Extraer y mapear los campos del objeto file al formato que espera el backend
+      const file = payload.file || {};
       const mappedPayload = {
-        rut_persona: payload.rut_persona,
-        nombre_documento: payload.nombre_documento,
-        tipo_documento: payload.tipo_documento,
-        // Extraer campos del objeto file
-        nombre_archivo: payload.file?.nombre_archivo || payload.file?.nombre_original || payload.file?.name,
-        ruta_local: payload.file?.ruta_local || payload.file?.path || payload.file?.ruta,
+        rut_persona: payload.rut_persona || payload.rut || payload.rut_person || null,
+        nombre_documento: payload.nombre_documento || payload.nombre || null,
+        // Si no se especifica, usar 'otro' para cumplir con backend que suele requerir tipo
+        tipo_documento: payload.tipo_documento || 'otro',
+        // Campos extraídos del objeto file (variantes posibles)
+        nombre_archivo: file.nombre_archivo || file.nombre_original || file.name || file.title || file.filename || null,
+        nombre_original: file.nombre_original || file.name || file.title || null,
+        drive_file_id: file.drive_file_id || file.id || file.fileId || file.driveId || null,
+  ruta_local: file.ruta_local || file.ruta || file.path || file.drive_path || file.webViewLink || (file.drive_file_id ? `drive://${file.drive_file_id}` : null),
+        tipo_mime: file.tipo_mime || file.mimeType || file.type || null,
+        tamano_bytes: file.tamaño_bytes || file.size || file.bytes || null,
         // Metadatos opcionales
-        descripcion: payload.descripcion,
-        fecha_emision: payload.fecha_emision,
-        fecha_vencimiento: payload.fecha_vencimiento,
-        dias_validez: payload.dias_validez,
-        estado_documento: payload.estado_documento,
-        institucion_emisora: payload.institucion_emisora,
+        descripcion: payload.descripcion || null,
+        fecha_emision: payload.fecha_emision || null,
+        fecha_vencimiento: payload.fecha_vencimiento || null,
+        dias_validez: payload.dias_validez || null,
+        estado_documento: payload.estado_documento || null,
+        institucion_emisora: payload.institucion_emisora || null,
       };
 
-      console.log('📤 Payload mapeado para registrar-existente:', mappedPayload);
+      // Normalizar tipo_documento a valores permitidos por el backend
+      const normalizeTipo = (t: any) => {
+        if (!t) return null;
+        const s = String(t).toLowerCase().trim();
+        const map: Record<string, string> = {
+          'epp': 'certificado_seguridad',
+          'eps': 'certificado_seguridad',
+          'seguridad': 'certificado_seguridad',
+          'curso': 'certificado_curso',
+          'certificacion': 'certificado_curso',
+          'certificación': 'certificado_curso',
+          'diploma': 'diploma',
+          'contrato': 'certificado_laboral',
+          'laboral': 'certificado_laboral',
+          'licencia': 'licencia_conducir',
+          'licencia_conducir': 'licencia_conducir',
+          'medico': 'certificado_medico',
+          'certificado_medico': 'certificado_medico',
+          'vencimiento': 'certificado_vencimiento',
+          'certificado_vencimiento': 'certificado_vencimiento',
+          'otro': 'otro'
+        };
+        return map[s] || (['certificado_curso','diploma','certificado_laboral','certificado_medico','licencia_conducir','certificado_seguridad','certificado_vencimiento','otro'].includes(s) ? s : null);
+      };
+
+      // Validar campos requeridos antes de enviar para evitar 400 genéricos
+      const missing: string[] = [];
+      if (!mappedPayload.rut_persona) missing.push('rut_persona');
+      if (!mappedPayload.nombre_archivo) missing.push('nombre_archivo');
+      if (!mappedPayload.ruta_local) missing.push('ruta_local');
+      if (!mappedPayload.nombre_documento) {
+        // fallback: si no hay nombre_documento, usar nombre_archivo
+        mappedPayload.nombre_documento = mappedPayload.nombre_archivo || null;
+      }
+      // Normalize tipo_documento and ensure it matches backend allowed values
+      const normalizedTipo = normalizeTipo(mappedPayload.tipo_documento);
+      mappedPayload.tipo_documento = normalizedTipo || 'otro';
+
+      if (missing.length > 0) {
+        const err = new Error(`Faltan campos requeridos: ${missing.join(', ')}`);
+        // adjuntar info para debugging
+        // @ts-ignore
+        err.payload = mappedPayload;
+        throw err;
+      }
+
+      // Log claro en stringified form para poder ver en consola incluso si el object tiene referencias
+      try {
+        console.log('📤 Payload mapeado para registrar-existente:', JSON.stringify(mappedPayload));
+      } catch (e) {
+        console.log('📤 Payload mapeado para registrar-existente (raw):', mappedPayload);
+      }
 
       const response: AxiosResponse<ApiResponse<any>> = await this.api.post('/documentos/registrar-existente', mappedPayload);
       return response.data;
     } catch (error: any) {
-      console.error('❌ Error al registrar documento existente:', error);
-      console.error('❌ Payload original:', payload);
-      console.error('❌ Respuesta del servidor:', error.response?.data);
+      console.error('❌ Error al registrar documento existente:', error?.message || error);
+      try { console.error('❌ Payload original:', JSON.stringify(payload)); } catch (e) { console.error('❌ Payload original (raw):', payload); }
+      try { console.error('❌ Respuesta del servidor:', JSON.stringify(error.response?.data)); } catch (e) { console.error('❌ Respuesta del servidor (raw):', error.response?.data); }
       throw error;
     }
   }

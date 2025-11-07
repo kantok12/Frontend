@@ -1,34 +1,69 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Users } from 'lucide-react';
+import { X, Users, ChevronLeft, ChevronRight } from 'lucide-react';
+
+interface EstadoDistribucion {
+  id: number;
+  nombre: string;
+  cantidad: number;
+  porcentaje: number;
+  color: string;
+}
 
 interface PersonalInfoModalProps {
   isOpen: boolean;
   onClose: () => void;
   totalPersonal: number;
-  personalActivo: number;
-  personalTrabajando: number;
-  personalAcreditacion?: number;
+  distribucionEstados: EstadoDistribucion[];
 }
 
 export const PersonalInfoModal: React.FC<PersonalInfoModalProps> = ({
   isOpen,
   onClose,
   totalPersonal,
-  personalActivo,
-  personalTrabajando,
-  personalAcreditacion = 0
+  distribucionEstados
 }) => {
+  const [paginaActual, setPaginaActual] = useState<number>(1);
+
   if (!isOpen) return null;
 
-  const personalInactivo = totalPersonal - personalActivo;
-  const porcentajeActivo = totalPersonal > 0 ? Math.round((personalActivo/totalPersonal)*100) : 0;
-  const porcentajeInactivo = totalPersonal > 0 ? Math.round((personalInactivo/totalPersonal)*100) : 0;
-  const porcentajeAcreditacion = totalPersonal > 0 ? Math.round((personalAcreditacion/totalPersonal)*100) : 0;
+  // Función para asignar colores a los estados
+  const getColorForEstado = (nombre: string, index: number): string => {
+    const nombreLower = nombre.toLowerCase();
+    if (nombreLower.includes('activo') || nombreLower.includes('disponible')) return 'green';
+    if (nombreLower.includes('asignado')) return 'blue';
+    if (nombreLower.includes('examen') || nombreLower.includes('exámenes')) return 'yellow';
+    if (nombreLower.includes('capacitación') || nombreLower.includes('capacitacion')) return 'purple';
+    if (nombreLower.includes('vacaciones')) return 'cyan';
+    if (nombreLower.includes('licencia')) return 'orange';
+    if (nombreLower.includes('inactivo')) return 'red';
+    if (nombreLower.includes('proceso')) return 'indigo';
+    if (nombreLower.includes('suspendido')) return 'pink';
+    if (nombreLower.includes('desvinculado')) return 'gray';
+    
+    // Colores alternativos para otros estados
+    const colores = ['indigo', 'pink', 'teal', 'cyan', 'amber'];
+    return colores[index % colores.length];
+  };
+
+  // Definir estados prioritarios para la primera página
+  const estadosPrioritarios = ['asignado', 'capacitacion', 'examenes', 'inactivo'];
+  
+  // Separar estados en dos grupos
+  const estadosPagina1 = distribucionEstados.filter(estado => 
+    estadosPrioritarios.some(prioridad => estado.nombre.toLowerCase().includes(prioridad))
+  ).slice(0, 4);
+  
+  const estadosPagina2 = distribucionEstados.filter(estado => 
+    !estadosPrioritarios.some(prioridad => estado.nombre.toLowerCase().includes(prioridad))
+  );
+
+  const estadosAMostrar = paginaActual === 1 ? estadosPagina1 : estadosPagina2;
+  const totalPaginas = estadosPagina2.length > 0 ? 2 : 1;
 
   return createPortal(
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[99999] p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto scrollbar-hide">
+      <div className="bg-white rounded-xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto scrollbar-hide">
         {/* Header */}
         <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6 rounded-t-xl">
           <div className="flex justify-between items-center">
@@ -52,120 +87,99 @@ export const PersonalInfoModal: React.FC<PersonalInfoModalProps> = ({
 
         {/* Content */}
         <div className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            {/* Total Personal */}
-            <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-blue-900">Total Personal</p>
-                  <p className="text-2xl font-bold text-blue-600 mt-1">{totalPersonal}</p>
-                </div>
-                <div className="p-2 rounded-lg bg-blue-100">
-                  <Users className="h-6 w-6 text-blue-600" />
-                </div>
+          {/* Total Personal destacado */}
+          <div className="bg-gradient-to-r from-blue-500 to-blue-600 p-6 rounded-xl mb-6 text-white shadow-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-blue-100 text-sm font-medium mb-1">Total Personal Registrado</p>
+                <p className="text-5xl font-bold">{totalPersonal}</p>
+                <p className="text-blue-100 text-sm mt-2">personas en el sistema</p>
+              </div>
+              <div className="p-4 rounded-full bg-white bg-opacity-20">
+                <Users className="h-16 w-16 text-white" />
               </div>
             </div>
-
-            {/* Personal Activo */}
-            <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-green-900">Personal Activo</p>
-                  <p className="text-2xl font-bold text-green-600 mt-1">{personalActivo}</p>
-                </div>
-                <div className="p-2 rounded-lg bg-green-100">
-                  <div className="h-6 w-6 rounded-full bg-green-500"></div>
-                </div>
-              </div>
-            </div>
-
-            {/* Proceso de Acreditación */}
-            <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-yellow-900">Proceso de Acreditación</p>
-                  <p className="text-2xl font-bold text-yellow-600 mt-1">{personalAcreditacion}</p>
-                </div>
-                <div className="p-2 rounded-lg bg-yellow-100">
-                  <div className="h-6 w-6 rounded-full bg-yellow-500"></div>
-                </div>
-              </div>
-            </div>
-
-            {/* Personal en Servicio */}
-            <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-orange-900">Personal en Servicio</p>
-                  <p className="text-2xl font-bold text-orange-600 mt-1">{personalTrabajando}</p>
-                </div>
-                <div className="p-2 rounded-lg bg-orange-100">
-                  <div className="h-6 w-6 rounded-full bg-orange-500"></div>
-                </div>
-              </div>
-            </div>
-
-            
           </div>
 
-          {/* Distribución por Estado */}
-          <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-            <h4 className="text-lg font-semibold text-gray-900 mb-4">Distribución por Estado</h4>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center">
-                  <div className="w-4 h-4 bg-green-500 rounded-full mr-3"></div>
-                  <span className="text-gray-700 font-medium">Personal Activo</span>
-                </div>
-                <span className="text-lg font-bold text-gray-900">
-                  {personalActivo} ({porcentajeActivo}%)
-                </span>
-              </div>
+          {/* Distribución por Estado - Grid expandido */}
+          <div className="bg-gray-50 rounded-lg p-6 border border-gray-200">
+            <div className="flex items-center justify-between mb-6">
+              <h4 className="text-xl font-semibold text-gray-900">
+                {paginaActual === 1 ? 'Estados Principales' : 'Otros Estados'}
+              </h4>
               
-              <div className="flex items-center justify-between">
-                <div className="flex items-center">
-                  <div className="w-4 h-4 bg-red-500 rounded-full mr-3"></div>
-                  <span className="text-gray-700 font-medium">Personal Inactivo</span>
+              {/* Navegación de páginas */}
+              {totalPaginas > 1 && (
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => setPaginaActual(1)}
+                    disabled={paginaActual === 1}
+                    className={`p-2 rounded-lg transition-colors ${
+                      paginaActual === 1
+                        ? 'bg-blue-600 text-white cursor-default'
+                        : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                    }`}
+                  >
+                    <ChevronLeft className="h-5 w-5" />
+                  </button>
+                  <span className="text-sm font-medium text-gray-600">
+                    Página {paginaActual} de {totalPaginas}
+                  </span>
+                  <button
+                    onClick={() => setPaginaActual(2)}
+                    disabled={paginaActual === 2}
+                    className={`p-2 rounded-lg transition-colors ${
+                      paginaActual === 2
+                        ? 'bg-blue-600 text-white cursor-default'
+                        : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                    }`}
+                  >
+                    <ChevronRight className="h-5 w-5" />
+                  </button>
                 </div>
-                <span className="text-lg font-bold text-gray-900">
-                  {personalInactivo} ({porcentajeInactivo}%)
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div className="flex items-center">
-                  <div className="w-4 h-4 bg-yellow-500 rounded-full mr-3"></div>
-                  <span className="text-gray-700 font-medium">Proceso de Acreditación</span>
-                </div>
-                <span className="text-lg font-bold text-gray-900">
-                  {personalAcreditacion} ({porcentajeAcreditacion}%)
-                </span>
-              </div>
-
-              {/* Barra de progreso */}
-              <div className="mt-4">
-                <div className="w-full bg-gray-200 rounded-full h-3">
-                  <div 
-                    className="bg-green-500 h-3 rounded-full transition-all duration-500"
-                    style={{ width: `${porcentajeActivo}%` }}
-                  ></div>
-                </div>
-                <div className="flex justify-between text-xs text-gray-500 mt-1">
-                  <span>0%</span>
-                  <span>100%</span>
-                </div>
-              </div>
+              )}
             </div>
-          </div>
 
-          {/* Información adicional */}
-          <div className="bg-blue-50 rounded-lg p-4 border border-blue-200 mt-4">
-            <h4 className="text-lg font-semibold text-blue-900 mb-3">Resumen Detallado</h4>
-            <div className="text-sm text-blue-800 space-y-2">
-              <p>• <span className="font-semibold">{personalTrabajando}</span> personas están actualmente en servicio</p>
-              <p>• <span className="font-semibold">{personalActivo - personalTrabajando}</span> personas activas no en servicio</p>
-              <p>• <span className="font-semibold">{personalAcreditacion}</span> personas en proceso de acreditación</p>
-              <p>• <span className="font-semibold">{personalInactivo}</span> personas inactivas en el sistema</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {estadosAMostrar.map((estado, index) => {
+                const color = estado.color || getColorForEstado(estado.nombre, index);
+                const bgColor = `bg-${color}-50`;
+                const borderColor = `border-${color}-300`;
+                const circleColor = `bg-${color}-500`;
+                const textColor = `text-${color}-900`;
+                const numberColor = `text-${color}-600`;
+                
+                return (
+                  <div key={estado.id} className={`${bgColor} p-5 rounded-lg border-2 ${borderColor} hover:shadow-md transition-shadow`}>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center space-x-3">
+                        <div className={`w-4 h-4 ${circleColor} rounded-full`}></div>
+                        <span className={`text-lg font-semibold ${textColor}`}>
+                          {estado.nombre.charAt(0).toUpperCase() + estado.nombre.slice(1)}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-end justify-between">
+                      <div>
+                        <p className={`text-4xl font-bold ${numberColor}`}>{estado.cantidad}</p>
+                        <p className="text-sm text-gray-600 mt-1">personas</p>
+                      </div>
+                      <div className="text-right">
+                        <p className={`text-3xl font-bold ${numberColor}`}>{estado.porcentaje}%</p>
+                        <p className="text-xs text-gray-500">del total</p>
+                      </div>
+                    </div>
+                    
+                    {/* Barra de progreso */}
+                    <div className="mt-4 bg-gray-200 rounded-full h-2 overflow-hidden">
+                      <div 
+                        className={`h-full ${circleColor} transition-all duration-300`}
+                        style={{ width: `${estado.porcentaje}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -174,7 +188,7 @@ export const PersonalInfoModal: React.FC<PersonalInfoModalProps> = ({
         <div className="bg-gray-50 px-6 py-4 rounded-b-xl border-t">
           <div className="flex justify-between items-center">
             <div className="text-sm text-gray-600">
-              <span className="font-medium">Total registrado:</span> {totalPersonal} personas
+              <span className="font-medium">Total de estados:</span> {distribucionEstados.length} estados diferentes
             </div>
             <button
               onClick={onClose}

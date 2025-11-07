@@ -125,6 +125,14 @@ const CalendarioPage: React.FC = () => {
   // Hook para clientes por cartera (solo cuando hay cartera seleccionada en el form)
   const [clientesCartera, setClientesCartera] = useState<any[]>([]);
   const [loadingClientes, setLoadingClientes] = useState(false);
+  
+  // Estado para prerrequisitos del cliente seleccionado
+  const [prerequisitosCliente, setPrerequisitosCliente] = useState<any[]>([]);
+  const [loadingPrerequisitos, setLoadingPrerequisitos] = useState(false);
+  
+  // Estado para personal filtrado según prerrequisitos
+  const [personalFiltrado, setPersonalFiltrado] = useState<any[]>([]);
+  const [loadingFiltrado, setLoadingFiltrado] = useState(false);
 
   // Efecto para cargar clientes cuando cambia la cartera en el formulario
   React.useEffect(() => {
@@ -150,6 +158,33 @@ const CalendarioPage: React.FC = () => {
     fetchClientes();
   }, [form.cartera_id, carterasData]);
 
+  // Efecto para cargar prerrequisitos cuando cambia el cliente en el formulario
+  React.useEffect(() => {
+    const fetchPrerequisitos = async () => {
+      if (!form.cliente_id) {
+        setPrerequisitosCliente([]);
+        return;
+      }
+      setLoadingPrerequisitos(true);
+      try {
+        const { apiService } = await import('../services/api');
+        const resp = await apiService.getPrerrequisitosByCliente(Number(form.cliente_id));
+        console.log('🔍 PRERREQUISITOS - Respuesta completa:', resp);
+        if (resp.success && Array.isArray(resp.data)) {
+          console.log('🔍 PRERREQUISITOS - Data array:', resp.data);
+          console.log('🔍 PRERREQUISITOS - Primer item:', resp.data[0]);
+          setPrerequisitosCliente(resp.data);
+        } else {
+          setPrerequisitosCliente([]);
+        }
+      } catch {
+        setPrerequisitosCliente([]);
+      }
+      setLoadingPrerequisitos(false);
+    };
+    fetchPrerequisitos();
+  }, [form.cliente_id]);
+
   // Obtener personal disponible para el selector (después de showModal)
   const { data: personalDisponibleData, isLoading: loadingPersonal } = useQuery({
     queryKey: ['personal-disponible'],
@@ -166,7 +201,157 @@ const CalendarioPage: React.FC = () => {
     enabled: showModal,
   });
 
+  // Efecto para filtrar personal según prerrequisitos del cliente
+  React.useEffect(() => {
+    const filtrarPersonal = async () => {
+      // Si no hay cliente seleccionado, no mostramos personal
+      if (!form.cliente_id || !personalDisponibleData?.data) {
+        setPersonalFiltrado([]);
+        return;
+      }
+
+      // Si no hay prerrequisitos, no hay match posible
+      if (prerequisitosCliente.length === 0) {
+        setPersonalFiltrado([]);
+        return;
+      }
+
+      setLoadingFiltrado(true);
+      try {
+        const { apiService } = await import('../services/api');
+        
+        console.log('🔍 FILTRADO - prerequisitosCliente completo:', prerequisitosCliente);
+        
+        // Obtener los nombres de los prerrequisitos requeridos
+        // Normalizar y obtener los nombres de los prerrequisitos requeridos
+        const normalizeTipo = (t: any) => {
+          if (!t) return '';
+          const s = String(t).toLowerCase().trim();
+          const map: Record<string, string> = {
+            'epp': 'certificado_seguridad',
+            'eps': 'certificado_seguridad',
+            'seguridad': 'certificado_seguridad',
+            'curso': 'certificado_curso',
+            'certificacion': 'certificado_curso',
+            'certificación': 'certificado_curso',
+            'diploma': 'diploma',
+            'contrato': 'certificado_laboral',
+            'laboral': 'certificado_laboral',
+            'licencia': 'licencia_conducir',
+            'licencia_conducir': 'licencia_conducir',
+            'medico': 'certificado_medico',
+            'certificado_medico': 'certificado_medico',
+            'vencimiento': 'certificado_vencimiento',
+            'certificado_vencimiento': 'certificado_vencimiento',
+            'otro': 'otro'
+          };
+          return map[s] || s;
+        };
+
+        const prerequisitosRequeridos = prerequisitosCliente.map(p => {
+          const raw = (p.nombre_prerrequisito || p.nombre || p.tipo_documento || '').toLowerCase().trim();
+          const nombre = normalizeTipo(raw) || raw;
+          console.log('🔍 FILTRADO - Procesando prerrequisito:', { original: p, nombreExtraido: nombre, raw });
+          return nombre;
+        });
+
+        console.log('🔍 FILTRADO - Prerrequisitos requeridos:', prerequisitosRequeridos);
+
+        // Filtrar personal que tenga documentos que coincidan con los prerrequisitos
+        const personalConMatch: any[] = [];
+        
+        console.log(`🔍 FILTRADO - Procesando ${personalDisponibleData.data.length} personas...`);
+        
+        for (const persona of personalDisponibleData.data) {
+          try {
+            const nombrePersona = persona.nombre || persona.nombres || 'Sin nombre';
+            
+            // Obtener documentos de esta persona
+            const docsResp = await apiService.getDocumentosByPersona(persona.rut);
+            
+            if (docsResp.success && Array.isArray(docsResp.data)) {
+              // Obtener los tipos de documento que tiene esta persona
+              // Normalizar tipos que tiene la persona
+              const tiposDocumento = docsResp.data.map(doc => {
+                const raw = (doc.tipo_documento || doc.tipo || '').toLowerCase().trim();
+                return normalizeTipo(raw) || raw;
+              });
+
+              // Solo logear personas con nombre que contenga "Claudio" o logear las primeras 3
+              const esClaudio = nombrePersona.toLowerCase().includes('claudio');
+              
+              if (esClaudio || personalConMatch.length < 3) {
+                console.log(`👤 ${nombrePersona} (${persona.rut}):`, {
+                  tiposDocumento,
+                  prerequisitosRequeridos,
+                  documentosOriginales: docsResp.data.map(d => ({ tipo_documento: d.tipo_documento, tipo: d.tipo, nombre: d.nombre }))
+                });
+              }
+
+              // Verificar si tiene todos los prerrequisitos requeridos
+              const tieneTodasCoincidencias = prerequisitosRequeridos.every(prereq =>
+                // match if prereq is empty (ignore) OR tiposDocumento includes the normalized prereq
+                (prereq === '') ? false : tiposDocumento.includes(prereq)
+              );
+
+              if (esClaudio || tieneTodasCoincidencias) {
+                console.log(`  ${tieneTodasCoincidencias ? '✅' : '❌'} ${nombrePersona}: Coincidencias completas = ${tieneTodasCoincidencias}`);
+                if (!tieneTodasCoincidencias && esClaudio) {
+                  // Mostrar qué prerrequisitos le faltan a Claudio
+                  const faltantes = prerequisitosRequeridos.filter(prereq => !tiposDocumento.includes(prereq));
+                  console.log(`  ⚠️ Prerrequisitos faltantes:`, faltantes);
+                  console.log(`  📋 Documentos que tiene:`, tiposDocumento);
+                }
+              }
+
+              if (tieneTodasCoincidencias) {
+                personalConMatch.push(persona);
+              }
+            }
+          } catch (err) {
+            console.error(`Error al obtener documentos para ${persona.rut}:`, err);
+          }
+        }
+        
+        console.log(`✅ FILTRADO - ${personalConMatch.length} personas cumplen los requisitos`);
+
+        setPersonalFiltrado(personalConMatch);
+      } catch (error) {
+        console.error('Error al filtrar personal:', error);
+        setPersonalFiltrado([]);
+      }
+      setLoadingFiltrado(false);
+    };
+
+    filtrarPersonal();
+  }, [form.cliente_id, prerequisitosCliente, personalDisponibleData]);
+
+  // ... (código existente)
+
   const queryClient = useQueryClient();
+
+  // Mutación para eliminar una programación
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const { apiService } = await import('../services/api');
+      return apiService.deleteProgramacionOptimizada(id);
+    },
+    onSuccess: () => {
+      // Invalidar la query para forzar un refetch de los datos
+      queryClient.invalidateQueries({ queryKey: ['programacion-optimizada'] });
+      queryClient.invalidateQueries({ queryKey: ['carteras'] });
+      // Recargar la página para reflejar los cambios inmediatamente
+      try {
+        window.location.reload();
+      } catch (e) {
+        // en entornos sin window (tests) simplemente ignorar
+      }
+    },
+    onError: (error) => {
+      console.error("Error al eliminar la programación", error);
+      alert("Hubo un error al eliminar la programación.");
+    }
+  });
 
   // Mutación para crear nueva programación
   const mutation = useMutation({
@@ -511,7 +696,7 @@ const CalendarioPage: React.FC = () => {
                   value={form.rut}
                   onChange={e => {
                     const rut = e.target.value;
-                    const persona = personalDisponibleData?.data?.find((p: any) => p.rut === rut);
+                    const persona = personalFiltrado.find((p: any) => p.rut === rut);
                     setForm(f => ({
                       ...f,
                       rut,
@@ -520,10 +705,18 @@ const CalendarioPage: React.FC = () => {
                     }));
                   }}
                   required
-                  disabled={loadingPersonal}
+                  disabled={loadingPersonal || loadingFiltrado || !form.cliente_id}
                 >
-                  <option value="">Selecciona persona disponible</option>
-                  {personalDisponibleData?.data?.map((p: any) => (
+                  <option value="">
+                    {!form.cliente_id 
+                      ? 'Primero selecciona un cliente' 
+                      : loadingFiltrado 
+                        ? 'Filtrando personal...' 
+                        : personalFiltrado.length === 0 
+                          ? 'No hay personal con los prerrequisitos requeridos' 
+                          : 'Selecciona persona disponible'}
+                  </option>
+                  {personalFiltrado.map((p: any) => (
                     <option key={p.rut} value={p.rut}>
                       {(p.nombres || p.nombre || '') + (p.apellido ? ' ' + p.apellido : '')} | {p.rut} | {p.cargo}
                     </option>
@@ -595,6 +788,14 @@ const CalendarioPage: React.FC = () => {
           </div>
         </>
       )}
+
+  <div className="flex items-center justify-between mb-2">
+    <div>
+      <h1 className="text-lg font-semibold">Programación semanal</h1>
+      <div className="text-sm text-gray-600">Semana: <strong className="text-gray-800">{weekStart} → {weekEnd}</strong></div>
+    </div>
+    <div className="text-sm text-gray-500">Mostrando datos por semana seleccionada</div>
+  </div>
 
   <div className="bg-white rounded-lg shadow-lg border overflow-hidden relative" style={{ padding: 8 }}>
         {(isLoading || loadingCarteras) && (
@@ -698,12 +899,27 @@ const CalendarioPage: React.FC = () => {
                                 <td className="px-3 py-3 text-xs align-top" style={{ minWidth: 220, borderLeft: 'none', position: 'sticky', left: 160, zIndex: 19, background: '#fff' }} rowSpan={ci.maxRows}>{ci.name}</td>
                               ) : null}
                               {dias.map((day, dIdx) => {
-                                const name = (ci.dayLists[dIdx] && ci.dayLists[dIdx][r]) || undefined;
+                                const personInfo = ci.persons[r];
+                                const isAssigned = personInfo && personInfo.days.includes(day);
+                                const assignment = isAssigned ? filtered.find(p => p.rut === personInfo.rut && p.dia_semana === day && String(p.cliente_id) === String(ci.id)) : undefined;
+                                
                                 return (
                                   <td key={day} className="px-2 py-2 text-xs align-top border-l border-gray-200">
                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', minHeight: 28 }}>
-                                      {name ? (
-                                        <div style={{ fontSize: 12, background: 'linear-gradient(90deg,#10b981,#06b6d4)', color: '#fff', padding: '6px 8px', borderRadius: 9999, boxShadow: '0 1px 3px rgba(16,185,129,0.12)', fontWeight: 600 }}>{name}</div>
+                                      {assignment ? (
+                                        <div className="group relative" style={{ fontSize: 12, background: 'linear-gradient(90deg,#10b981,#06b6d4)', color: '#fff', padding: '6px 8px', borderRadius: 9999, boxShadow: '0 1px 3px rgba(16,185,129,0.12)', fontWeight: 600 }}>
+                                          {personInfo.nombre_persona}
+                                          <button 
+                                            onClick={() => {
+                                              if (window.confirm(`¿Estás seguro de que quieres eliminar a ${personInfo.nombre_persona} de este día?`)) {
+                                                deleteMutation.mutate(assignment.id);
+                                              }
+                                            }}
+                                            className="absolute top-0 right-0 -mt-1 -mr-1 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                                          >
+                                            ×
+                                          </button>
+                                        </div>
                                       ) : (
                                         <div style={{ width: 20, height: 20, borderRadius: 10, border: '1px solid transparent', margin: '0 auto' }} />
                                       )}
@@ -713,7 +929,7 @@ const CalendarioPage: React.FC = () => {
                               })}
                             </tr>
                           );
-                        }
+                      }
                     });
                     return rows;
                   });
