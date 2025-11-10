@@ -46,7 +46,15 @@ export const PrerrequisitosCliente: React.FC<PrerrequisitosClienteProps> = ({ cl
       ? combinedList.filter(p => p.tipo_documento.toLowerCase().includes(searchTerm.toLowerCase()))
       : combinedList;
 
-    return filtered.sort((a, b) => a.tipo_documento.localeCompare(b.tipo_documento));
+    // Sort so that global prerequisites appear first in client view,
+    // then fall back to alphabetical order by tipo_documento within each group.
+    return filtered.sort((a, b) => {
+      // If one is global and the other isn't, global goes first
+      if (a.es_global && !b.es_global) return -1;
+      if (!a.es_global && b.es_global) return 1;
+      // Otherwise sort alphabetically
+      return a.tipo_documento.localeCompare(b.tipo_documento);
+    });
   }, [prerrequisitosCliente, prerrequisitosGlobales, isGlobalMode, searchTerm]);
 
   const isLoading = isLoadingGlobales || (!isGlobalMode && isLoadingCliente);

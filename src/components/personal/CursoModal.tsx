@@ -505,7 +505,11 @@ export const CursoModal: React.FC<CursoModalProps> = ({
                   <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded-md">
                     <p className="text-sm text-green-800 flex items-center">
                       <FileText className="h-4 w-4 mr-2" />
-                      {formData.archivo.name}
+                      {/* Mostrar el nombre del curso como nombre del documento si el usuario lo completó,
+                          de lo contrario mostrar el nombre original del archivo */}
+                      {formData.nombre_curso && formData.nombre_curso.trim().length > 0
+                        ? formData.nombre_curso
+                        : formData.archivo.name}
                     </p>
                   </div>
                 )}
@@ -514,7 +518,8 @@ export const CursoModal: React.FC<CursoModalProps> = ({
                   <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded-md flex items-center justify-between">
                     <p className="text-sm text-amber-800 flex items-center">
                       <FileText className="h-4 w-4 mr-2" />
-                      Archivo seleccionado (Drive): {selectedPendiente.displayName}
+                      {/* Mostrar el nombre del curso como nombre del documento cuando esté disponible */}
+                      Archivo seleccionado (Drive): {formData.nombre_curso && formData.nombre_curso.trim().length > 0 ? formData.nombre_curso : selectedPendiente.displayName}
                     </p>
                     <button
                       type="button"

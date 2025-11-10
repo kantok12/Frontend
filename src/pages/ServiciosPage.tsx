@@ -267,6 +267,8 @@ export const ServiciosPage: React.FC = () => {
     await loadPrerequisitosMatch(navigationState.selectedCliente, rut);
   }, [loadPrerequisitosMatch, navigationState.selectedCliente]);
 
+  
+
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -305,6 +307,7 @@ export const ServiciosPage: React.FC = () => {
                 Prerrequisitos Globales
               </button>
             )}
+            
             {navigationState.selectedCliente && (
               <button
                 onClick={() => handleModalToggle('showPrerrequisitosModal', true)}
@@ -782,9 +785,13 @@ export const ServiciosPage: React.FC = () => {
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <div className="flex items-center text-sm text-gray-900">
-                                <Users className="h-4 w-4 mr-1 text-orange-500" />
-                                {(item as Cliente).minimo_personal || 0} personas
-                              </div>
+                                  <Users className="h-4 w-4 mr-1 text-orange-500" />
+                                  {(
+                                    (getMinimoPersonalCliente((item as Cliente).id) !== null && typeof getMinimoPersonalCliente((item as Cliente).id) !== 'undefined')
+                                    ? getMinimoPersonalCliente((item as Cliente).id)
+                                    : ((item as Cliente).minimo_personal || 0)
+                                  )} personas
+                                </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <Tooltip

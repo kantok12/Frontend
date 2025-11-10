@@ -1293,6 +1293,30 @@ class ApiService {
     }
   }
 
+  // POST /prerequisitos/clientes/:clienteId/match  (batch)
+  // body: { ruts: string[], requireAll?: boolean, includeGlobal?: boolean }
+  // Fallback: if server doesn't support batch, call matchPrerequisitosCliente for each rut
+  async matchPrerequisitosClienteBatch(clienteId: number, ruts: string[], options?: { requireAll?: boolean; includeGlobal?: boolean }): Promise<ApiResponse<any[]>> {
+    try {
+      const payload: any = { ruts };
+      if (typeof options?.requireAll !== 'undefined') payload.requireAll = options?.requireAll;
+      if (typeof options?.includeGlobal !== 'undefined') payload.includeGlobal = options?.includeGlobal;
+      const response: AxiosResponse<ApiResponse<any[]>> = await this.api.post(`/prerequisitos/clientes/${clienteId}/match`, payload);
+      return response.data;
+    } catch (err: any) {
+      console.warn('⚠️ matchPrerrequisitosClienteBatch - batch endpoint not available, falling back to per-rut requests', err?.message || err);
+      // Fallback: call single-match endpoint per rut sequentially (or in parallel)
+      const promises = ruts.map(rut => this.matchPrerequisitosCliente(clienteId, rut).then(res => ({ rut, data: res })).catch(e => ({ rut, error: e })));
+      const settled = await Promise.all(promises);
+      // Normalize fallback response to ApiResponse-like array
+      const data = settled.map((s: any) => {
+        if (s.error) return { rut: s.rut, success: false, error: s.error };
+        return { rut: s.rut, success: s.data?.success ?? true, data: s.data?.data ?? s.data };
+      });
+      return { success: true, data } as unknown as ApiResponse<any[]>;
+    }
+  }
+
   // ==================== MÉTODOS PARA PROGRAMACIÓN SEMANAL ====================
   // GET /programacion?cartera_id=:id&semana=:fecha
   async getProgramacionPorCartera(carteraId: number, semana?: string, fecha?: string): Promise<ApiResponse<any>> {

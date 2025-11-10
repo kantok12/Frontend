@@ -219,105 +219,69 @@ const CalendarioPage: React.FC = () => {
       setLoadingFiltrado(true);
       try {
         const { apiService } = await import('../services/api');
-        
-        console.log('🔍 FILTRADO - prerequisitosCliente completo:', prerequisitosCliente);
-        
-        // Obtener los nombres de los prerrequisitos requeridos
-        // Normalizar y obtener los nombres de los prerrequisitos requeridos
-        const normalizeTipo = (t: any) => {
-          if (!t) return '';
-          const s = String(t).toLowerCase().trim();
-          const map: Record<string, string> = {
-            'epp': 'certificado_seguridad',
-            'eps': 'certificado_seguridad',
-            'seguridad': 'certificado_seguridad',
-            'curso': 'certificado_curso',
-            'certificacion': 'certificado_curso',
-            'certificación': 'certificado_curso',
-            'diploma': 'diploma',
-            'contrato': 'certificado_laboral',
-            'laboral': 'certificado_laboral',
-            'licencia': 'licencia_conducir',
-            'licencia_conducir': 'licencia_conducir',
-            'medico': 'certificado_medico',
-            'certificado_medico': 'certificado_medico',
-            'vencimiento': 'certificado_vencimiento',
-            'certificado_vencimiento': 'certificado_vencimiento',
-            'otro': 'otro'
-          };
-          return map[s] || s;
-        };
+        console.log('🔍 FILTRADO (batch) - llamando al backend para match de prerrequisitos (cliente):', form.cliente_id);
 
-        const prerequisitosRequeridos = prerequisitosCliente.map(p => {
-          const raw = (p.nombre_prerrequisito || p.nombre || p.tipo_documento || '').toLowerCase().trim();
-          const nombre = normalizeTipo(raw) || raw;
-          console.log('🔍 FILTRADO - Procesando prerrequisito:', { original: p, nombreExtraido: nombre, raw });
-          return nombre;
-        });
+        // Construir lista de RUTs candidatos desde personalDisponibleData
+        const allRuts: string[] = (personalDisponibleData.data || []).map((p: any) => p.rut).filter(Boolean);
+        if (allRuts.length === 0) {
+          setPersonalFiltrado([]);
+          setLoadingFiltrado(false);
+          return;
+        }
 
-        console.log('🔍 FILTRADO - Prerrequisitos requeridos:', prerequisitosRequeridos);
+        // Chunking para evitar payloads enormes (tamaño recomendado: 200)
+        const chunkSize = 200;
+        const matchedRuts = new Set<string>();
 
-        // Filtrar personal que tenga documentos que coincidan con los prerrequisitos
-        const personalConMatch: any[] = [];
-        
-        console.log(`🔍 FILTRADO - Procesando ${personalDisponibleData.data.length} personas...`);
-        
-        for (const persona of personalDisponibleData.data) {
+        for (let i = 0; i < allRuts.length; i += chunkSize) {
+          const chunk = allRuts.slice(i, i + chunkSize);
           try {
-            const nombrePersona = persona.nombre || persona.nombres || 'Sin nombre';
-            
-            // Obtener documentos de esta persona
-            const docsResp = await apiService.getDocumentosByPersona(persona.rut);
-            
-            if (docsResp.success && Array.isArray(docsResp.data)) {
-              // Obtener los tipos de documento que tiene esta persona
-              // Normalizar tipos que tiene la persona
-              const tiposDocumento = docsResp.data.map(doc => {
-                const raw = (doc.tipo_documento || doc.tipo || '').toLowerCase().trim();
-                return normalizeTipo(raw) || raw;
-              });
+            const resp = await apiService.matchPrerequisitosClienteBatch(Number(form.cliente_id), chunk, { requireAll: true, includeGlobal: true });
+            console.log('🔍 FILTRADO - respuesta batch:', resp);
 
-              // Solo logear personas con nombre que contenga "Claudio" o logear las primeras 3
-              const esClaudio = nombrePersona.toLowerCase().includes('claudio');
-              
-              if (esClaudio || personalConMatch.length < 3) {
-                console.log(`👤 ${nombrePersona} (${persona.rut}):`, {
-                  tiposDocumento,
-                  prerequisitosRequeridos,
-                  documentosOriginales: docsResp.data.map(d => ({ tipo_documento: d.tipo_documento, tipo: d.tipo, nombre: d.nombre }))
-                });
-              }
+            const items = resp?.data || [];
+            for (const it of items) {
+              if (!it) continue;
+              const rut = it.rut || it?.data?.rut;
+              // Heurísticas para detectar match
+              let isMatch = false;
+              if (typeof it.matchesAll === 'boolean') isMatch = it.matchesAll;
+              else if (typeof it.matches_all === 'boolean') isMatch = it.matches_all;
+              else if (Array.isArray(it.faltantes)) isMatch = it.faltantes.length === 0;
+              else if (it.data && Array.isArray(it.data.faltantes)) isMatch = it.data.faltantes.length === 0;
+              else if (it.data && typeof it.data.matchesAll === 'boolean') isMatch = it.data.matchesAll;
 
-              // Verificar si tiene todos los prerrequisitos requeridos
-              const tieneTodasCoincidencias = prerequisitosRequeridos.every(prereq =>
-                // match if prereq is empty (ignore) OR tiposDocumento includes the normalized prereq
-                (prereq === '') ? false : tiposDocumento.includes(prereq)
-              );
-
-              if (esClaudio || tieneTodasCoincidencias) {
-                console.log(`  ${tieneTodasCoincidencias ? '✅' : '❌'} ${nombrePersona}: Coincidencias completas = ${tieneTodasCoincidencias}`);
-                if (!tieneTodasCoincidencias && esClaudio) {
-                  // Mostrar qué prerrequisitos le faltan a Claudio
-                  const faltantes = prerequisitosRequeridos.filter(prereq => !tiposDocumento.includes(prereq));
-                  console.log(`  ⚠️ Prerrequisitos faltantes:`, faltantes);
-                  console.log(`  📋 Documentos que tiene:`, tiposDocumento);
-                }
-              }
-
-              if (tieneTodasCoincidencias) {
-                personalConMatch.push(persona);
+              if (isMatch && rut) matchedRuts.add(String(rut));
+            }
+          } catch (batchErr) {
+            console.warn('⚠️ Error en batch match para chunk, intentando fallback per-rut:', batchErr);
+            // Fallback: intentar por cada rut del chunk con el método single
+            for (const rut of chunk) {
+              try {
+                const single = await apiService.matchPrerequisitosCliente(Number(form.cliente_id), rut).catch(e => { throw e; });
+                // Parsear respuesta similar a batch
+                const payload = (single && (single.data || single)) || null;
+                if (!payload) continue;
+                // payload puede variar; buscar indicios de faltantes o matches
+                const p = Array.isArray(payload) && payload.length === 1 ? payload[0] : payload;
+                let isMatch = false;
+                if (p && typeof p.matchesAll === 'boolean') isMatch = p.matchesAll;
+                else if (p && Array.isArray(p.faltantes)) isMatch = p.faltantes.length === 0;
+                else if (p && p.data && Array.isArray(p.data.faltantes)) isMatch = p.data.faltantes.length === 0;
+                if (isMatch) matchedRuts.add(String(rut));
+              } catch (e) {
+                console.error('Error fallback single match rut', rut, e);
               }
             }
-          } catch (err) {
-            console.error(`Error al obtener documentos para ${persona.rut}:`, err);
           }
         }
-        
-        console.log(`✅ FILTRADO - ${personalConMatch.length} personas cumplen los requisitos`);
 
+        // Construir lista de personas filtradas usando matchedRuts
+        const personalConMatch = (personalDisponibleData.data || []).filter((p: any) => matchedRuts.has(p.rut));
+        console.log(`✅ FILTRADO - ${personalConMatch.length} personas cumplen los requisitos (batch)`);
         setPersonalFiltrado(personalConMatch);
       } catch (error) {
-        console.error('Error al filtrar personal:', error);
+        console.error('Error al filtrar personal (batch):', error);
         setPersonalFiltrado([]);
       }
       setLoadingFiltrado(false);
