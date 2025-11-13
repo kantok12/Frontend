@@ -163,7 +163,7 @@ export const useCreateCurso = () => {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: (data: CreateCursoData | FormData) => {
+    mutationFn: async (data: CreateCursoData | FormData) => {
       // Si ya viene como FormData (con archivo), enviarlo directamente
       if (data instanceof FormData) {
         return apiService.createCurso(data);
@@ -173,14 +173,44 @@ export const useCreateCurso = () => {
       const cursoData = data as CreateCursoData;
       
       // Validar datos requeridos según la documentación
-      if (!cursoData.rut_persona || !cursoData.nombre_curso) {
-        throw new Error('RUT de la persona y nombre del curso son requeridos');
+      if (!cursoData.nombre_curso) {
+        throw new Error('Nombre del curso es requerido');
+      }
+
+      // Si se proporcionó rut_persona pero no personal_id, intentar resolverlo
+      if (!cursoData.personal_id && cursoData.rut_persona) {
+        try {
+          const personResp = await apiService.getPersonalByRut(cursoData.rut_persona);
+          if (personResp?.success && personResp.data) {
+            // Algunos endpoints devuelven el objeto persona directamente
+            const persona = personResp.data;
+            // persona puede contener id o rut; preferir id
+            if (persona.id) {
+              cursoData.personal_id = String(persona.id);
+            } else if (persona.rut) {
+              // No tenemos id numérico, dejar rut_persona como fallback
+              cursoData.personal_id = undefined;
+            }
+          } else {
+            // fallback: no se encontró persona
+            throw new Error('No se encontró persona para el RUT proporcionado');
+          }
+        } catch (err) {
+          // Propagar error para que el caller lo maneje
+          const message = (err as any)?.message || String(err);
+          throw new Error(`No se pudo resolver personal_id desde rut_persona: ${message}`);
+        }
       }
       
       // Si tiene archivo, crear FormData
-      if (cursoData.archivo) {
+        if (cursoData.archivo) {
         const formData = new FormData();
-        formData.append('rut_persona', cursoData.rut_persona);
+        // Preferir enviar personal_id si está disponible para evitar violaciones FK en backend
+        if (cursoData.personal_id) {
+          formData.append('personal_id', cursoData.personal_id);
+        } else if (cursoData.rut_persona) {
+          formData.append('rut_persona', cursoData.rut_persona);
+        }
         formData.append('nombre_curso', cursoData.nombre_curso);
         
         if (cursoData.fecha_inicio) formData.append('fecha_inicio', cursoData.fecha_inicio);
@@ -192,7 +222,42 @@ export const useCreateCurso = () => {
         if (cursoData.descripcion) formData.append('descripcion', cursoData.descripcion);
         
         // Agregar archivo (backend ahora lo guarda automáticamente en cursos_certificaciones/)
-        formData.append('archivo', cursoData.archivo);
+        // Si el usuario proporciona un nombre final deseado (`nombre_archivo_destino`),
+        // adjuntamos el archivo usando ese nombre físico y también enviamos el campo
+        // para que el backend pueda respetarlo si lo soporta.
+        const archivoFile = cursoData.archivo as File;
+
+        // Helper: slugify nombre del curso para generar un nombre de archivo seguro
+        const slugify = (s: string) => {
+          return s
+            .normalize('NFD') // separar diacríticos
+            .replace(/[\u0300-\u036f]/g, '') // eliminar tildes
+            .replace(/[^\w\s-]/g, '') // eliminar caracteres no alfanuméricos (excepto guiones/espacios)
+            .trim()
+            .replace(/\s+/g, '_')
+            .replace(/-+/g, '_')
+            .toLowerCase();
+        };
+
+        const getExtension = (filename: string) => {
+          const idx = filename.lastIndexOf('.');
+          return idx !== -1 ? filename.substring(idx) : '';
+        };
+
+        let desiredFilename = cursoData.nombre_archivo_destino || '';
+        if (!desiredFilename && cursoData.nombre_curso) {
+          const ext = getExtension(archivoFile.name) || '.pdf';
+          desiredFilename = `${slugify(cursoData.nombre_curso)}${ext}`;
+        }
+
+        if (desiredFilename) {
+          // Append with filename override (third param) so FormData carries the desired filename
+          formData.append('archivo', archivoFile, desiredFilename);
+          // Enviar también el campo explícito por si el backend prefiere leerlo
+          formData.append('nombre_archivo_destino', desiredFilename);
+        } else {
+          formData.append('archivo', archivoFile);
+        }
         
         // Metadatos opcionales del documento
         if (cursoData.fecha_emision) formData.append('fecha_emision', cursoData.fecha_emision);

@@ -43,16 +43,63 @@ export const useDocumentosByPersona = (rut: string) => {
         
         // Verificar la estructura de respuesta según la documentación
         if (result?.success && result?.data) {
-          // La respuesta debe tener la estructura: { success: true, data: [...], pagination: {...} }
+          // La respuesta puede venir en varias formas. Queremos garantizar que
+          // siempre devolvemos un objeto con los campos esperados y, si es
+          // posible, un `documentos_locales_split` con `documentos` y `cursos_certificaciones`.
+          // 1) Si viene un array → convertir a DocumentosResponse
           if (Array.isArray(result.data)) {
             return {
               success: true,
               data: result.data,
               pagination: (result as any).pagination || { total: result.data.length, limit: 10, offset: 0, hasMore: false }
             };
-          } else if (typeof result.data === 'object' && 'documentos' in result.data) {
-            // Si ya tiene la estructura esperada
-            return result as DocumentosResponse;
+          }
+
+          // 2) Si viene la forma esperada con 'documentos' u 'documentos_locales_split'
+          if (typeof result.data === 'object') {
+            const dataObj: any = result.data;
+
+            // Si backend ya entrega la forma 'documentos_locales_split', respetarla
+            if (dataObj.documentos_locales_split) {
+              // Asegurar que la respuesta tenga al menos documentos y cursos_certificaciones
+              const split = dataObj.documentos_locales_split || { documentos: [], cursos_certificaciones: [] };
+              dataObj.documentos_locales_split = {
+                documentos: split.documentos || [],
+                cursos_certificaciones: split.cursos_certificaciones || []
+              };
+
+              return {
+                ...(result as any),
+                data: dataObj
+              } as DocumentosResponse;
+            }
+
+            // Si sólo existe 'documentos_locales' (legacy), generar un split a partir de la propiedad carpeta
+            if (Array.isArray(dataObj.documentos_locales)) {
+              const locales: any[] = dataObj.documentos_locales || [];
+              const cursos = locales.filter((f: any) => {
+                const carpeta = (f?.carpeta || '').toString().toLowerCase();
+                return carpeta.includes('curso') || carpeta.includes('certific') || carpeta.includes('cursos_certificaciones');
+              });
+              const otros = locales.filter((f: any) => !cursos.includes(f));
+
+              dataObj.documentos_locales_split = {
+                documentos: otros,
+                cursos_certificaciones: cursos
+              };
+
+              // Si la respuesta ya tiene 'documentos' o es la forma esperada, devolver respetando esos campos
+              return {
+                success: result.success,
+                data: dataObj,
+                pagination: (result as any).pagination || { total: (dataObj.documentos || []).length, limit: 10, offset: 0, hasMore: false }
+              } as DocumentosResponse;
+            }
+
+            // Si tiene 'documentos' y no locales, devolver tal cual
+            if ('documentos' in dataObj) {
+              return result as DocumentosResponse;
+            }
           }
         }
         
@@ -124,6 +171,9 @@ const TIPOS_DOCUMENTOS_DEFAULT = [
   { label: 'Fotografía Personal', value: 'fotografia_personal', categoria: 'personal' },
   { label: 'Otro', value: 'otro', categoria: 'personal' }
 ];
+
+// Añadir tipo para prerrequisitos (reconocido en varias partes del sistema)
+TIPOS_DOCUMENTOS_DEFAULT.push({ label: 'Prerrequisitos', value: 'prerrequisitos', categoria: 'personal' });
 
 // Tipos de archivo soportados según la documentación
 const SUPPORTED_FILE_TYPES = {
@@ -234,10 +284,32 @@ export const useUploadDocumento = () => {
     },
     onSuccess: (response, variables) => {
       console.log('✅ Documento subido exitosamente:', response);
-      
+
+      // Extraer el nombre canónico que el backend pudo haber usado al guardar el archivo.
+      // La forma de la respuesta puede variar, por eso intentamos múltiples caminos.
+      const extractSavedName = (resp: any): string | null => {
+        if (!resp) return null;
+        // apiService.* devuelve usualmente un objeto { success, data }
+        const payload = resp.data || resp;
+        // data puede contener 'documentos' (array) o 'documento' (obj) o directamente el objeto
+        const candidates = payload?.documentos || payload?.documento || payload;
+        if (Array.isArray(candidates) && candidates.length > 0) {
+          return candidates[0].nombre_archivo || candidates[0].nombre_archivo_guardado || candidates[0].nombre_original || null;
+        }
+        if (typeof candidates === 'object') {
+          return candidates.nombre_archivo || candidates.nombre_archivo_guardado || candidates.nombre_original || null;
+        }
+        return null;
+      };
+
+      const savedName = extractSavedName(response);
+      if (savedName) {
+        console.log('📌 Nombre final devuelto por backend:', savedName);
+      }
+
       // Obtener el RUT de la persona del FormData para invalidar queries específicas
       const rutPersona = variables.get('rut_persona');
-      
+
       // Invalidar queries relacionadas
       queryClient.invalidateQueries({ queryKey: ['documentos'] });
       if (rutPersona) {
@@ -316,6 +388,23 @@ export const useRegisterDocumentoExistente = () => {
       return apiService.registerExistingDocument(payload);
     },
     onSuccess: (data: any, variables: any) => {
+      // Extraer nombre final devuelto por el backend, si existe
+      const extractSavedName = (resp: any): string | null => {
+        if (!resp) return null;
+        const payload = resp.data || resp;
+        const candidates = payload?.documentos || payload?.documento || payload;
+        if (Array.isArray(candidates) && candidates.length > 0) {
+          return candidates[0].nombre_archivo || candidates[0].nombre_archivo_guardado || candidates[0].nombre_original || null;
+        }
+        if (typeof candidates === 'object') {
+          return candidates.nombre_archivo || candidates.nombre_archivo_guardado || candidates.nombre_original || null;
+        }
+        return null;
+      };
+
+      const savedName = extractSavedName(data);
+      if (savedName) console.log('📌 Nombre final devuelto por backend (registrar-existente):', savedName);
+
       // Invalidar caches relacionados para refrescar la lista de documentos de la persona
       const rut = variables?.rut_persona || variables?.rut || (variables && variables.rut_persona) || null;
       queryClient.invalidateQueries({ queryKey: ['documentos'] });
@@ -442,7 +531,13 @@ export const createDocumentoFormData = (data: CreateDocumentoData): FormData => 
   if (data.tipo_documento) {
     formData.append('tipo_documento', data.tipo_documento);
   }
-  
+  // Indicar al backend el nombre con el que deseamos que se guarde el archivo
+  // (esto permitirá que, incluso si el backend copia el archivo desde Drive o lo
+  // almacena con el nombre original, tenga la instrucción del nombre deseado).
+  if (data.nombre_documento) {
+    formData.append('nombre_archivo_destino', data.nombre_documento);
+  }
+  // Agregar el archivo (solo una vez)
   formData.append('archivo', data.archivo); // Campo requerido según documentación (singular, no 'files')
   
   // Agregar descripción si existe
@@ -470,6 +565,21 @@ export const createDocumentoFormData = (data: CreateDocumentoData): FormData => 
   if (data.institucion_emisora) {
     formData.append('institucion_emisora', data.institucion_emisora);
   }
+
+  // Si vienen prerrequisitos asociados al documento, enviarlos como JSON
+  if ((data as any).prerrequisitos) {
+    try {
+      const prs = (data as any).prerrequisitos;
+      // Enviar como JSON (backend puede aceptar JSON) y como array de campos 'prerrequisitos[]' por compatibilidad
+      formData.append('prerrequisitos', JSON.stringify(prs));
+      if (Array.isArray(prs)) {
+        prs.forEach((id: any) => formData.append('prerrequisitos[]', String(id)));
+      }
+    } catch (e) {
+      console.warn('No se pudo serializar prerrequisitos:', e);
+    }
+  }
+  // Nota: no añadir tipo_documento por defecto aquí — el usuario debe asignarlo manualmente
   
   // Debug: Log del FormData creado
   const esCurso = data.tipo_documento && ['certificado_curso', 'diploma', 'curso', 'certificacion', 'certificación', 'curso/certificacion', 'curso/certificación']

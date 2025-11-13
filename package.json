@@ -24,13 +24,13 @@
   "dependencies": {
     "@hookform/resolvers": "^3.3.2",
     "@tanstack/react-query": "^4.36.1",
-    "@types/node": "^20.10.0",
     "@types/react-dom": "^18.2.18",
     "ajv": "^8.17.1",
     "axios": "1.12.2",
     "clsx": "^2.0.0",
     "date-fns": "4.1.0",
     "eventemitter3": "5.0.1",
+    "form-data": "4.0.4",
     "html2canvas": "1.4.1",
     "jspdf": "3.0.3",
     "lucide-react": "0.294.0",
@@ -90,11 +90,15 @@
   },
   "devDependencies": {
     "@types/date-fns": "2.5.3",
+    "@types/jest": "30.0.0",
+    "@types/node": "24.10.0",
     "@types/react": "18.2.48",
     "autoprefixer": "^10.4.16",
     "husky": "^9.1.7",
+    "jest": "30.2.0",
     "postcss": "^8.4.32",
     "tailwindcss": "^3.3.6",
+    "ts-jest": "29.4.5",
     "typescript": "^4.9.5"
   }
 }

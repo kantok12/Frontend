@@ -5,7 +5,7 @@ import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { PersonalForm } from '../components/personal/PersonalForm';
 import { PersonalDetailModal } from '../components/personal/PersonalDetailModal';
 import { ProfileImage } from '../components/common/ProfileImage';
-import { Search, Plus, Trash2, Eye, User, Mail, CheckCircle, XCircle, Activity, FileText } from 'lucide-react';
+import { Search, Plus, Trash2, Eye, User, Mail, CheckCircle, XCircle, Activity, FileText, Upload } from 'lucide-react';
 import { Personal } from '../types';
 import { formatRUT } from '../utils/formatters';
 
@@ -72,9 +72,13 @@ export const PersonalPage: React.FC = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
 
-  // Nuevos filtros para documentos
-  const [filtroDocumento, setFiltroDocumento] = useState<string>('todos');
-  const [filtroDocumentacionCompleta, setFiltroDocumentacionCompleta] = useState<string>('todos');
+    // Nuevos filtros: por cargo, estado y licencia (reemplazan filtro por tipo de documento)
+    const [filterCargo, setFilterCargo] = useState<string>('todos');
+    const [filterEstadoPersonal, setFilterEstadoPersonal] = useState<string>('todos');
+    const [filterLicencia, setFilterLicencia] = useState<string>('todos');
+    // Filtros adicionales solicitados: zona geográfica y empresa
+    const [filterZona, setFilterZona] = useState<string>('todos');
+    const [filterEmpresa, setFilterEmpresa] = useState<string>('todos');
 
   // Debounce search para evitar demasiadas consultas
   React.useEffect(() => {
@@ -87,8 +91,18 @@ export const PersonalPage: React.FC = () => {
     return () => clearTimeout(timer);
   }, [search]);
 
+    // Determinar si hay filtros locales activos (cargo/estado/licencia/zona/empresa)
+    const hasLocalFilters = (
+      filterCargo !== 'todos' || filterEstadoPersonal !== 'todos' || filterLicencia !== 'todos' ||
+      filterZona !== 'todos' || filterEmpresa !== 'todos'
+    );
+
+  // Si hay filtros locales, pedimos más registros al backend para filtrar en cliente (limit grande)
+  const fetchPage = hasLocalFilters ? 1 : page;
+  const fetchLimit = hasLocalFilters ? 1000 : limit;
+
   // Usar el hook original para obtener datos del backend con búsqueda debounced
-  const { data: personalData, isLoading, error, refetch } = usePersonalList(page, limit, debouncedSearch);
+  const { data: personalData, isLoading, error, refetch } = usePersonalList(fetchPage, fetchLimit, debouncedSearch);
   const deletePersonalMutation = useDeletePersonal();
 
   // Función para verificar si una persona tiene documentación completa
@@ -117,48 +131,23 @@ export const PersonalPage: React.FC = () => {
     }
   };
 
-  // Función para filtrar personal por documentos (versión simplificada con datos mock consistentes)
+  // Filtrado simplificado por cargo/estado/licencia/zona/empresa
   const filtrarPersonalPorDocumentos = (personal: Personal[]) => {
     return personal.filter(persona => {
-      // Generar datos mock consistentes basados en el ID de la persona
-      const seed = typeof persona.id === 'string' ? parseInt(persona.id) || 1 : persona.id;
-      const mockDocumentacion = {
-        total: (seed % 5),
-        completa: (seed % 3) === 0,
-        documentosVencidos: (seed % 4) === 0 ? 1 : 0,
-        documentosPorVencer: (seed % 5) === 0 ? 1 : 0,
-        documentosFaltantes: Math.max(0, 4 - (seed % 5)),
-        tieneContrato: (seed % 2) === 0,
-        tieneIdentidad: (seed % 3) !== 0,
-        tieneMedico: (seed % 4) !== 0,
-        tieneAntecedentes: (seed % 5) !== 0,
-      };
-      
-      // Filtro por tipo de documento específico
-      if (filtroDocumento !== 'todos') {
-        // La lógica de filtrado real dependerá de cómo se obtienen los documentos.
-        // Por ahora, esta es una simulación.
-        // Para que el filtro funcione, necesitaríamos que el backend soporte
-        // un query param como &tipo_documento=CV
-        console.log(`Filtrando por tipo de documento: ${filtroDocumento}`);
-        // Aquí iría la lógica de filtrado real, por ejemplo:
-        // return persona.documentos.some(doc => doc.tipo === filtroDocumento);
-      }
-      
-      // Filtro por documentación completa
-      if (filtroDocumentacionCompleta !== 'todos') {
-        switch (filtroDocumentacionCompleta) {
-          case 'completa':
-            return mockDocumentacion.completa;
-          case 'incompleta':
-            return !mockDocumentacion.completa && mockDocumentacion.total > 0;
-          case 'sin_documentos':
-            return mockDocumentacion.total === 0;
-          default:
-            return true;
-        }
-      }
-      
+      const cargoNorm = (persona.cargo || '').trim().toLowerCase();
+      const estadoNorm = (persona.estado_nombre || '').trim().toLowerCase();
+      const licenciaNorm = (persona.licencia_conducir || '').trim().toLowerCase();
+
+      if (filterCargo !== 'todos' && cargoNorm !== filterCargo) return false;
+      if (filterEstadoPersonal !== 'todos' && estadoNorm !== filterEstadoPersonal) return false;
+      if (filterLicencia !== 'todos' && licenciaNorm !== filterLicencia) return false;
+
+      const zonaNorm = (persona.zona_geografica || '').trim().toLowerCase();
+      if (filterZona !== 'todos' && zonaNorm !== filterZona) return false;
+
+      const empresaNorm = (persona.empresa?.nombre || '').trim().toLowerCase();
+      if (filterEmpresa !== 'todos' && empresaNorm !== filterEmpresa) return false;
+
       return true;
     });
   };
@@ -356,13 +345,50 @@ export const PersonalPage: React.FC = () => {
     }
   }, [isLoading, personalData]);
 
+  // Cuando cambian los filtros, volver a la primera página
+  useEffect(() => {
+    setPage(1);
+  }, [filterCargo, filterEstadoPersonal, filterLicencia]);
+
   // Extraer datos de la respuesta
   const personalListOriginal = personalData?.data?.items || [];
-  const personalList = filtrarPersonalPorDocumentos(personalListOriginal);
-  const total = personalData?.data?.total || 0;
-  const totalPages = personalData?.data?.totalPages || 1;
-  const startIndex = (page - 1) * limit;
-  const endIndex = Math.min(startIndex + limit, total);
+  const serverTotal = personalData?.data?.total || 0;
+  const serverTotalPages = personalData?.data?.totalPages || 1;
+
+  // Determinar modo: si hay filtros locales, filtramos en cliente (fetchLimit fue grande)
+  const clientMode = hasLocalFilters;
+
+  // Valores calculados para renderizado (pueden venir del servidor o del cliente)
+  let displayList: Personal[] = [];
+  let displayTotal = 0;
+  let effectiveTotalPages = 1;
+  let effectiveStart = 0;
+  let effectiveEnd = 0;
+
+  if (clientMode) {
+    const filtered = filtrarPersonalPorDocumentos(personalListOriginal);
+    displayTotal = filtered.length;
+    effectiveTotalPages = Math.max(1, Math.ceil(displayTotal / limit));
+
+    const start = (page - 1) * limit;
+    const end = Math.min(start + limit, displayTotal);
+    displayList = filtered.slice(start, end);
+    effectiveStart = start + 1;
+    effectiveEnd = end;
+  } else {
+    // Usar paginación provista por el servidor
+    displayList = personalListOriginal;
+    displayTotal = serverTotal;
+    effectiveTotalPages = serverTotalPages;
+    effectiveStart = (page - 1) * limit + 1;
+    effectiveEnd = (page - 1) * limit + displayList.length;
+  }
+
+  // Un solo useEffect para asegurar que la página actual esté dentro de rangos válidos.
+  // No se llama condicionalmente para respetar las reglas de Hooks.
+  useEffect(() => {
+    if (page > effectiveTotalPages) setPage(1);
+  }, [page, effectiveTotalPages]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -458,13 +484,19 @@ export const PersonalPage: React.FC = () => {
             Estado de Documentación
           </Link>
         </div>
-        <button 
-          onClick={() => setShowCreateModal(true)}
-          className="btn-primary hover-grow"
-        >
-          <Plus className="h-4 w-4" />
-          Nuevo Personal
-        </button>
+        <div className="flex items-center space-x-3">
+          <Link to="/personal/multi-upload" className="btn-outline btn-action mr-2" title="Subir archivo a múltiples personas">
+            <Upload className="h-4 w-4 mr-2 inline" />
+            <span>Subir a múltiples</span>
+          </Link>
+          <button 
+            onClick={() => setShowCreateModal(true)}
+            className="btn-primary btn-action hover-grow"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Nuevo Personal</span>
+          </button>
+        </div>
       </div>
 
 
@@ -503,53 +535,98 @@ export const PersonalPage: React.FC = () => {
         </form>
       </div>
 
-      {/* Filtros de Documentos */}
+      {/* Filtros */}
       <div className="card hover-lift slide-up animate-delay-250 mb-4">
         <div className="flex flex-wrap gap-4 items-center">
           <div className="flex items-center space-x-2">
             <FileText className="h-4 w-4 text-gray-500" />
-            <span className="text-sm font-medium text-gray-700">Filtros de Documentos:</span>
+            <span className="text-sm font-medium text-gray-700">Filtros:</span>
           </div>
-          
-          {/* Filtro por tipo de documento */}
+
+          {/* Filtro por Cargo */}
           <div className="flex items-center space-x-2">
-            <label className="text-sm text-gray-600">Tipo de documento:</label>
+            <label className="text-sm text-gray-600">Cargo:</label>
             <select
-              value={filtroDocumento}
-              onChange={(e) => setFiltroDocumento(e.target.value)}
+              value={filterCargo}
+              onChange={(e) => setFilterCargo(e.target.value)}
               className="px-3 py-1 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
             >
-              <option value="todos">Todos los documentos</option>
-              <option value="CV">📄 CV</option>
-              <option value="EPP">🆔 EPP</option>
-              <option value="Exámenes preocupacionales">🏥 Exámenes preocupacionales</option>
-              <option value="vencidos">⚠️ Documentos vencidos</option>
-              <option value="por_vencer">⏰ Por vencer</option>
-              <option value="faltantes">❌ Documentos faltantes</option>
+              <option value="todos">Todos los cargos</option>
+              {Array.from(new Set(personalListOriginal.map(p => (p.cargo || '').trim()).filter(Boolean))).map((c: any) => (
+                <option key={c} value={c.toLowerCase()}>{c}</option>
+              ))}
             </select>
           </div>
 
-          {/* Filtro por documentación completa */}
+          {/* Filtro por Zona Geográfica */}
           <div className="flex items-center space-x-2">
-            <label className="text-sm text-gray-600">Documentación:</label>
+            <label className="text-sm text-gray-600">Zona:</label>
             <select
-              value={filtroDocumentacionCompleta}
-              onChange={(e) => setFiltroDocumentacionCompleta(e.target.value)}
+              value={filterZona}
+              onChange={(e) => setFilterZona(e.target.value)}
               className="px-3 py-1 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
             >
-              <option value="todos">Todos</option>
-              <option value="completa">✅ Documentación completa</option>
-              <option value="incompleta">❌ Documentación incompleta</option>
-              <option value="sin_documentos">📭 Sin documentos</option>
+              <option value="todos">Todas</option>
+              {Array.from(new Set(personalListOriginal.map(p => (p.zona_geografica || '').trim()).filter(Boolean))).map((z: any) => (
+                <option key={z} value={z.toLowerCase()}>{z}</option>
+              ))}
             </select>
           </div>
+
+          {/* Filtro por Estado */}
+          <div className="flex items-center space-x-2">
+            <label className="text-sm text-gray-600">Estado:</label>
+            <select
+              value={filterEstadoPersonal}
+              onChange={(e) => setFilterEstadoPersonal(e.target.value)}
+              className="px-3 py-1 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+            >
+              <option value="todos">Todos los estados</option>
+              {Array.from(new Set(personalListOriginal.map(p => (p.estado_nombre || '').trim()).filter(Boolean))).map((s: any) => (
+                <option key={s} value={s.toLowerCase()}>{s}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Filtro por Licencia de conducir */}
+          <div className="flex items-center space-x-2">
+            <label className="text-sm text-gray-600">Licencia:</label>
+            <select
+              value={filterLicencia}
+              onChange={(e) => setFilterLicencia(e.target.value)}
+              className="px-3 py-1 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+            >
+              <option value="todos">Todas</option>
+              {Array.from(new Set(personalListOriginal.map(p => (p.licencia_conducir || '').trim()).filter(Boolean))).map((l: any) => (
+                <option key={l} value={l.toLowerCase()}>{l}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Filtro por Empresa */}
+          <div className="flex items-center space-x-2">
+            <label className="text-sm text-gray-600">Empresa:</label>
+            <select
+              value={filterEmpresa}
+              onChange={(e) => setFilterEmpresa(e.target.value)}
+              className="px-3 py-1 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+            >
+              <option value="todos">Todas</option>
+              {Array.from(new Set(personalListOriginal.map(p => (p.empresa?.nombre || '').trim()).filter(Boolean))).map((emp: any) => (
+                <option key={emp} value={emp.toLowerCase()}>{emp}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Servicio / Fecha creación / Documentación filters removed */}
 
           {/* Botón para limpiar filtros */}
-          {(filtroDocumento !== 'todos' || filtroDocumentacionCompleta !== 'todos') && (
+          {(filterCargo !== 'todos' || filterEstadoPersonal !== 'todos' || filterLicencia !== 'todos') && (
             <button
               onClick={() => {
-                setFiltroDocumento('todos');
-                setFiltroDocumentacionCompleta('todos');
+                setFilterCargo('todos');
+                setFilterEstadoPersonal('todos');
+                setFilterLicencia('todos');
               }}
               className="bg-gray-500 hover:bg-gray-600 text-white px-3 py-1 rounded-lg text-sm font-medium transition-colors"
             >
@@ -563,15 +640,15 @@ export const PersonalPage: React.FC = () => {
       <div className="slide-up animate-delay-300">
         <div className="mb-4">
           <h2 className="text-lg font-semibold text-gray-900">
-            Personal ({personalList.length} de {total} registros)
+            Personal ({displayTotal} registros)
             {debouncedSearch && (
               <span className="ml-2 text-sm font-normal text-blue-600">
                 - Búsqueda: "{debouncedSearch}"
               </span>
             )}
-            {(filtroDocumento !== 'todos' || filtroDocumentacionCompleta !== 'todos') && (
+            {(filterCargo !== 'todos' || filterEstadoPersonal !== 'todos' || filterLicencia !== 'todos') && (
               <span className="ml-2 text-sm font-normal text-green-600">
-                - Filtros de documentos activos
+                - Filtros activos
               </span>
             )}
           </h2>
@@ -583,7 +660,7 @@ export const PersonalPage: React.FC = () => {
           )}
         </div>
 
-        {personalList.length === 0 ? (
+        {displayTotal === 0 ? (
           <div className="text-center py-8 text-gray-500">
             {debouncedSearch ? (
               <div>
@@ -606,7 +683,7 @@ export const PersonalPage: React.FC = () => {
         ) : (
           <>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {personalList.map((persona, index) => {
+              {displayList.map((persona: Personal, index: number) => {
                 const estado = getEstadoVisual(persona.estado_nombre);
                 const IconComponent = estado.icon;
 
@@ -703,7 +780,7 @@ export const PersonalPage: React.FC = () => {
             </div>
 
             {/* Paginación */}
-            {totalPages > 1 && (
+            {effectiveTotalPages > 1 && (
               <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6 mt-8">
                 <div className="flex-1 flex justify-between sm:hidden">
                   <button
@@ -715,7 +792,7 @@ export const PersonalPage: React.FC = () => {
                   </button>
                   <button
                     onClick={() => handlePageChange(page + 1)}
-                    disabled={page === totalPages}
+                    disabled={page === effectiveTotalPages}
                     className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Siguiente
@@ -723,11 +800,11 @@ export const PersonalPage: React.FC = () => {
                 </div>
                 <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
                   <div>
-                    <p className="text-sm text-gray-700">
-                      Mostrando <span className="font-medium">{startIndex + 1}</span> a{' '}
-                      <span className="font-medium">{endIndex}</span>{' '}
-                      de <span className="font-medium">{total}</span> resultados
-                    </p>
+                      <p className="text-sm text-gray-700">
+                        Mostrando <span className="font-medium">{effectiveStart}</span> a{' '}
+                        <span className="font-medium">{effectiveEnd}</span>{' '}
+                        de <span className="font-medium">{displayTotal}</span> resultados
+                      </p>
                   </div>
                   <div>
                     <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
@@ -738,7 +815,7 @@ export const PersonalPage: React.FC = () => {
                       >
                         Anterior
                       </button>
-                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
+                      {Array.from({ length: effectiveTotalPages }, (_, i) => i + 1).map((pageNum) => (
                         <button
                           key={pageNum}
                           onClick={() => handlePageChange(pageNum)}
@@ -753,7 +830,7 @@ export const PersonalPage: React.FC = () => {
                       ))}
                       <button
                         onClick={() => handlePageChange(page + 1)}
-                        disabled={page === totalPages}
+                        disabled={page === effectiveTotalPages}
                         className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         Siguiente
@@ -880,6 +957,8 @@ export const PersonalPage: React.FC = () => {
         onClose={handleCloseDetailModal}
         onUpdate={refetch}
       />
+
+      {/* Multi-upload ahora es una página separada (/personal/multi-upload) */}
 
     </div>
   );

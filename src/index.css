@@ -27,6 +27,15 @@
   .btn-outline {
     @apply border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 font-medium py-2 px-4 rounded-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transform hover:scale-105 hover:shadow-md active:scale-95;
   }
+
+  /* Botones de acción con dimensiones iguales (uso compartido) */
+  .btn-action {
+    @apply inline-flex items-center justify-center space-x-2 text-sm font-medium;
+    min-width: 160px; /* ancho mínimo para que los botones se vean simétricos */
+    height: 40px; /* altura fija para que coincidan visualmente */
+    padding-left: 12px; /* ajuste fino del padding para alinear iconos y texto */
+    padding-right: 12px;
+  }
   
   .input-field {
     @apply block w-full rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm transition-all duration-200 focus:scale-[1.02];

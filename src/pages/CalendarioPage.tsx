@@ -391,7 +391,7 @@ const CalendarioPage: React.FC = () => {
     const y = Number(parts[0]);
     const m = Number(parts[1]);
     const d = Number(parts[2]);
-    const dt = new Date(y, m - 1, d);
+    const dt = new Date(y, m - 1, d );
     dt.setDate(dt.getDate() + 6);
     return dt.toISOString().split('T')[0];
   })();

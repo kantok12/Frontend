@@ -9,11 +9,25 @@ import * as XLSX from 'xlsx';
 export const EstadoDocumentacionPage: React.FC = () => {
   const { documentos, isLoading, error, refetch } = useAllDocumentos();
   const downloadDocumentoMutation = useDownloadDocumento();
+
+  // Helper: normalize filenames for deduplication
+  const normalizeName = (name?: string) => {
+    if (!name) return '';
+    // Lowercase, replace separators with spaces, collapse whitespace
+    let s = name.toLowerCase().trim();
+    s = s.replace(/[\\-_]+/g, ' ');
+    s = s.replace(/\s+/g, ' ');
+    // remove trailing long numeric timestamps (e.g. _1762802225018)
+    s = s.replace(/[_\s-]{1,}(\d{9,})$/g, '').trim();
+    return s;
+  };
   
   // Estados para filtros y búsqueda
   const [searchTerm, setSearchTerm] = useState('');
   const [filterEstado, setFilterEstado] = useState('todos');
   const [filterTipo, setFilterTipo] = useState('todos');
+  const [filterCargo, setFilterCargo] = useState('todos');
+  const [filterLicencia, setFilterLicencia] = useState('todos');
   const [sortBy, setSortBy] = useState('fecha_vencimiento');
   const [isExporting, setIsExporting] = useState(false);
 
@@ -109,17 +123,40 @@ export const EstadoDocumentacionPage: React.FC = () => {
     }
   };
 
-  // Filtrar y ordenar documentos
+  // Build a list of unique documents (dedupe by normalized filename + tipo_documento)
+  const documentosUnicos = useMemo(() => {
+    if (!Array.isArray(documentos)) return [];
+    const map = new Map<string, any>();
+    for (const doc of documentos) {
+      const nameForKey = doc.nombre_archivo || doc.nombre_original || doc.nombre_documento || '';
+      const key = `${normalizeName(nameForKey)}::${(doc.tipo_documento || '').toLowerCase()}`;
+      if (!map.has(key)) {
+        map.set(key, doc);
+      } else {
+        // prefer the one with ruta_archivo or with fecha_vencimiento
+        const existing = map.get(key);
+        if ((!existing.ruta_archivo && doc.ruta_archivo) || (!existing.fecha_vencimiento && doc.fecha_vencimiento)) {
+          map.set(key, doc);
+        }
+      }
+    }
+    // Return unique documents. Keep items even if they lack ruta_archivo so the UI
+    // can show their metadata and let users identify missing files.
+    return Array.from(map.values());
+  }, [documentos]);
+
+  // Now apply search / filters / sort to the unique list
   const documentosFiltrados = useMemo(() => {
-    let filtered = documentos;
+    let filtered = documentosUnicos;
 
     // Filtro por búsqueda
     if (searchTerm) {
+      const q = searchTerm.toLowerCase();
       filtered = filtered.filter(doc => 
-        doc.nombre_documento?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        doc.personal?.nombres?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        doc.rut_persona?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        doc.tipo_documento?.toLowerCase().includes(searchTerm.toLowerCase())
+        (doc.nombre_documento || '').toLowerCase().includes(q) ||
+        (doc.personal?.nombres || '').toLowerCase().includes(q) ||
+        (doc.rut_persona || '').toLowerCase().includes(q) ||
+        (doc.tipo_documento || '').toLowerCase().includes(q)
       );
     }
 
@@ -128,21 +165,14 @@ export const EstadoDocumentacionPage: React.FC = () => {
       filtered = filtered.filter(doc => doc.estado_calculado === filterEstado);
     }
 
-    // Filtro por tipo
-    if (filterTipo !== 'todos') {
-      if (filterTipo === 'curso') {
-        filtered = filtered.filter(doc => 
-          doc.tipo_documento?.includes('curso') || 
-          doc.tipo_documento?.includes('certificado') ||
-          doc.tipo_documento?.includes('diploma')
-        );
-      } else {
-        filtered = filtered.filter(doc => 
-          !doc.tipo_documento?.includes('curso') && 
-          !doc.tipo_documento?.includes('certificado') &&
-          !doc.tipo_documento?.includes('diploma')
-        );
-      }
+    // Filtro por cargo
+    if (filterCargo !== 'todos') {
+      filtered = filtered.filter(doc => (doc.personal?.cargo || '').toLowerCase() === filterCargo);
+    }
+
+    // Filtro por licencia de conducir
+    if (filterLicencia !== 'todos') {
+      filtered = filtered.filter(doc => (doc.personal?.licencia_conducir || '').toLowerCase() === filterLicencia);
     }
 
     // Ordenar
@@ -167,7 +197,7 @@ export const EstadoDocumentacionPage: React.FC = () => {
     });
 
     return filtered;
-  }, [documentos, searchTerm, filterEstado, filterTipo, sortBy]);
+  }, [documentosUnicos, searchTerm, filterEstado, filterTipo, sortBy]);
 
   // Función para obtener el color del estado
   const getEstadoColor = (estado: string) => {
@@ -222,7 +252,7 @@ export const EstadoDocumentacionPage: React.FC = () => {
 
       {/* Filtros y Búsqueda */}
       <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6 shadow-sm">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           {/* Búsqueda */}
           <div className="md:col-span-2">
             <label className="block text-sm font-medium text-gray-700 mb-2">Buscar</label>
@@ -254,17 +284,34 @@ export const EstadoDocumentacionPage: React.FC = () => {
             </select>
           </div>
 
-          {/* Filtro por Tipo */}
+          {/* Filtro por Cargo */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Tipo</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Cargo</label>
             <select
-              value={filterTipo}
-              onChange={(e) => setFilterTipo(e.target.value)}
+              value={filterCargo}
+              onChange={(e) => setFilterCargo(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
-              <option value="todos">Todos los Tipos</option>
-              <option value="documento">Documentos Personales</option>
-              <option value="curso">Cursos y Certificaciones</option>
+              <option value="todos">Todos los Cargos</option>
+              {/* Opciones generadas dinámicamente */}
+              {Array.from(new Set(documentos.map(d => (d.personal?.cargo || '').trim()).filter(Boolean))).map((c: any) => (
+                <option key={c} value={c.toLowerCase()}>{c}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Filtro por Licencia de Conducir */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Licencia</label>
+            <select
+              value={filterLicencia}
+              onChange={(e) => setFilterLicencia(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="todos">Todas las licencias</option>
+              {Array.from(new Set(documentos.map(d => (d.personal?.licencia_conducir || '').trim()).filter(Boolean))).map((l: any) => (
+                <option key={l} value={l.toLowerCase()}>{l}</option>
+              ))}
             </select>
           </div>
         </div>

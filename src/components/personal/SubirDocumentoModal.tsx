@@ -30,6 +30,7 @@ const SubirDocumentoModal: React.FC<SubirDocumentoModalProps> = ({ isOpen, onClo
 
   const [formData, setFormData] = useState(initialFormState());
   const [errors, setErrors] = useState<string[]>([]);
+  const [selectedPrerrequisitos, setSelectedPrerrequisitos] = useState<string[]>([]);
   const [showOptionsModal, setShowOptionsModal] = useState(false);
   const [showPendientesModal, setShowPendientesModal] = useState(false);
   const [selectedPendiente, setSelectedPendiente] = useState<{ file: any; displayName: string } | null>(null);
@@ -37,9 +38,12 @@ const SubirDocumentoModal: React.FC<SubirDocumentoModalProps> = ({ isOpen, onClo
   const uploadMutation = useUploadDocumento();
   const registerExistingMutation = useRegisterDocumentoExistente();
   const { data: documentosPersonaData, refetch: refetchDocumentosPersona } = useDocumentosByPersona(rutPersona);
-  const documentosLocales: any[] = (documentosPersonaData as any)?.data?.documentos_locales || [];
+  const documentosData: any = (documentosPersonaData as any)?.data || {};
+  const split = documentosData.documentos_locales_split || null;
+  // Para la ventana de subir documentos (general), mostrar sólo los documentos comunes (no cursos)
+  const documentosLocales: any[] = split ? (split.documentos || []) : (documentosData.documentos_locales || []);
   // Documentos ya registrados en la aplicación (puede venir en data.documentos o ser la propia data cuando es un array)
-  const existingDocs: any[] = (documentosPersonaData as any)?.data?.documentos || (Array.isArray((documentosPersonaData as any)?.data) ? (documentosPersonaData as any).data : []);
+  const existingDocs: any[] = documentosData.documentos || (Array.isArray(documentosData) ? documentosData : []);
 
   const { data: prerrequisitos } = useAllPrerrequisitos();
 
@@ -119,6 +123,20 @@ const SubirDocumentoModal: React.FC<SubirDocumentoModalProps> = ({ isOpen, onClo
     return Array.from(new Set([...tiposEstaticos, ...tiposDinamicos]));
   }, [prerrequisitos]);
 
+  // Helper: unique prerrequisitos tipos (texto) available
+  const prerrequisitosTiposUnicos = useMemo(() => {
+    if (!prerrequisitos) return [] as string[];
+    return Array.from(new Set(prerrequisitos.map((p: any) => p.tipo_documento)));
+  }, [prerrequisitos]);
+
+  const shouldShowPrerrequisitosPicker = useMemo(() => {
+    if (!formData.tipo_documento) return false;
+    const tipo = formData.tipo_documento.toString().toLowerCase();
+    if (tipo === 'prerrequisitos') return true;
+    // show if selected tipo matches any prerrequisito tipo (case-insensitive)
+    return prerrequisitosTiposUnicos.some(t => t.toLowerCase() === tipo);
+  }, [formData.tipo_documento, prerrequisitosTiposUnicos]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     // Reglas básicas
@@ -149,6 +167,10 @@ const SubirDocumentoModal: React.FC<SubirDocumentoModalProps> = ({ isOpen, onClo
           estado_documento: formData.estado_documento || undefined,
           institucion_emisora: formData.institucion_emisora || undefined,
         };
+        // Añadir prerrequisitos seleccionados si los hay
+        if (selectedPrerrequisitos && selectedPrerrequisitos.length > 0) {
+          (data as any).prerrequisitos = selectedPrerrequisitos;
+        }
         const docErrors = validateDocumentoData(data);
         if (docErrors.length > 0) { setErrors(docErrors); return; }
         const payload = createDocumentoFormData(data);
@@ -165,6 +187,7 @@ const SubirDocumentoModal: React.FC<SubirDocumentoModalProps> = ({ isOpen, onClo
           dias_validez: formData.dias_validez_documento ? parseInt(formData.dias_validez_documento) : undefined,
           estado_documento: formData.estado_documento || undefined,
           institucion_emisora: formData.institucion_emisora || undefined,
+          prerrequisitos: selectedPrerrequisitos && selectedPrerrequisitos.length > 0 ? selectedPrerrequisitos : undefined,
         });
         await refetchDocumentosPersona();
       }
@@ -245,6 +268,32 @@ const SubirDocumentoModal: React.FC<SubirDocumentoModalProps> = ({ isOpen, onClo
                 Seleccione el tipo de documento que desea subir.
               </p>
             </div>
+
+            {/* Prerrequisitos picker: aparece cuando el tipo seleccionado es prerrequisitos o coincide con un tipo definido en prerrequisitos */}
+            {shouldShowPrerrequisitosPicker && (
+              <div className="mt-3 p-3 border border-dashed rounded bg-gray-50">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Prerrequisitos asociados (marque los aplicables)</label>
+                {prerrequisitosTiposUnicos.length === 0 ? (
+                  <p className="text-sm text-gray-500">No hay prerrequisitos definidos.</p>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {prerrequisitosTiposUnicos.map((tipo: string) => (
+                      <label key={tipo} className="flex items-center space-x-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={selectedPrerrequisitos.includes(tipo)}
+                          onChange={() => {
+                            setSelectedPrerrequisitos(prev => prev.includes(tipo) ? prev.filter(p => p !== tipo) : [...prev, tipo]);
+                          }}
+                        />
+                        <span>{tipo}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+                <p className="mt-2 text-xs text-gray-400">Los prerrequisitos seleccionados se enviarán como parte del documento.</p>
+              </div>
+            )}
 
             {/* Subida/selección */}
             <div>
@@ -329,12 +378,12 @@ const SubirDocumentoModal: React.FC<SubirDocumentoModalProps> = ({ isOpen, onClo
 
       {/* Ventanas auxiliares */}
       <UploadOptionsModal isOpen={showOptionsModal} onClose={() => setShowOptionsModal(false)} onSubirDesdeEquipo={triggerFileSelect} onSeleccionarPendiente={triggerSelectPending} />
-      <PendientesRegistroModal
-          isOpen={showPendientesModal}
-          onClose={() => setShowPendientesModal(false)}
-          documentos={documentosLocales}
-          existingDocs={existingDocs}
-          onSelect={async (f, displayName) => {
+    <PendientesRegistroModal
+      isOpen={showPendientesModal}
+      onClose={() => setShowPendientesModal(false)}
+      documentos={documentosLocales} /* documentos generales (no cursos) */
+      existingDocs={existingDocs}
+      onSelect={async (f, displayName) => {
             // Registro inmediato del archivo seleccionado como existente
             setShowPendientesModal(false);
             setSelectedPendiente({ file: f, displayName });

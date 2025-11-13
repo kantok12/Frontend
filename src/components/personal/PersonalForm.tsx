@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Personal, CreatePersonalData, UpdatePersonalData, CreatePersonalDisponibleData } from '../../types';
 import { useCreatePersonal, useUpdatePersonal } from '../../hooks/usePersonal';
+import { apiService } from '../../services/api';
 import { useEstados } from '../../hooks/useEstados';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { X } from 'lucide-react';
@@ -184,8 +185,33 @@ export const PersonalForm: React.FC<PersonalFormProps> = ({
         console.log('🔍 Fecha de nacimiento:', formData.fecha_nacimiento);
         console.log('🔍 Datos que se envían al backend:', personalDisponibleData);
         
-        await createMutation.mutateAsync(personalDisponibleData);
-        
+        const createResp: any = await createMutation.mutateAsync(personalDisponibleData);
+
+        // Si la creación fue exitosa, intentar subir una imagen de perfil por defecto
+        try {
+          const createdRut = createResp?.data?.rut || createResp?.data?.id || formData.rut;
+          if (createdRut) {
+            // Generar avatar basado en iniciales mediante DiceBear y subirlo
+            const avatarName = nombreCompleto || formData.rut;
+            try {
+              const avatarUrl = `https://avatars.dicebear.com/api/initials/${encodeURIComponent(avatarName)}.png?background=%23ffffff&size=256`;
+              const resp = await fetch(avatarUrl);
+              if (resp.ok) {
+                const blob = await resp.blob();
+                const file = new File([blob], `${createdRut}.png`, { type: blob.type });
+                await apiService.uploadProfileImage(createdRut, file);
+                console.log('✅ Avatar generado y subido para', createdRut);
+              } else {
+                console.warn('⚠️ No se pudo descargar avatar desde DiceBear:', resp.status);
+              }
+            } catch (err) {
+              console.warn('⚠️ Error generando/subiendo avatar:', err);
+            }
+          }
+        } catch (err) {
+          console.warn('⚠️ Error en upload de imagen por defecto tras creación:', err);
+        }
+
         // Mensaje de éxito específico para creación
         alert(`✅ Personal creado exitosamente:\n• Nombre: ${nombreCompleto}\n• RUT: ${formData.rut}\n• Fecha de nacimiento: ${formData.fecha_nacimiento}`);
       }

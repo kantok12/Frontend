@@ -57,9 +57,17 @@ export const CursoModal: React.FC<CursoModalProps> = ({
   const registerExistingMutation = useRegisterDocumentoExistente();
 
   // Extraer lista de archivos locales/pendientes según la estructura devuelta por el backend
-  const documentosLocales: any[] = (documentosPersonaData as any)?.data?.documentos_locales || [];
+  const documentosData: any = (documentosPersonaData as any)?.data || {};
+  // Preferir la forma 'documentos_locales_split' (backend nuevo). Si no existe, generar fallback.
+  const split = documentosData.documentos_locales_split || null;
+  const documentosLocales: any[] = split ? (split.documentos || []) : (documentosData.documentos_locales || []);
+  const cursosLocales: any[] = split ? (split.cursos_certificaciones || []) : ((documentosData.documentos_locales || []).filter((f: any) => {
+    const carpeta = (f?.carpeta || '').toString().toLowerCase();
+    return carpeta.includes('curso') || carpeta.includes('certific') || carpeta.includes('cursos_certificaciones');
+  }));
+
   // Documentos ya registrados en la aplicación
-  const existingDocs: any[] = (documentosPersonaData as any)?.data?.documentos || (Array.isArray((documentosPersonaData as any)?.data) ? (documentosPersonaData as any).data : []);
+  const existingDocs: any[] = documentosData.documentos || (Array.isArray(documentosData) ? documentosData : []);
 
   // Modal de opciones y selección de pendientes
   const [showOptionsModal, setShowOptionsModal] = useState(false);
@@ -505,11 +513,7 @@ export const CursoModal: React.FC<CursoModalProps> = ({
                   <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded-md">
                     <p className="text-sm text-green-800 flex items-center">
                       <FileText className="h-4 w-4 mr-2" />
-                      {/* Mostrar el nombre del curso como nombre del documento si el usuario lo completó,
-                          de lo contrario mostrar el nombre original del archivo */}
-                      {formData.nombre_curso && formData.nombre_curso.trim().length > 0
-                        ? formData.nombre_curso
-                        : formData.archivo.name}
+                      {formData.archivo.name}
                     </p>
                   </div>
                 )}
@@ -518,8 +522,7 @@ export const CursoModal: React.FC<CursoModalProps> = ({
                   <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded-md flex items-center justify-between">
                     <p className="text-sm text-amber-800 flex items-center">
                       <FileText className="h-4 w-4 mr-2" />
-                      {/* Mostrar el nombre del curso como nombre del documento cuando esté disponible */}
-                      Archivo seleccionado (Drive): {formData.nombre_curso && formData.nombre_curso.trim().length > 0 ? formData.nombre_curso : selectedPendiente.displayName}
+                      Archivo seleccionado (Drive): {selectedPendiente.displayName}
                     </p>
                     <button
                       type="button"
@@ -666,7 +669,7 @@ export const CursoModal: React.FC<CursoModalProps> = ({
       <PendientesRegistroModal
         isOpen={showPendientesModal}
         onClose={() => setShowPendientesModal(false)}
-        documentos={documentosLocales}
+        documentos={cursosLocales} /* mostrar sólo archivos de cursos/certificados aquí */
         existingDocs={existingDocs}
         onSelect={(f, displayName) => {
           setSelectedPendiente({ file: f, displayName });

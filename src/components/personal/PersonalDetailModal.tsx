@@ -14,6 +14,7 @@ import SubirDocumentoModal from './SubirDocumentoModal';
 import CourseDocumentModal from './CourseDocumentModal';
 import EditDocumentModal from './EditDocumentModal';
 import { API_CONFIG } from '../../config/api';
+import { apiService } from '../../services/api';
 import { standardizeName, formatRUT } from '../../utils/formatters';
 
 interface PersonalDetailModalProps {
@@ -93,9 +94,34 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
   const { data: documentosData, isLoading: documentosLoading, refetch: refetchDocumentos } = useDocumentosByPersona(personal?.rut || '');
   
   // Filtrar documentos por categorías
-  const todosDocumentos = (documentosData?.data as any)?.documentos || [];
-  
-  console.log('� Documentos totales:', todosDocumentos.length);
+  const rawDocumentos = (documentosData?.data as any)?.documentos || [];
+
+  // Dedupe: el backend a veces puede devolver entradas duplicadas (por ejemplo registro y copia local).
+  // Usar el nombre de archivo normalizado como clave principal (elimina sufijos de timestamp, underscores, mayúsculas)
+  const normalizeName = (name: string | undefined) => {
+    if (!name) return '';
+    // Lowercase
+    let s = name.toString().toLowerCase();
+    // Replace underscores and multiple separators with space
+    s = s.replace(/[_\-]+/g, ' ');
+    s = s.replace(/\s+/g, ' ').trim();
+    // Remove trailing numeric timestamps (e.g. 1759500715991 or _1759500715991)
+    s = s.replace(/(?:\s|_|-)*\d{9,}(?:\.\w+)?$/, '');
+    // Trim again
+    return s.trim();
+  };
+
+  const uniqueDocumentosMap = new Map<string, any>();
+  for (const d of rawDocumentos) {
+    const rawName = d?.nombre_original || d?.nombre_archivo || '';
+    const normalized = normalizeName(rawName);
+    const tipo = (d?.tipo_documento || '').toString().toLowerCase();
+    const key = normalized ? `${normalized}::${tipo}` : (d?.id ? `id::${d.id}` : JSON.stringify(d));
+    if (!uniqueDocumentosMap.has(key)) uniqueDocumentosMap.set(key, d);
+  }
+  const todosDocumentos = Array.from(uniqueDocumentosMap.values());
+
+  console.log('� Documentos totales (únicos):', todosDocumentos.length, 'raw:', rawDocumentos.length);
   
   // Documentos de cursos y certificados
   // Incluye: curso, certificacion, certificación y tipos legacy
@@ -318,18 +344,50 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
     setShowEditDocumentModal(true);
   };
 
+  
   const handleDeleteDocumento = async (documento: any) => {
-    if (window.confirm(`¿Está seguro que desea eliminar el documento "${documento.nombre_documento}"?\n\nEsta acción no se puede deshacer.`)) {
+    // Normalizar nombre y tipo para detectar duplicados
+    const rawName = documento?.nombre_original || documento?.nombre_archivo || documento?.nombre_documento || '';
+    const tipo = (documento?.tipo_documento || '').toString().toLowerCase();
+    const normalized = normalizeName(rawName);
+
+    // Buscar coincidencias en la lista cruda devuelta por la API
+    const matches = rawDocumentos.filter((d: any) => {
+      const name = (d?.nombre_original || d?.nombre_archivo || d?.nombre_documento || '');
+      return normalizeName(name) === normalized && (d?.tipo_documento || '').toString().toLowerCase() === tipo;
+    });
+
+    if (matches.length === 0) {
+      // Fallback: intentar eliminar el documento recibido
+      if (!window.confirm(`¿Está seguro que desea eliminar el documento "${documento.nombre_documento}"?\n\nEsta acción no se puede deshacer.`)) return;
       try {
         await deleteDocumentoAndDriveMutation.mutateAsync({ id: documento.id, driveFileId: documento.drive_file_id });
         refetchDocumentos();
         alert('Documento eliminado exitosamente.');
       } catch (error: any) {
         console.error('Error al eliminar documento:', error);
-        // Si la respuesta indica que el registro fue eliminado pero Drive no, mostrar mensaje diferenciado
         const msg = error?.message || 'Error al eliminar el documento. Por favor, intente nuevamente.';
         alert(msg);
       }
+      return;
+    }
+
+    // Si hay múltiples coincidencias, pedir confirmación para eliminar todas
+    if (matches.length > 1) {
+      if (!window.confirm(`Se han encontrado ${matches.length} entradas que parecen ser el mismo archivo (mismo nombre).\n¿Desea eliminar todas ellas? Esta acción es irreversible.`)) return;
+    } else {
+      if (!window.confirm(`¿Está seguro que desea eliminar el documento "${documento.nombre_documento}"?\n\nEsta acción no se puede deshacer.`)) return;
+    }
+
+    // Ejecutar borrado para todas las entradas encontradas
+    const deletions = matches.map((m: any) => deleteDocumentoAndDriveMutation.mutateAsync({ id: m.id, driveFileId: m.drive_file_id }));
+    try {
+      await Promise.all(deletions);
+      refetchDocumentos();
+      alert(`Se eliminaron ${matches.length} documento${matches.length !== 1 ? 's' : ''} correctamente.`);
+    } catch (error: any) {
+      console.error('Error al eliminar documentos duplicados:', error);
+      alert(error?.message || 'Ocurrió un error al eliminar los documentos. Por favor, inténtelo nuevamente.');
     }
   };
   const handleCursoModalClose = () => { setShowCursoModal(false); setEditingCurso(null); };
@@ -345,15 +403,27 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
   const handleAddDocument = () => { setShowDocumentModal(true); };
   const handleDocumentSuccess = () => { refetchDocumentos(); };
   const handleDocumentModalClose = () => { setShowDocumentModal(false); };
+  
   const handleDeleteDocument = async (documentoOrId: any) => {
     // Acepta tanto el objeto documento como el id
-    const documento = typeof documentoOrId === 'number' ? todosDocumentos.find((d: any) => d.id === documentoOrId) : documentoOrId;
+    const documento = typeof documentoOrId === 'number' ? rawDocumentos.find((d: any) => d.id === documentoOrId) : documentoOrId;
     if (!documento) {
       alert('No se encontró el documento para eliminar');
       return;
     }
 
-    if (window.confirm('¿Está seguro de que desea eliminar este documento?')) {
+    // Normalizar y buscar duplicados en la lista cruda
+    const rawName = documento?.nombre_original || documento?.nombre_archivo || documento?.nombre_documento || '';
+    const tipo = (documento?.tipo_documento || '').toString().toLowerCase();
+    const normalized = normalizeName(rawName);
+
+    const matches = rawDocumentos.filter((d: any) => {
+      const name = (d?.nombre_original || d?.nombre_archivo || d?.nombre_documento || '');
+      return normalizeName(name) === normalized && (d?.tipo_documento || '').toString().toLowerCase() === tipo;
+    });
+
+    if (matches.length === 0) {
+      if (!window.confirm('¿Está seguro de que desea eliminar este documento?')) return;
       try {
         await deleteDocumentoAndDriveMutation.mutateAsync({ id: documento.id, driveFileId: documento.drive_file_id });
         refetchDocumentos();
@@ -362,6 +432,22 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
         console.error('Error al eliminar documento:', error);
         alert(error?.message || 'Error al eliminar el documento');
       }
+      return;
+    }
+
+    if (matches.length > 1) {
+      if (!window.confirm(`Se han encontrado ${matches.length} entradas duplicadas del mismo archivo. ¿Desea eliminar todas?`)) return;
+    } else {
+      if (!window.confirm('¿Está seguro de que desea eliminar este documento?')) return;
+    }
+
+    try {
+      await Promise.all(matches.map((m: any) => deleteDocumentoAndDriveMutation.mutateAsync({ id: m.id, driveFileId: m.drive_file_id })));
+      refetchDocumentos();
+      alert(`Se eliminaron ${matches.length} documento${matches.length !== 1 ? 's' : ''} correctamente.`);
+    } catch (error: any) {
+      console.error('Error al eliminar documento(s):', error);
+      alert(error?.message || 'Error al eliminar el/los documento(s)');
     }
   };
   const handleDownloadDocument = async (documento: any) => {
@@ -389,7 +475,8 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
         return;
       }
       
-      await downloadFile(documento.id, documento.nombre_original || `${documento.nombre_documento}.pdf`);
+      const suggestedName = documento.nombre_original || documento.nombre_archivo || documento.nombre_documento || `documento_${documento.id}.pdf`;
+      await downloadFile(documento.id, suggestedName);
       console.log('✅ handleDownloadDocument - Descarga completada exitosamente');
     } catch (error: any) {
       console.error('❌ handleDownloadDocument - Error:', error);
@@ -454,19 +541,21 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
     if (window.confirm('¿Estás seguro de que quieres eliminar la imagen de perfil?')) {
       setIsDeleting(true);
       try {
-        const encodedRut = encodeURIComponent(personal.rut);
-        const response = await fetch(`${API_CONFIG.BASE_URL}/personal/${encodedRut}/image/delete`, {
-          method: 'DELETE',
-        });
-        if (!response.ok) {
-          throw new Error('Error al eliminar la imagen');
+        // Use centralized apiService which knows the correct endpoint and error handling
+        const resp = await apiService.deleteProfileImage(personal.rut);
+        if (resp && resp.success) {
+          setImageUrl('');
+          setImageError(true); // Force showing the user icon
+          alert('Imagen de perfil eliminada exitosamente');
+        } else {
+          const msg = resp?.message || 'Error al eliminar la imagen';
+          throw new Error(msg);
         }
-        setImageUrl('');
-        setImageError(true); // Force showing the user icon
-        alert('Imagen de perfil eliminada exitosamente');
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error al eliminar la imagen:', error);
-        alert('Hubo un error al eliminar la imagen.');
+        // Try to extract a helpful message
+        const serverMessage = error?.response?.data?.message || error?.message;
+        alert(`Hubo un error al eliminar la imagen. ${serverMessage ? '\n\nDetalle: ' + serverMessage : ''}`);
       } finally {
         setIsDeleting(false);
       }
@@ -973,7 +1062,7 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                               <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-800">Activo</span>
                             </div>
                             <div className="space-y-1">
-                              <p className="text-xs text-purple-600"><span className="font-medium">Archivo:</span> {documento.nombre_original}</p>
+                              <p className="text-xs text-purple-600"><span className="font-medium">Archivo:</span> <span className="inline-block max-w-full break-words whitespace-normal">{documento.nombre_original || documento.nombre_archivo || documento.nombre_documento}</span></p>
                               <p className="text-xs text-gray-500"><span className="font-medium">Subido:</span> {new Date(documento.fecha_subida).toLocaleDateString('es-CL', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
                             </div>
                           </div>
@@ -1056,7 +1145,7 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                               <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-800">Activo</span>
                             </div>
                             <div className="space-y-1">
-                              <p className="text-xs text-orange-600"><span className="font-medium">Archivo:</span> {documento.nombre_original}</p>
+                              <p className="text-xs text-orange-600"><span className="font-medium">Archivo:</span> <span className="inline-block max-w-full break-words whitespace-normal">{documento.nombre_original || documento.nombre_archivo || documento.nombre_documento}</span></p>
                               <p className="text-xs text-gray-500"><span className="font-medium">Subido:</span> {new Date(documento.fecha_subida).toLocaleDateString('es-CL', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
                             </div>
                           </div>
