@@ -76,7 +76,7 @@ export const ServiciosPage: React.FC = () => {
         return false;
       }
     });
-    return minimo ? minimo.minimo_personal : null;
+    return minimo ? minimo.minimo_base : null; // Cambiar a minimo_base
   }, [minimosPersonal]);
 
   // Obtener datos filtrados optimizado con useMemo
@@ -121,7 +121,7 @@ export const ServiciosPage: React.FC = () => {
     }
   }, [uiState.activeTab, uiState.search, carteras, clientes, nodos, navigationState.selectedCartera, navigationState.selectedCliente]);
 
-  // Paginación optimizada con useMemo
+  // Paginación optimizada with useMemo
   const paginationData = useMemo(() => {
     const startIndex = (uiState.page - 1) * limit;
     const endIndex = startIndex + limit;
