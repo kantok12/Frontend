@@ -30,42 +30,22 @@ const MultiUploadPage: React.FC = () => {
 
   const tiposBackend = tiposQuery.data?.data || [];
   const [openTypeIndex, setOpenTypeIndex] = useState<number | null>(null);
-  const [defaultCategory, setDefaultCategory] = useState<'personal' | 'cursos'>('personal');
   const [defaultType, setDefaultType] = useState<string>('');
-  const [clearedByCategoryChange, setClearedByCategoryChange] = useState<number>(0);
 
-  const handleDefaultCategoryChange = (newCat: 'personal' | 'cursos') => {
-    // If category changes, ensure per-file tipo is compatible; if not, clear tipo and prerrequisitos
-  setDefaultCategory(newCat);
-  // reset defaultType when category changes so user explicitly selects one
-  setDefaultType('');
-    let cleared = 0;
-    setFiles(prev => prev.map(f => {
-      const available = getAvailableTypesFor(newCat);
-      const has = available.some((t: any) => (t.value || t) === f.tipo);
-      if (!has && (f.tipo || (f.prerrequisitos && f.prerrequisitos.length))) {
-        cleared++;
-        return { ...f, tipo: '', prerrequisitos: [] };
-      }
-      return f;
-    }));
-    setClearedByCategoryChange(cleared);
-    // reset cleared indicator after a few seconds
-    if (cleared > 0) setTimeout(() => setClearedByCategoryChange(0), 6000);
-  };
+  // No category separation: all tipos se muestran juntos
 
   // If category changes and there is a single available type, preselect it
   useEffect(() => {
     const opts = getAvailableTypesFor();
     if (opts && opts.length === 1) setDefaultType(opts[0].value || opts[0]);
     else setDefaultType('');
-  }, [tiposBackend, defaultCategory]);
+  }, [tiposBackend]);
 
-  const getAvailableTypesFor = (categoria?: 'personal' | 'cursos') => {
-    const cat = categoria || defaultCategory;
-    return (tiposBackend && tiposBackend.length > 0)
-      ? tiposBackend.filter((t: any) => t.categoria === (cat === 'cursos' ? 'cursos' : 'personal'))
-      : (cat === 'cursos' ? getTiposDocumentosCursos() : getTiposDocumentosPersonal());
+  const getAvailableTypesFor = () => {
+    // Return all available types (no separation by category)
+    if (tiposBackend && tiposBackend.length > 0) return tiposBackend;
+    // Fallback: combine both defaults
+    return [...getTiposDocumentosPersonal(), ...getTiposDocumentosCursos()];
   };
 
   // (Removed prerrequisitos panel per request — only files are shown)
@@ -205,12 +185,6 @@ const MultiUploadPage: React.FC = () => {
             <label className="block text-sm font-medium text-gray-700 mt-4">Archivos *</label>
 
             <div className="flex items-center space-x-3 mb-2">
-              <label className="text-sm text-gray-600">Categoría por defecto para nuevos archivos:</label>
-              <select value={defaultCategory} onChange={(e) => handleDefaultCategoryChange(e.target.value as 'personal' | 'cursos') } className="text-sm px-2 py-1 border rounded">
-                <option value="personal">Documento</option>
-                <option value="cursos">Curso / Certificación</option>
-              </select>
-
               <label className="text-sm text-gray-600">Tipo por defecto:</label>
               <select value={defaultType} onChange={(e) => setDefaultType(e.target.value)} className="text-sm px-2 py-1 border rounded">
                 <option value="">-- Seleccione tipo por defecto --</option>
@@ -219,10 +193,7 @@ const MultiUploadPage: React.FC = () => {
                 ))}
               </select>
             </div>
-            {clearedByCategoryChange > 0 && (
-              <div className="text-sm text-yellow-700 mb-2">Se limpiaron el tipo/prerrequisitos de {clearedByCategoryChange} archivo(s) porque no eran compatibles con la nueva categoría.</div>
-            )}
-
+            
             <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={handleFilesChange} multiple />
 
             {/* Lista editable de archivos añadidos */}
@@ -238,10 +209,7 @@ const MultiUploadPage: React.FC = () => {
                         <label className="text-xs text-gray-600">Nombre destino</label>
                         <input className="w-full px-2 py-1 border rounded text-sm" value={fEntry.nombre_destino} onChange={(e) => updateFileField(idx, { nombre_destino: e.target.value })} />
 
-                        {/* La categoría ahora se selecciona globalmente antes de subir; se muestra la categoría actual como badge */}
-                        <div className="mt-2 mb-2">
-                          <span className="text-xs inline-block px-2 py-1 bg-gray-100 border rounded">{defaultCategory === 'personal' ? 'Documento' : 'Curso / Certificación'}</span>
-                        </div>
+                        {/* Mostrar tipo por archivo (sin distinción de categoría) */}
 
                         <label className="text-xs text-gray-600 mt-2 block">Tipo</label>
                         {(() => {
@@ -270,32 +238,30 @@ const MultiUploadPage: React.FC = () => {
                         })()}
 
                         {/* Mostrar directamente los nombres de prerrequisitos (sin requerir seleccionar "Prerrequisitos" en el select) */}
-                        {defaultCategory === 'personal' && (
-                          <div className="mt-2 border rounded p-2 bg-gray-50 max-h-40 overflow-y-auto">
-                            {prerrequisitosOptions.length === 0 ? (
-                              <div className="text-sm text-gray-500">Cargando prerrequisitos...</div>
-                            ) : (
-                              prerrequisitosOptions.map((pr: any) => {
-                                const selected = files[idx].prerrequisitos || [];
-                                const checked = selected.includes(pr.id);
-                                const displayLabel = pr.nombre || pr.descripcion || pr.tipo_documento || pr.label || (pr.name) || `ID ${pr.id}`;
-                                return (
-                                  <label key={pr.id} className="flex items-center space-x-2 py-1">
-                                    <input type="checkbox" checked={checked} onChange={() => {
-                                      const current = files[idx].prerrequisitos || [];
-                                      if (checked) {
-                                        updateFileField(idx, { prerrequisitos: current.filter((x: number) => x !== pr.id) });
-                                      } else {
-                                        updateFileField(idx, { prerrequisitos: [...current, pr.id] });
-                                      }
-                                    }} />
-                                    <span className="text-sm">{displayLabel}</span>
-                                  </label>
-                                );
-                              })
-                            )}
-                          </div>
-                        )}
+                        <div className="mt-2 border rounded p-2 bg-gray-50 max-h-40 overflow-y-auto">
+                          {prerrequisitosOptions.length === 0 ? (
+                            <div className="text-sm text-gray-500">Cargando prerrequisitos...</div>
+                          ) : (
+                            prerrequisitosOptions.map((pr: any) => {
+                              const selected = files[idx].prerrequisitos || [];
+                              const checked = selected.includes(pr.id);
+                              const displayLabel = pr.nombre || pr.descripcion || pr.tipo_documento || pr.label || (pr.name) || `ID ${pr.id}`;
+                              return (
+                                <label key={pr.id} className="flex items-center space-x-2 py-1">
+                                  <input type="checkbox" checked={checked} onChange={() => {
+                                    const current = files[idx].prerrequisitos || [];
+                                    if (checked) {
+                                      updateFileField(idx, { prerrequisitos: current.filter((x: number) => x !== pr.id) });
+                                    } else {
+                                      updateFileField(idx, { prerrequisitos: [...current, pr.id] });
+                                    }
+                                  }} />
+                                  <span className="text-sm">{displayLabel}</span>
+                                </label>
+                              );
+                            })
+                          )}
+                        </div>
                       </div>
                       <div className="ml-3 flex-shrink-0">
                         <button type="button" onClick={() => removeFileAt(idx)} className="text-red-600 hover:text-red-800">

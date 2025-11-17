@@ -212,10 +212,33 @@ export const useTiposDocumentos = () => {
       try {
         const result = await apiService.getTiposDocumentos();
         console.log('📋 Tipos de documentos recibidos del backend:', result);
-        
+
         // Verificar si el resultado tiene datos válidos
-        if (result?.success && result?.data && result.data.length > 0) {
-          return result;
+        if (result?.success && result?.data && Array.isArray(result.data) && result.data.length > 0) {
+          // Merge backend types with defaults to ensure required types always exist
+          const backendData: any[] = result.data || [];
+          const map = new Map<string, any>();
+
+          // Add backend first (keeps backend labels/values)
+          backendData.forEach((t: any) => {
+            if (t && (t.value || t.label)) map.set(String(t.value || t.label), t);
+          });
+
+          // Ensure defaults exist (don't override backend values)
+          TIPOS_DOCUMENTOS_DEFAULT.forEach((d: any) => {
+            if (d && d.value && !map.has(String(d.value))) {
+              map.set(String(d.value), d);
+            }
+          });
+
+          const merged = Array.from(map.values());
+          if (merged.length !== backendData.length) {
+            console.warn('ℹ️ Se han añadido tipos por defecto faltantes a la lista de tipos de documentos');
+          }
+          return {
+            ...(result as any),
+            data: merged
+          };
         } else {
           console.warn('⚠️ Backend devolvió datos vacíos, usando tipos por defecto');
           return {

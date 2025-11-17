@@ -115,6 +115,23 @@ export const DashboardStats: React.FC = () => {
     }
   );
 
+  // Obtener mínimos simples por cliente (endpoint ligero que devuelve minimo_real por cliente)
+  const { data: minimoSimpleData } = useQuery(
+    ['minimo-personal-simple'],
+    async () => {
+      try {
+        const res = await fetch('/api/servicios/minimo-personal/simple');
+        return await res.json();
+      } catch (e) {
+        console.warn('No se pudo obtener minimo-personal/simple', e);
+        return null;
+      }
+    },
+    {
+      staleTime: 5 * 60 * 1000
+    }
+  );
+
   // Obtener datos reales del backend
   const { data: personalData, isLoading: personalLoading } = usePersonalList(1, 100, '');
   const { data: estadisticasServicios, isLoading: serviciosLoading } = useEstadisticasServicios();
@@ -270,7 +287,18 @@ export const DashboardStats: React.FC = () => {
       .filter((cliente: any) => cliente.total_personal_asignado > 0) // Solo clientes con personal
       .map((cliente: any) => {
         const personalAsignado = cliente.total_personal_asignado || 0;
-        const personalMinimo = cliente.personal_minimo || 0;
+        // Preferir el mínimo calculado por el backend (`minimo_real`) si está disponible
+        let personalMinimo = cliente.personal_minimo || 0;
+        try {
+          if (minimoSimpleData && minimoSimpleData.success && Array.isArray(minimoSimpleData.data)) {
+            const found = minimoSimpleData.data.find((m: any) => Number(m.cliente_id) === Number(cliente.cliente_id));
+            if (found && typeof found.minimo_real !== 'undefined' && found.minimo_real !== null) {
+              personalMinimo = Number(found.minimo_real);
+            }
+          }
+        } catch (e) {
+          // ignore and keep cliente.personal_minimo
+        }
         let clienteNombre = cliente.cliente_nombre || `Cliente ${cliente.cliente_id}`;
         
         // Acortar nombres largos para mejor visualización

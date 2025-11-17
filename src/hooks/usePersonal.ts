@@ -11,6 +11,13 @@ const adaptPersonalData = (personalBackend: any): Personal => {
   console.log('🔍 Campos disponibles:', Object.keys(personalBackend));
   // eslint-disable-next-line no-console
   console.log('🔍 Información de nombres:', personalBackend.nombres);
+  // Mostrar documentos y tipo de documento principal si existen
+  // eslint-disable-next-line no-console
+  console.log('🔍 Documentos disponibles:', personalBackend.documentos || 'No hay documentos');
+  if (personalBackend.documentos && personalBackend.documentos.length) {
+    // eslint-disable-next-line no-console
+    console.log('🔍 Tipo documento principal:', personalBackend.documentos[0].tipo_documento);
+  }
 
   let nombre = 'Sin nombre';
   let apellido = 'Sin apellido';
