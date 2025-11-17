@@ -102,13 +102,26 @@ export const DashboardStats: React.FC = () => {
   const [showCarterasModal, setShowCarterasModal] = useState(false);
   const [semanaActual, setSemanaActual] = useState(true); // true = semana actual, false = próxima semana
   const [semanaActualTendencias, setSemanaActualTendencias] = useState(true); // true = semana actual, false = próxima semana
+  const [semanaSeleccionada, setSemanaSeleccionada] = useState<Date>(() => getInicioSemana(new Date()));
 
-  // Obtener datos de personal por cliente para el gráfico
+  // Obtener datos de personal por cliente para el gráfico (filtrados por semana seleccionada)
+  const fechaInicioGrafico = useMemo(() => semanaSeleccionada.toISOString().split('T')[0], [semanaSeleccionada]);
+  const fechaFinGrafico = useMemo(() => {
+    const d = new Date(semanaSeleccionada.getTime());
+    d.setDate(d.getDate() + 6);
+    return d.toISOString().split('T')[0];
+  }, [semanaSeleccionada]);
+
   const { data: personalPorClienteData } = useQuery(
-    ['personal-por-cliente-grafico'],
+    ['personal-por-cliente-grafico', fechaInicioGrafico, fechaFinGrafico],
     async () => {
-      const res = await fetch('/api/personal-por-cliente');
-      return await res.json();
+      try {
+        const resp = await apiService.getPersonalPorCliente({ fecha_inicio: fechaInicioGrafico, fecha_fin: fechaFinGrafico });
+        return resp;
+      } catch (e) {
+        console.warn('No se pudo obtener personal-por-cliente por semana:', e);
+        return null;
+      }
     },
     { 
       staleTime: 5 * 60 * 1000
@@ -208,21 +221,34 @@ export const DashboardStats: React.FC = () => {
     total_clientes: serviciosData?.totales?.clientes || 0,
   };
 
-  // Obtener total asignado desde el resumen por cliente (misma fuente que el widget inferior)
-  const { data: resumenData, isLoading: resumenLoading } = useResumenPersonalPorCliente(undefined, undefined, undefined);
+  // Obtener total asignado desde el resumen por cliente (solo para la semana actual)
+  const inicioSemanaActual = useMemo(() => {
+    const hoy = new Date();
+    const inicio = getInicioSemana(hoy);
+    return inicio.toISOString().split('T')[0];
+  }, []);
+
+  const finSemanaActual = useMemo(() => {
+    const inicio = new Date(inicioSemanaActual + 'T00:00:00Z');
+    inicio.setDate(inicio.getDate() + 6);
+    return inicio.toISOString().split('T')[0];
+  }, [inicioSemanaActual]);
+
+  // Llamar al hook pasando fecha_inicio y fecha_fin para limitar al rango de la semana en curso
+  const { data: resumenData, isLoading: resumenLoading } = useResumenPersonalPorCliente(undefined, inicioSemanaActual, finSemanaActual);
   const resumenRows: any[] = resumenData?.data || [];
   const totalPersonasAsignadas = resumenRows.reduce((s, r) => s + (Number(r.total_personal) || 0), 0);
 
 
   // Función para obtener el inicio de la semana (lunes)
-  const getInicioSemana = (fecha: Date) => {
+  function getInicioSemana(fecha: Date) {
     const inicio = new Date(fecha);
     const dia = inicio.getDay();
     const diff = inicio.getDate() - dia + (dia === 0 ? -6 : 1); // Ajustar para que lunes sea 1
     inicio.setDate(diff);
     inicio.setHours(0, 0, 0, 0);
     return inicio;
-  };
+  }
 
   // Calcular número ISO de semana a partir de una fecha
   const getISOWeekNumber = (date: Date) => {
@@ -274,7 +300,7 @@ export const DashboardStats: React.FC = () => {
   // Función para generar datos de tendencias de servicios por día
   const generarTendenciasServicios = (esSemanaActual: boolean) => {
     console.log('📊 Generando tendencias servicios...');
-    console.log('Datos personal por cliente:', personalPorClienteData);
+    console.log('Datos personal por cliente (semana):', fechaInicioGrafico, fechaFinGrafico, personalPorClienteData);
     
     // Si no hay datos de personal por cliente, retornar array vacío
     if (!personalPorClienteData?.data || !Array.isArray(personalPorClienteData.data)) {
@@ -283,7 +309,7 @@ export const DashboardStats: React.FC = () => {
     }
 
     // Filtrar solo clientes con personal asignado y mapear todos los clientes
-    const clientesConDatos = personalPorClienteData.data
+    const clientesConDatos = (personalPorClienteData?.data || [])
       .filter((cliente: any) => cliente.total_personal_asignado > 0) // Solo clientes con personal
       .map((cliente: any) => {
         const personalAsignado = cliente.total_personal_asignado || 0;
@@ -332,9 +358,7 @@ export const DashboardStats: React.FC = () => {
 
   // Información de la semana mostrada en el gráfico (usa la misma bandera semanaActualTendencias)
   const semanaInfo = useMemo(() => {
-    const hoy = new Date();
-    const inicio = getInicioSemana(hoy);
-    if (!semanaActualTendencias) inicio.setDate(inicio.getDate() + 7);
+    const inicio = getInicioSemana(semanaSeleccionada);
     const fin = new Date(inicio);
     fin.setDate(inicio.getDate() + 6);
     const weekNumber = getISOWeekNumber(inicio);
@@ -343,7 +367,7 @@ export const DashboardStats: React.FC = () => {
       start: inicio.toLocaleDateString('es-CL'),
       end: fin.toLocaleDateString('es-CL')
     };
-  }, [semanaActualTendencias]);
+  }, [semanaSeleccionada]);
 
   // Ensure data fetching hooks are correctly implemented
   useEffect(() => {
@@ -415,7 +439,14 @@ export const DashboardStats: React.FC = () => {
           <div className="flex items-center justify-between mb-6">
             <div>
               <h3 className="text-lg font-semibold text-gray-900">Programación de Servicios</h3>
-              <div className="text-sm text-gray-500">Semana {semanaInfo.weekNumber} — {semanaInfo.start} → {semanaInfo.end}</div>
+              <div className="text-sm text-gray-500 flex items-center space-x-3">
+                <div>Semana {semanaInfo.weekNumber} — {semanaInfo.start} → {semanaInfo.end}</div>
+                <div className="flex items-center space-x-1">
+                  <button onClick={() => setSemanaSeleccionada(s => { const n = new Date(s); n.setDate(n.getDate() - 7); return n; })} className="px-2 py-1 rounded bg-gray-100 hover:bg-gray-200">◀</button>
+                  <button onClick={() => setSemanaSeleccionada(getInicioSemana(new Date()))} className="px-2 py-1 rounded bg-gray-100 hover:bg-gray-200">Hoy</button>
+                  <button onClick={() => setSemanaSeleccionada(s => { const n = new Date(s); n.setDate(n.getDate() + 7); return n; })} className="px-2 py-1 rounded bg-gray-100 hover:bg-gray-200">▶</button>
+                </div>
+              </div>
             </div>
             <div className="flex items-center space-x-2">
               <TrendingUp className="h-5 w-5 text-gray-400" />

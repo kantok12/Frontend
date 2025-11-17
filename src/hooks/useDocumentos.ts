@@ -4,6 +4,7 @@ import { apiService } from '../services/api';
 import { CreateDocumentoData, DocumentosResponse } from '../types';
 import { validateFile, formatBytes } from '../utils/helpers';
 import { FILE_CONFIG } from '../config/api';
+import { mapTipoDocumentoToFolder } from '../utils/documentFolders';
 
 // Hook para obtener documentos con filtros
 export const useDocumentos = (filters?: {
@@ -553,6 +554,16 @@ export const createDocumentoFormData = (data: CreateDocumentoData): FormData => 
   // - Si no se especifica o es otro valor → guarda en documentos/
   if (data.tipo_documento) {
     formData.append('tipo_documento', data.tipo_documento);
+  }
+  // Determinar carpeta destino: si se proporciona `carpeta_destino` en el objeto data,
+  // respetarla; si no, inferirla a partir de `tipo_documento`.
+  try {
+    const inferred = mapTipoDocumentoToFolder(data.tipo_documento || null);
+    const carpetaDestino = (data as any).carpeta_destino || inferred;
+    if (carpetaDestino) formData.append('carpeta_destino', carpetaDestino);
+  } catch (e) {
+    // No bloquear en caso de error al inferir
+    console.warn('No se pudo inferir carpeta_destino:', e);
   }
   // Indicar al backend el nombre con el que deseamos que se guarde el archivo
   // (esto permitirá que, incluso si el backend copia el archivo desde Drive o lo

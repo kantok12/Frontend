@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { FileText, Upload, X } from 'lucide-react';
 import { usePersonalList } from '../hooks/usePersonal';
 import { useUploadDocumento, useTiposDocumentos, createDocumentoFormData, validateDocumentoData, getTiposDocumentosCursos, getTiposDocumentosPersonal } from '../hooks/useDocumentos';
+import { mapTipoDocumentoToFolder, folderLabel } from '../utils/documentFolders';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { Link } from 'react-router-dom';
 import { apiService } from '../services/api';
@@ -9,7 +10,7 @@ import { apiService } from '../services/api';
 const MultiUploadPage: React.FC = () => {
   const [selectedRuts, setSelectedRuts] = useState<string[]>([]);
   // Soporte para múltiples archivos: cada entrada tiene el file, nombre destino y tipo
-  const [files, setFiles] = useState<Array<{ file: File; nombre_destino: string; tipo: string; prerrequisitos?: number[] }>>([]);
+  const [files, setFiles] = useState<Array<{ file: File; nombre_destino: string; tipo: string; prerrequisitos?: number[]; carpeta_destino?: string }>>([]);
   const [prerrequisitosOptions, setPrerrequisitosOptions] = useState<Array<any>>([]);
   // (No global default tipo — cada archivo elegirá su propio tipo)
   const [errors, setErrors] = useState<string[]>([]);
@@ -31,6 +32,7 @@ const MultiUploadPage: React.FC = () => {
   const tiposBackend = tiposQuery.data?.data || [];
   const [openTypeIndex, setOpenTypeIndex] = useState<number | null>(null);
   const [defaultType, setDefaultType] = useState<string>('');
+  const [defaultFolder, setDefaultFolder] = useState<string>('');
 
   // No category separation: all tipos se muestran juntos
 
@@ -60,7 +62,12 @@ const MultiUploadPage: React.FC = () => {
       setErrors(["Selecciona un 'Tipo por defecto' antes de elegir archivos."]);
       return;
     }
-    const entries = chosen.map(f => ({ file: f, nombre_destino: f.name, tipo: defaultType }));
+    const entries = chosen.map(f => ({
+      file: f,
+      nombre_destino: f.name,
+      tipo: defaultType,
+      carpeta_destino: defaultFolder ? defaultFolder : (defaultType ? mapTipoDocumentoToFolder(defaultType) : undefined)
+    }));
     setFiles(prev => [...prev, ...entries]);
     // reset input so same files can be reselected if needed
     if (fileRef.current) fileRef.current.value = '';
@@ -70,7 +77,7 @@ const MultiUploadPage: React.FC = () => {
     setFiles(prev => prev.filter((_, i) => i !== index));
   };
 
-  const updateFileField = (index: number, patch: Partial<{ nombre_destino: string; tipo: string; categoria?: 'personal' | 'cursos'; prerrequisitos?: number[] }>) => {
+  const updateFileField = (index: number, patch: Partial<{ nombre_destino: string; tipo: string; categoria?: 'personal' | 'cursos'; prerrequisitos?: number[]; carpeta_destino?: string }>) => {
     setFiles(prev => prev.map((f, i) => i === index ? { ...f, ...patch } : f));
   };
 
@@ -122,6 +129,7 @@ const MultiUploadPage: React.FC = () => {
                 tipo_documento: fEntry.tipo || undefined,
                 archivo: fEntry.file,
                 prerrequisitos: fEntry.prerrequisitos && fEntry.prerrequisitos.length ? fEntry.prerrequisitos : undefined,
+                carpeta_destino: fEntry.carpeta_destino || undefined,
               };
               const v = validateDocumentoData(data);
               if (v.length) return { rut, fileName: fEntry.nombre_destino, success: false, message: v.join('; ') };
@@ -192,6 +200,13 @@ const MultiUploadPage: React.FC = () => {
                   <option key={t.value || t} value={t.value || t}>{t.label || t}</option>
                 ))}
               </select>
+
+              <label className="text-sm text-gray-600">Carpeta por defecto:</label>
+              <select value={defaultFolder} onChange={(e) => setDefaultFolder(e.target.value)} className="text-sm px-2 py-1 border rounded">
+                <option value="">(Inferir desde tipo)</option>
+                <option value="documentos">{folderLabel('documentos')}</option>
+                <option value="cursos_certificaciones">{folderLabel('cursos_certificaciones')}</option>
+              </select>
             </div>
             
             <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={handleFilesChange} multiple />
@@ -205,6 +220,12 @@ const MultiUploadPage: React.FC = () => {
                       <div className="flex-1">
                         <div className="text-sm font-medium">{fEntry.file.name}</div>
                         <div className="text-xs text-gray-500 mb-2">Tamaño: {(fEntry.file.size / 1024).toFixed(0)} KB — Tipo MIME: {fEntry.file.type || '—'}</div>
+                        {(() => {
+                          const resolved = fEntry.carpeta_destino || (fEntry.tipo ? mapTipoDocumentoToFolder(fEntry.tipo) : (defaultFolder ? defaultFolder : mapTipoDocumentoToFolder(null)));
+                          return (
+                            <div className="text-xs mt-1">Subirá a: <span className="px-2 py-0.5 ml-2 bg-gray-100 rounded text-xs">{folderLabel(resolved as any)}</span></div>
+                          );
+                        })()}
 
                         <label className="text-xs text-gray-600">Nombre destino</label>
                         <input className="w-full px-2 py-1 border rounded text-sm" value={fEntry.nombre_destino} onChange={(e) => updateFileField(idx, { nombre_destino: e.target.value })} />
@@ -236,6 +257,18 @@ const MultiUploadPage: React.FC = () => {
                             </>
                           );
                         })()}
+
+                        {/* Selector para carpeta destino (override opcional) */}
+                        <label className="text-xs text-gray-600 mt-2 block">Carpeta destino</label>
+                        <select
+                          className="w-full px-2 py-1 border rounded text-sm"
+                          value={fEntry.carpeta_destino || ''}
+                          onChange={(e) => updateFileField(idx, { carpeta_destino: e.target.value || undefined })}
+                        >
+                          <option value="">(Inferir desde tipo)</option>
+                          <option value="documentos">{folderLabel('documentos')}</option>
+                          <option value="cursos_certificaciones">{folderLabel('cursos_certificaciones')}</option>
+                        </select>
 
                         {/* Mostrar directamente los nombres de prerrequisitos (sin requerir seleccionar "Prerrequisitos" en el select) */}
                         <div className="mt-2 border rounded p-2 bg-gray-50 max-h-40 overflow-y-auto">

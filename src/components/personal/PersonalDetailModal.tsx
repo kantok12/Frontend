@@ -1063,6 +1063,13 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                             </div>
                             <div className="space-y-1">
                               <p className="text-xs text-purple-600"><span className="font-medium">Archivo:</span> <span className="inline-block max-w-full break-words whitespace-normal">{documento.nombre_original || documento.nombre_archivo || documento.nombre_documento}</span></p>
+                                {(() => {
+                                  const ubic = documento.ruta_archivo || (documento.ruta_local as any) || documento.url || (documento.drive_file_id ? `drive://${documento.drive_file_id}` : null);
+                                  if (!ubic) return null;
+                                  return (
+                                    <p className="text-xs text-gray-500"><span className="font-medium">Ubicación:</span> <span className="inline-block max-w-full break-words whitespace-normal">{ubic}</span></p>
+                                  );
+                                })()}
                               <p className="text-xs text-gray-500"><span className="font-medium">Subido:</span> {new Date(documento.fecha_subida).toLocaleDateString('es-CL', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
                             </div>
                           </div>
@@ -1146,6 +1153,13 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                             </div>
                             <div className="space-y-1">
                               <p className="text-xs text-orange-600"><span className="font-medium">Archivo:</span> <span className="inline-block max-w-full break-words whitespace-normal">{documento.nombre_original || documento.nombre_archivo || documento.nombre_documento}</span></p>
+                                {(() => {
+                                  const ubic = documento.ruta_archivo || (documento.ruta_local as any) || documento.url || (documento.drive_file_id ? `drive://${documento.drive_file_id}` : null);
+                                  if (!ubic) return null;
+                                  return (
+                                    <p className="text-xs text-gray-500"><span className="font-medium">Ubicación:</span> <span className="inline-block max-w-full break-words whitespace-normal">{ubic}</span></p>
+                                  );
+                                })()}
                               <p className="text-xs text-gray-500"><span className="font-medium">Subido:</span> {new Date(documento.fecha_subida).toLocaleDateString('es-CL', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
                             </div>
                           </div>

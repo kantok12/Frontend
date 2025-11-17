@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Users, Filter } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
+import { apiService } from '../../services/api';
 
 interface PersonalAsignadoModalProps {
   isOpen: boolean;
@@ -18,33 +19,38 @@ export const PersonalAsignadoModal: React.FC<PersonalAsignadoModalProps> = ({
   const [paginaActual, setPaginaActual] = useState<number>(1);
   const personasPorPagina = 10;
 
-  // Calcular el rango de la semana actual
-  const getRangoSemana = () => {
-    const hoy = new Date();
-    const diaSemana = hoy.getDay(); // 0 = Domingo, 1 = Lunes, etc.
-    const diferencia = diaSemana === 0 ? -6 : 1 - diaSemana; // Ajustar para que lunes sea el primer día
-    
-    const lunes = new Date(hoy);
-    lunes.setDate(hoy.getDate() + diferencia);
-    
-    const domingo = new Date(lunes);
-    domingo.setDate(lunes.getDate() + 6);
-    
-    const formatearFecha = (fecha: Date) => {
-      return fecha.toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' });
-    };
-    
-    return `${formatearFecha(lunes)} - ${formatearFecha(domingo)}`;
-  };
+  // Util: obtener lunes de la semana para una fecha
+  function getMonday(date: Date) {
+    const d = new Date(date);
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+    d.setDate(diff);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
 
-  const rangoSemana = getRangoSemana();
+  // Estado: semana seleccionada (representada por el lunes)
+  const [semanaSeleccionada, setSemanaSeleccionada] = useState<Date>(() => getMonday(new Date()));
 
-  // Obtener datos del endpoint
+  const formatFecha = (fecha: Date) => fecha.toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const rangoSemana = `${formatFecha(semanaSeleccionada)} - ${formatFecha(new Date(semanaSeleccionada.getTime() + 6 * 24 * 60 * 60 * 1000))}`;
+
+  // Navegación de semanas
+  const irSemanaAnterior = () => setSemanaSeleccionada(s => { const n = new Date(s); n.setDate(n.getDate() - 7); return n; });
+  const irSemanaSiguiente = () => setSemanaSeleccionada(s => { const n = new Date(s); n.setDate(n.getDate() + 7); return n; });
+  const resetSemanaActual = () => setSemanaSeleccionada(getMonday(new Date()));
+
+  // Obtener datos del endpoint filtrando por la semana seleccionada
+  const fechaInicioISO = semanaSeleccionada.toISOString().split('T')[0];
+  const fechaFin = new Date(semanaSeleccionada.getTime());
+  fechaFin.setDate(fechaFin.getDate() + 6);
+  const fechaFinISO = fechaFin.toISOString().split('T')[0];
+
   const { data: responseData } = useQuery(
-    ['personal-por-cliente'],
+    ['personal-por-cliente', fechaInicioISO, fechaFinISO],
     async () => {
-      const res = await fetch('/api/personal-por-cliente');
-      return await res.json();
+      const resp = await apiService.getPersonalPorCliente({ fecha_inicio: fechaInicioISO, fecha_fin: fechaFinISO });
+      return resp;
     },
     { enabled: isOpen }
   );
@@ -132,9 +138,15 @@ export const PersonalAsignadoModal: React.FC<PersonalAsignadoModalProps> = ({
               </div>
               <div>
                 <h2 className="text-xl font-bold">Personal Asignado</h2>
-                <p className="text-purple-100">
-                  Semana del {rangoSemana} • {personalFiltrado.length} de {personalList.length} persona{personalList.length !== 1 ? 's' : ''}
-                </p>
+                <div className="flex items-center space-x-4">
+                  <div className="text-purple-100">Semana del <span className="font-semibold">{rangoSemana}</span></div>
+                  <div className="flex items-center space-x-1">
+                    <button onClick={irSemanaAnterior} className="px-2 py-1 bg-white bg-opacity-10 rounded-md text-sm text-white hover:bg-opacity-20">◀</button>
+                    <button onClick={resetSemanaActual} className="px-2 py-1 bg-white bg-opacity-10 rounded-md text-sm text-white hover:bg-opacity-20">Hoy</button>
+                    <button onClick={irSemanaSiguiente} className="px-2 py-1 bg-white bg-opacity-10 rounded-md text-sm text-white hover:bg-opacity-20">▶</button>
+                  </div>
+                  <div className="text-purple-100">• {personalFiltrado.length} de {personalList.length} persona{personalList.length !== 1 ? 's' : ''}</div>
+                </div>
               </div>
             </div>
             <div className="flex items-center space-x-4">
