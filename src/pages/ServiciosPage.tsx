@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useCallback } from 'react';
+import React, { useEffect, useMemo, useCallback, useState } from 'react';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { Search, Plus, Settings, Users, Building2, MapPin, AlertCircle, ChevronRight, Globe } from 'lucide-react';
 import { useServiciosPage } from '../hooks/useServicios';
@@ -15,6 +15,7 @@ import { apiService } from '../services/api';
 import { useQueryClient } from '@tanstack/react-query';
 import { PrerrequisitosCliente } from '../components/servicios/PrerrequisitosCliente';
 import { PrerrequisitosModal } from '../components/servicios/PrerrequisitosModal';
+import { PersonalDetailModal } from '../components/personal/PersonalDetailModal';
 import { GlobalPrerrequisitosModal } from '../components/servicios/GlobalPrerrequisitosModal';
 
 export const ServiciosPage: React.FC = () => {
@@ -28,7 +29,12 @@ export const ServiciosPage: React.FC = () => {
 
   // Listado de personal para seleccionar (hasta 100, sin búsqueda para evitar llamadas excesivas)
   const { data: personListData, isLoading: personListLoading } = usePersonalList(1, 100, '', {});
-  const personOptions = personListData?.data?.items || [];
+  const personOptions = useMemo(() => personListData?.data?.items || [], [personListData]);
+
+  // Estado local para resultados batch de prerrequisitos (por RUT)
+  const [prereqBatch, setPrereqBatch] = useState<Record<string, any> | null>(null);
+  const [prereqBatchLoading, setPrereqBatchLoading] = useState(false);
+  const [prereqBatchError, setPrereqBatchError] = useState<string | null>(null);
   
   // Constantes
   const limit = 10;
@@ -182,6 +188,89 @@ export const ServiciosPage: React.FC = () => {
       navigationState.selectedNodo
     );
   }, [navigationState.selectedCartera, navigationState.selectedCliente, navigationState.selectedNodo, loadAssignedPersonal]);
+
+  // Cuando se selecciona un cliente (en nodos), obtener match batch de prerrequisitos
+  useEffect(() => {
+    const cargarBatch = async () => {
+      setPrereqBatch(null);
+      setPrereqBatchError(null);
+      if (!navigationState.selectedCliente) return;
+      // Usar ruts de personOptions (y de assignedPersonal por si faltan)
+      const rutsSet = new Set<string>();
+      personOptions.forEach((p: any) => p.rut && rutsSet.add(p.rut));
+      (assignmentState.assignedPersonal || []).forEach((p: any) => p.rut && rutsSet.add(p.rut));
+      const ruts = Array.from(rutsSet).slice(0, 250); // limitar por seguridad
+      if (ruts.length === 0) return;
+      try {
+        setPrereqBatchLoading(true);
+        const resp: any = await apiService.matchPrerequisitosClienteBatch(navigationState.selectedCliente.id, ruts, { includeGlobal: true });
+        // Normalizar respuesta a map rut -> data
+        const map: Record<string, any> = {};
+        const dataArray = resp?.data || resp?.data?.data || resp;
+        // Si viene como array de resultados por rut
+        if (Array.isArray(dataArray)) {
+          dataArray.forEach((item: any) => {
+            if (item.rut) map[item.rut] = item.data || item;
+            else if (item?.data?.rut) map[item.data.rut] = item.data;
+          });
+        } else if (typeof dataArray === 'object') {
+          // Si el servidor devolvió objeto con claves por rut
+          Object.keys(dataArray).forEach((k) => {
+            map[k] = dataArray[k];
+          });
+        }
+        setPrereqBatch(map);
+      } catch (e: any) {
+        console.warn('Error cargando batch prerrequisitos:', e);
+        setPrereqBatchError(e?.message || 'Error al cargar prerrequisitos batch');
+      } finally {
+        setPrereqBatchLoading(false);
+      }
+    };
+
+    // Ejecutar sólo cuando estamos en la pestaña de nodos (optimización)
+    if (uiState.activeTab === 'nodos') {
+      cargarBatch();
+    } else {
+      setPrereqBatch(null);
+    }
+  }, [navigationState.selectedCliente, personOptions, assignmentState.assignedPersonal, uiState.activeTab]);
+
+  // Estados para abrir modal de Personal dentro de la vista Servicios (sin navegar)
+  const [selectedPersonalDetail, setSelectedPersonalDetail] = useState<any | null>(null);
+  const [showPersonalDetailModalLocal, setShowPersonalDetailModalLocal] = useState(false);
+
+  // Paginación interna para cada sección
+  const [pageWithout, setPageWithout] = useState(1);
+  const [pageAssigned, setPageAssigned] = useState(1);
+  const [pageGlobal, setPageGlobal] = useState(1);
+  const PAGE_SIZE = 5;
+
+  // Resetear páginas cuando cambia el cliente o la pestaña
+  useEffect(() => {
+    setPageWithout(1);
+    setPageAssigned(1);
+    setPageGlobal(1);
+  }, [navigationState.selectedCliente, uiState.activeTab]);
+
+  const openPersonalDetailModalLocal = useCallback(async (rut: string) => {
+    if (!rut) return;
+    // Intentar encontrar en personOptions primero
+    const found = personOptions.find((p: any) => p.rut === rut || p.rut === String(rut));
+    if (found) {
+      setSelectedPersonalDetail(found);
+      setShowPersonalDetailModalLocal(true);
+      return;
+    }
+    try {
+      const res: any = await apiService.getPersonalByRut(rut);
+      const data = res?.data || res;
+      setSelectedPersonalDetail(data);
+      setShowPersonalDetailModalLocal(true);
+    } catch (e) {
+      alert('No se pudo cargar la información del personal.');
+    }
+  }, [personOptions]);
 
   // Enriquecer con nombres optimizado
   const hydrateNames = useCallback(async () => {
@@ -393,7 +482,7 @@ export const ServiciosPage: React.FC = () => {
         <div className="border-b border-gray-200">
           <nav className="-mb-px flex space-x-8">
             <button
-              onClick={() => handleTabChange('carteras')}
+              onClick={handleBackToCarterasWithUI}
               className={`py-2 px-1 border-b-2 font-medium text-sm ${
                 uiState.activeTab === 'carteras'
                   ? 'border-blue-500 text-blue-600'
@@ -406,7 +495,7 @@ export const ServiciosPage: React.FC = () => {
               </div>
             </button>
             <button
-              onClick={() => handleTabChange('clientes')}
+              onClick={handleBackToClientesWithUI}
               className={`py-2 px-1 border-b-2 font-medium text-sm ${
                 uiState.activeTab === 'clientes'
                   ? 'border-blue-500 text-blue-600'
@@ -535,7 +624,7 @@ export const ServiciosPage: React.FC = () => {
       {/* Tabla dinámica según pestaña activa */}
       <div className="slide-up animate-delay-300">
         {/* Panel de personal asignado según la selección */}
-        {(navigationState.selectedCartera || navigationState.selectedCliente || navigationState.selectedNodo) && (
+        {(uiState.activeTab === 'nodos' && (navigationState.selectedCliente || navigationState.selectedNodo)) && (
           <div className="mb-6 bg-white rounded-lg border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900">
@@ -574,6 +663,153 @@ export const ServiciosPage: React.FC = () => {
                 {assignmentState.assigning ? 'Asignando...' : 'Asignar'}
               </button>
             </div>
+            {/* Nuevo: listado en tres secciones (solo en nodos) */}
+            {uiState.activeTab === 'nodos' && navigationState.selectedCliente && (
+              <div className="mb-4">
+                <div className="text-sm text-gray-600 mb-2">Resultados prerrequisitos {prereqBatchLoading ? '(cargando...)' : prereqBatchError ? '(error)' : ''}</div>
+                {/* Filtrar pool de personas según búsqueda en assignmentState.personSearch */}
+                {(() => {
+                  const search = (assignmentState.personSearch || '').toLowerCase().trim();
+                  // Pool: combinar personOptions + assigned
+                  const poolMap: Record<string, any> = {};
+                  personOptions.forEach((p: any) => { if (p?.rut) poolMap[p.rut] = p; });
+                  (assignmentState.assignedPersonal || []).forEach((p: any) => { if (p?.rut && !poolMap[p.rut]) poolMap[p.rut] = p; });
+                  const pool = Object.values(poolMap);
+
+                  const assignedRuts = new Set((assignmentState.assignedPersonal || []).map((p: any) => p.rut));
+
+                  const filtered = pool.filter((p: any) => {
+                    if (!search) return true;
+                    const name = ((p.nombre || p.nombres) + ' ' + (p.apellido || p.apellidos || '')).toLowerCase();
+                    const rut = (p.rut || '').toLowerCase();
+                    return name.includes(search) || rut.includes(search);
+                  });
+
+                  const withoutPrereq: any[] = [];
+                  const withGlobal: any[] = [];
+                  const assignedList: any[] = [];
+
+                  filtered.forEach((p: any) => {
+                    const info = prereqBatch && prereqBatch[p.rut] ? prereqBatch[p.rut] : null;
+                    const faltantes = info?.faltantes || [];
+                    const meetsGlobal = info?.global_ok || info?.cumple_global || (info?.global && info.global === true);
+
+                    if (assignedRuts.has(p.rut)) assignedList.push(p);
+                    else if (meetsGlobal) withGlobal.push(p);
+                    else if (Array.isArray(faltantes) && faltantes.length > 0) withoutPrereq.push(p);
+                    else {
+                      // default: show under withGlobal if no faltantes and not assigned
+                      withGlobal.push(p);
+                    }
+                  });
+
+                  const renderPersonItem = (p: any) => {
+                    const display = p.nombre || p.nombres || p.rut;
+                    const apellido = p.apellido || p.apellidos || '';
+                    const label = `${display}${apellido ? ' ' + apellido : ''}`; // mostrar sólo nombre
+                    return (
+                      <li key={p.rut} className="flex items-center px-3 py-2 hover:bg-gray-50">
+                          <div className="flex-1 pr-3">
+                            <button
+                              onClick={() => openPersonalDetailModalLocal(p.rut)}
+                              className="text-left text-sm text-blue-600 hover:underline"
+                              title={p.rut}
+                            >
+                              {label}
+                            </button>
+                          </div>
+                          <div className="w-48 pl-3 border-l border-gray-300 text-xs text-gray-500 truncate">{(p.cargo || p.cargo_nombre) || ''}</div>
+                        </li>
+                    );
+                  };
+
+                  // Paginación interna
+                  const pageSize = PAGE_SIZE;
+                  const withoutTotal = withoutPrereq.length;
+                  const assignedTotal = assignedList.length;
+                  const globalTotal = withGlobal.length;
+
+                  const withoutTotalPages = Math.max(1, Math.ceil(withoutTotal / pageSize));
+                  const assignedTotalPages = Math.max(1, Math.ceil(assignedTotal / pageSize));
+                  const globalTotalPages = Math.max(1, Math.ceil(globalTotal / pageSize));
+
+                  const currentWithoutPage = Math.min(pageWithout, withoutTotalPages);
+                  const currentAssignedPage = Math.min(pageAssigned, assignedTotalPages);
+                  const currentGlobalPage = Math.min(pageGlobal, globalTotalPages);
+
+                  const withoutStart = (currentWithoutPage - 1) * pageSize;
+                  const assignedStart = (currentAssignedPage - 1) * pageSize;
+                  const globalStart = (currentGlobalPage - 1) * pageSize;
+
+                  const withoutPageItems = withoutPrereq.slice(withoutStart, withoutStart + pageSize);
+                  const assignedPageItems = assignedList.slice(assignedStart, assignedStart + pageSize);
+                  const globalPageItems = withGlobal.slice(globalStart, globalStart + pageSize);
+
+                  const renderPagination = (current: number, totalPages: number, setPage: (n: number) => void, totalItems: number, startIndex: number) => {
+                    if (totalPages <= 1) return null;
+                    return (
+                      <div className="mt-3 flex items-center justify-between">
+                        <div className="text-xs text-gray-500">Mostrando {Math.min(startIndex + 1, totalItems)} - {Math.min(startIndex + pageSize, totalItems)} de {totalItems}</div>
+                        <div className="flex items-center space-x-1">
+                          <button
+                            onClick={() => setPage(Math.max(1, current - 1))}
+                            disabled={current === 1}
+                            className="px-2 py-1 text-xs bg-white border border-gray-200 rounded disabled:opacity-50"
+                          >Anterior</button>
+                          {Array.from({ length: totalPages }, (_, i) => i + 1).map((num) => (
+                            <button
+                              key={num}
+                              onClick={() => setPage(num)}
+                              className={`px-2 py-1 text-xs rounded border ${num === current ? 'bg-blue-50 border-blue-200 text-blue-600' : 'bg-white border-gray-200 text-gray-600'}`}
+                            >{num}</button>
+                          ))}
+                          <button
+                            onClick={() => setPage(Math.min(totalPages, current + 1))}
+                            disabled={current === totalPages}
+                            className="px-2 py-1 text-xs bg-white border border-gray-200 rounded disabled:opacity-50"
+                          >Siguiente</button>
+                        </div>
+                      </div>
+                    );
+                  };
+
+                  return (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:divide-x sm:divide-gray-300">
+                      <div className="bg-white border border-gray-300 rounded shadow-sm overflow-hidden">
+                        <div className="px-3 py-2 bg-gray-50 border-b border-gray-300 text-sm font-semibold">Personal sin Prerrequisitos</div>
+                        {withoutPageItems.length === 0 ? (
+                          <div className="p-3 text-sm text-gray-500">No hay personas en esta categoría</div>
+                        ) : (
+                          <ul className="text-sm text-gray-800 divide-y divide-gray-200">{withoutPageItems.map(renderPersonItem)}</ul>
+                        )}
+                        <div className="px-3 py-2">{renderPagination(currentWithoutPage, withoutTotalPages, (n: number) => setPageWithout(n), withoutTotal, withoutStart)}</div>
+                      </div>
+
+                      <div className="bg-white border border-gray-300 rounded shadow-sm overflow-hidden">
+                        <div className="px-3 py-2 bg-gray-50 border-b border-gray-300 text-sm font-semibold">Personal Asignado</div>
+                        {assignedPageItems.length === 0 ? (
+                          <div className="p-3 text-sm text-gray-500">No hay personal asignado.</div>
+                        ) : (
+                          <ul className="text-sm text-gray-800 divide-y divide-gray-200">{assignedPageItems.map(renderPersonItem)}</ul>
+                        )}
+                        <div className="px-3 py-2">{renderPagination(currentAssignedPage, assignedTotalPages, (n: number) => setPageAssigned(n), assignedTotal, assignedStart)}</div>
+                      </div>
+
+                      <div className="bg-white border border-gray-300 rounded shadow-sm overflow-hidden">
+                        <div className="px-3 py-2 bg-gray-50 border-b border-gray-300 text-sm font-semibold">Personal con Requisitos Globales</div>
+                        {globalPageItems.length === 0 ? (
+                          <div className="p-3 text-sm text-gray-500">No hay personas en esta categoría</div>
+                        ) : (
+                          <ul className="text-sm text-gray-800 divide-y divide-gray-200">{globalPageItems.map(renderPersonItem)}</ul>
+                        )}
+                        <div className="px-3 py-2">{renderPagination(currentGlobalPage, globalTotalPages, (n: number) => setPageGlobal(n), globalTotal, globalStart)}</div>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+
             {assignmentState.assignedLoading ? (
               <div className="flex items-center text-gray-600 text-sm">
                 <LoadingSpinner size="sm" />
@@ -925,7 +1161,6 @@ export const ServiciosPage: React.FC = () => {
         isOpen={uiState.showAgregarClienteModal}
         onClose={() => handleModalToggle('showAgregarClienteModal', false)}
         onSuccess={(carteraId, clientes) => {
-          console.log('Clientes agregados:', { carteraId, clientes });
           // Invalidar cache para refrescar los datos
           queryClient.invalidateQueries({ queryKey: ['clientes'] });
           queryClient.invalidateQueries({ queryKey: ['carteras'] });
@@ -941,7 +1176,6 @@ export const ServiciosPage: React.FC = () => {
         isOpen={uiState.showAgregarNodoModal}
         onClose={() => handleModalToggle('showAgregarNodoModal', false)}
         onSuccess={(clienteId, nodos) => {
-          console.log('Nodos agregados:', { clienteId, nodos });
           // Invalidar cache para refrescar los datos
           queryClient.invalidateQueries({ queryKey: ['nodos'] });
           queryClient.invalidateQueries({ queryKey: ['clientes'] });
@@ -963,6 +1197,14 @@ export const ServiciosPage: React.FC = () => {
       <GlobalPrerrequisitosModal
         isOpen={uiState.showGlobalPrerrequisitosModal}
         onClose={() => handleModalToggle('showGlobalPrerrequisitosModal', false)}
+      />
+
+      {/* Modal local para ver detalle de Personal sin navegar fuera de Servicios */}
+      <PersonalDetailModal
+        personal={selectedPersonalDetail}
+        isOpen={showPersonalDetailModalLocal}
+        onClose={() => { setShowPersonalDetailModalLocal(false); setSelectedPersonalDetail(null); }}
+        onUpdate={() => loadAssignedPersonal(navigationState.selectedCartera, navigationState.selectedCliente, navigationState.selectedNodo)}
       />
     </div>
   );
