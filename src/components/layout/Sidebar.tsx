@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useLocation } from 'react-router-dom';
 import { 
   Home, 
@@ -62,6 +63,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const location = useLocation();
   const { logout } = useAuth();
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   return (
     <>
@@ -194,30 +196,52 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </nav>
 
           {/* Footer */}
-          <div className={`border-t border-gray-100 ${isCollapsed ? 'p-2' : 'p-4'}`}>
+          <div className={`border-t border-gray-100 ${isCollapsed ? 'p-2' : 'p-4'} flex justify-center`}>
             <button
-              onClick={() => {
-                if (window.confirm('¿Estás seguro de que quieres cerrar sesión?')) {
-                  console.log('Cerrando sesión desde sidebar...');
-                  logout();
-                }
-              }}
-              className={`bg-gradient-to-r from-gray-50 to-gray-100 hover:from-gray-100 hover:to-gray-200 rounded-xl ${isCollapsed ? 'p-2' : 'p-4'} w-full transition-all duration-200 cursor-pointer`}
-              title="Cerrar sesión"
+              onClick={() => setShowLogoutConfirm(true)}
+              className={`group ${isCollapsed ? 'p-2 w-12' : 'px-3 py-2 w-40'} rounded-xl transform transition-transform duration-200 ease-out cursor-pointer bg-gray-100 hover:bg-red-600 text-gray-700 hover:translate-x-0 hover:scale-105 hover:shadow-md`}
+              title="Cerrar Sesión"
             >
-              <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'space-x-3'}`}>
-                <div className="w-8 h-8 bg-gradient-to-br from-gray-400 to-gray-500 rounded-lg flex items-center justify-center">
-                  <LogOut size={16} className="text-white" />
+              <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'justify-center'}`}>
+                <div className="w-8 h-8 bg-gray-300 rounded-lg flex items-center justify-center transition-transform duration-200 transform group-hover:bg-red-700 group-hover:scale-105">
+                  <LogOut size={16} className="text-gray-700 group-hover:text-white" />
                 </div>
                 {!isCollapsed && (
-                  <div className="flex-1 text-left">
-                    <div className="text-sm font-medium text-gray-700">Sesión Activa</div>
-                    <div className="text-xs text-gray-500">Usuario conectado</div>
+                  <div className="ml-3">
+                    <div className="text-sm font-medium">Cerrar Sesión</div>
                   </div>
                 )}
               </div>
             </button>
           </div>
+
+          {showLogoutConfirm && typeof document !== 'undefined' && createPortal(
+            <div className="fixed inset-0 z-[60] flex items-center justify-center">
+              <div className="absolute inset-0 bg-black/40" onClick={() => setShowLogoutConfirm(false)} />
+              <div className="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4 p-8 relative z-10">
+                <h3 className="text-lg font-semibold text-gray-800">¿Confirmas que quieres cerrar sesión?</h3>
+                <p className="text-sm text-gray-500 mt-3">Se cerrará tu sesión actual y tendrás que iniciar sesión de nuevo.</p>
+                <div className="mt-6 flex justify-end space-x-3">
+                  <button
+                    onClick={() => setShowLogoutConfirm(false)}
+                    className="px-4 py-2 rounded-md bg-gray-100 hover:bg-gray-200 text-base"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowLogoutConfirm(false);
+                      logout();
+                    }}
+                    className="px-4 py-2 rounded-md bg-red-600 hover:bg-red-700 text-white text-base"
+                  >
+                    Cerrar Sesión
+                  </button>
+                </div>
+              </div>
+            </div>,
+            document.body
+          )}
         </div>
       </div>
     </>
