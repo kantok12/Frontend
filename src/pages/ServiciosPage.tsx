@@ -747,6 +747,16 @@ export const ServiciosPage: React.FC = () => {
 
                   const renderPagination = (current: number, totalPages: number, setPage: (n: number) => void, totalItems: number, startIndex: number) => {
                     if (totalPages <= 1) return null;
+                    const maxButtons = 5; // show only 5 page buttons per group
+
+                    // Determine current group based on current page
+                    const groupIndex = Math.floor((current - 1) / maxButtons);
+                    const groupStart = groupIndex * maxButtons + 1;
+                    const groupEnd = Math.min(groupStart + maxButtons - 1, totalPages);
+
+                    const pages: number[] = [];
+                    for (let i = groupStart; i <= groupEnd; i++) pages.push(i);
+
                     return (
                       <div className="mt-3 flex items-center justify-between">
                         <div className="text-xs text-gray-500">Mostrando {Math.min(startIndex + 1, totalItems)} - {Math.min(startIndex + pageSize, totalItems)} de {totalItems}</div>
@@ -756,13 +766,15 @@ export const ServiciosPage: React.FC = () => {
                             disabled={current === 1}
                             className="px-2 py-1 text-xs bg-white border border-gray-200 rounded disabled:opacity-50"
                           >Anterior</button>
-                          {Array.from({ length: totalPages }, (_, i) => i + 1).map((num) => (
+
+                          {pages.map((num) => (
                             <button
                               key={num}
                               onClick={() => setPage(num)}
                               className={`px-2 py-1 text-xs rounded border ${num === current ? 'bg-blue-50 border-blue-200 text-blue-600' : 'bg-white border-gray-200 text-gray-600'}`}
                             >{num}</button>
                           ))}
+
                           <button
                             onClick={() => setPage(Math.min(totalPages, current + 1))}
                             disabled={current === totalPages}
@@ -773,9 +785,9 @@ export const ServiciosPage: React.FC = () => {
                     );
                   };
 
-                  return (
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:divide-x sm:divide-gray-300">
-                      <div className="bg-white border border-gray-300 rounded shadow-sm overflow-hidden">
+                    return (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div className="bg-white border border-gray-300 rounded-l-md shadow-sm overflow-hidden">
                         <div className="px-3 py-2 bg-gray-50 border-b border-gray-300 text-sm font-semibold">Personal sin Prerrequisitos</div>
                         {withoutPageItems.length === 0 ? (
                           <div className="p-3 text-sm text-gray-500">No hay personas en esta categoría</div>
@@ -785,7 +797,7 @@ export const ServiciosPage: React.FC = () => {
                         <div className="px-3 py-2">{renderPagination(currentWithoutPage, withoutTotalPages, (n: number) => setPageWithout(n), withoutTotal, withoutStart)}</div>
                       </div>
 
-                      <div className="bg-white border border-gray-300 rounded shadow-sm overflow-hidden">
+                      <div className="bg-white border border-gray-300 shadow-sm overflow-hidden">
                         <div className="px-3 py-2 bg-gray-50 border-b border-gray-300 text-sm font-semibold">Personal Asignado</div>
                         {assignedPageItems.length === 0 ? (
                           <div className="p-3 text-sm text-gray-500">No hay personal asignado.</div>
@@ -795,7 +807,7 @@ export const ServiciosPage: React.FC = () => {
                         <div className="px-3 py-2">{renderPagination(currentAssignedPage, assignedTotalPages, (n: number) => setPageAssigned(n), assignedTotal, assignedStart)}</div>
                       </div>
 
-                      <div className="bg-white border border-gray-300 rounded shadow-sm overflow-hidden">
+                      <div className="bg-white border border-gray-300 rounded-r-md shadow-sm overflow-hidden">
                         <div className="px-3 py-2 bg-gray-50 border-b border-gray-300 text-sm font-semibold">Personal con Requisitos Globales</div>
                         {globalPageItems.length === 0 ? (
                           <div className="p-3 text-sm text-gray-500">No hay personas en esta categoría</div>
