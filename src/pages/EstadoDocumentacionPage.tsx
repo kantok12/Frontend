@@ -170,9 +170,22 @@ export const EstadoDocumentacionPage: React.FC = () => {
       filtered = filtered.filter(doc => (doc.personal?.cargo || '').toLowerCase() === filterCargo);
     }
 
-    // Filtro por licencia de conducir
+    // Filtro por licencia de conducir: considerar campo legacy y array de licencias
     if (filterLicencia !== 'todos') {
-      filtered = filtered.filter(doc => (doc.personal?.licencia_conducir || '').toLowerCase() === filterLicencia);
+      const target = (filterLicencia || '').toLowerCase();
+      filtered = filtered.filter(doc => {
+        const p = doc.personal || {};
+        // campo legacy
+        const lc = (p.licencia_conducir || '').toString().toLowerCase().trim();
+        if (lc && lc === target) return true;
+        // array de licencias (puede contener objetos con 'tipo' o 'clase')
+        const licArr = Array.isArray(p.licencias) ? p.licencias : [];
+        for (const lic of licArr) {
+          const t = (lic?.tipo || lic?.clase || lic?.numero || '').toString().toLowerCase().trim();
+          if (t && t === target) return true;
+        }
+        return false;
+      });
     }
 
     // Ordenar
@@ -309,9 +322,30 @@ export const EstadoDocumentacionPage: React.FC = () => {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="todos">Todas las licencias</option>
-              {Array.from(new Set(documentos.map(d => (d.personal?.licencia_conducir || '').trim()).filter(Boolean))).map((l: any) => (
-                <option key={l} value={l.toLowerCase()}>{l}</option>
-              ))}
+              {(() => {
+                // Recolectar licencias desde el campo legacy `licencia_conducir` y desde el array `licencias`
+                const values: string[] = [];
+                documentos.forEach(d => {
+                  const lc = d.personal?.licencia_conducir;
+                  if (lc && typeof lc === 'string' && lc.trim()) values.push(lc.trim());
+                  const licArr = d.personal?.licencias;
+                  if (Array.isArray(licArr)) {
+                    licArr.forEach((lic: any) => {
+                      const t = lic?.tipo || lic?.clase || lic?.numero || '';
+                      if (t && typeof t === 'string' && t.trim()) values.push(t.trim());
+                    });
+                  }
+                });
+                // Normalizar y deduplicar, manteniendo la forma original para mostrar
+                const map = new Map<string, string>();
+                values.forEach(v => {
+                  const key = v.toLowerCase();
+                  if (!map.has(key)) map.set(key, v);
+                });
+                return Array.from(map.values()).map((l: any) => (
+                  <option key={l} value={l.toLowerCase()}>{l}</option>
+                ));
+              })()}
             </select>
           </div>
         </div>

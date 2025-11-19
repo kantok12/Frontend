@@ -163,12 +163,11 @@ const TIPOS_DOCUMENTOS_DEFAULT = [
   { label: 'Certificado de Vencimiento', value: 'certificado_vencimiento', categoria: 'cursos' },
   
   // Documentos Personales
-  { label: 'Carnet de Identidad', value: 'carnet_identidad', categoria: 'personal' },
   { label: 'Exámenes Preocupacionales', value: 'examenes_preocupacionales', categoria: 'personal' },
   { label: 'Licencia de Conducir', value: 'licencia_conducir', categoria: 'personal' },
   { label: 'Certificado Médico', value: 'certificado_medico', categoria: 'personal' },
   { label: 'Certificado Laboral', value: 'certificado_laboral', categoria: 'personal' },
-  { label: 'Contrato de Trabajo', value: 'contrato_trabajo', categoria: 'personal' },
+  // Nota: 'Carnet de Identidad' y 'Contrato de Trabajo' removidos por requerimiento
   { label: 'Fotografía Personal', value: 'fotografia_personal', categoria: 'personal' },
   { label: 'Otro', value: 'otro', categoria: 'personal' }
 ];
@@ -232,7 +231,15 @@ export const useTiposDocumentos = () => {
             }
           });
 
-          const merged = Array.from(map.values());
+          let merged = Array.from(map.values());
+          // Filtrar tipos indeseados (no mostrar carnet ni contrato)
+          merged = merged.filter((t: any) => {
+            const value = (t?.value || '').toString().toLowerCase();
+            const label = (t?.label || '').toString().toLowerCase();
+            if (value === 'carnet_identidad' || value === 'contrato_trabajo') return false;
+            if (label.includes('carnet') || label.includes('contrato')) return false;
+            return true;
+          });
           if (merged.length !== backendData.length) {
             console.warn('ℹ️ Se han añadido tipos por defecto faltantes a la lista de tipos de documentos');
           }
@@ -242,18 +249,33 @@ export const useTiposDocumentos = () => {
           };
         } else {
           console.warn('⚠️ Backend devolvió datos vacíos, usando tipos por defecto');
+          // Filtrar también los tipos por defecto por seguridad
+          const filteredDefaults = TIPOS_DOCUMENTOS_DEFAULT.filter((d: any) => {
+            const v = (d?.value || '').toString().toLowerCase();
+            const l = (d?.label || '').toString().toLowerCase();
+            if (v === 'carnet_identidad' || v === 'contrato_trabajo') return false;
+            if (l.includes('carnet') || l.includes('contrato')) return false;
+            return true;
+          });
           return {
             success: true,
-            data: TIPOS_DOCUMENTOS_DEFAULT,
+            data: filteredDefaults,
             message: 'Usando tipos de documentos por defecto (backend vacío)'
           };
         }
       } catch (error) {
         console.warn('⚠️ Error al obtener tipos de documentos del backend, usando tipos por defecto:', error);
         // Retornar tipos por defecto en caso de error
+        const filteredDefaults = TIPOS_DOCUMENTOS_DEFAULT.filter((d: any) => {
+          const v = (d?.value || '').toString().toLowerCase();
+          const l = (d?.label || '').toString().toLowerCase();
+          if (v === 'carnet_identidad' || v === 'contrato_trabajo') return false;
+          if (l.includes('carnet') || l.includes('contrato')) return false;
+          return true;
+        });
         return {
           success: true,
-          data: TIPOS_DOCUMENTOS_DEFAULT,
+          data: filteredDefaults,
           message: 'Usando tipos de documentos por defecto (error de conexión)'
         };
       }
@@ -707,5 +729,11 @@ export const getTiposDocumentosCursos = () => {
 };
 
 export const getTiposDocumentosPersonal = () => {
-  return TIPOS_DOCUMENTOS_DEFAULT.filter(tipo => tipo.categoria === 'personal');
+  return TIPOS_DOCUMENTOS_DEFAULT.filter(tipo => {
+    const v = (tipo?.value || '').toString().toLowerCase();
+    const l = (tipo?.label || '').toString().toLowerCase();
+    if (v === 'carnet_identidad' || v === 'contrato_trabajo') return false;
+    if (l.includes('carnet') || l.includes('contrato')) return false;
+    return tipo.categoria === 'personal';
+  });
 };

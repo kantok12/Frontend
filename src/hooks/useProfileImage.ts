@@ -15,13 +15,23 @@ export const useProfileImage = (rut: string) => {
     queryKey: ['profile-image', rut],
     queryFn: async (): Promise<ProfileImageResponse | null> => {
       if (!rut) return null;
-      
       try {
-        const result = await apiService.getProfileImage(rut);
-        return result;
+        // Primero intentar endpoint más nuevo /profile-photos/:rut/image
+        try {
+          const res = await apiService.getProfilePhoto(rut);
+          return res;
+        } catch (err: any) {
+          // Si falla con 404 o no existe, fallback al endpoint /personal/:rut/image
+          if (err?.response?.status === 404) {
+            // intentar endpoint legacy
+            const legacy = await apiService.getProfileImage(rut);
+            return legacy;
+          }
+          // Propagar otros errores
+          throw err;
+        }
       } catch (err: any) {
         if (err.response?.status === 404 || err.name === 'SilentError') {
-          // No hay imagen de perfil, esto es normal - no loguear error
           return null;
         }
         throw err;
@@ -30,7 +40,6 @@ export const useProfileImage = (rut: string) => {
     enabled: !!rut,
     staleTime: 5 * 60 * 1000, // 5 minutos
     retry: (failureCount, error: any) => {
-      // No reintentar si es 404 (no hay imagen), error silencioso, o si ya hemos intentado 1 vez
       if (error?.response?.status === 404 || error?.name === 'SilentError' || failureCount >= 1) {
         return false;
       }
@@ -38,7 +47,6 @@ export const useProfileImage = (rut: string) => {
     },
     retryDelay: 1000,
     onError: (error: any) => {
-      // Solo loguear errores que no sean 404 o errores silenciosos
       if (error.response?.status !== 404 && error.name !== 'SilentError') {
         console.error('❌ Error al obtener imagen de perfil:', error);
       }
@@ -47,7 +55,15 @@ export const useProfileImage = (rut: string) => {
 
   // Mutation para subir imagen
   const uploadImageMutation = useMutation({
-    mutationFn: (file: File) => apiService.uploadProfileImage(rut, file),
+    mutationFn: async (file: File) => {
+      // Intentar endpoint alternativo /profile-photos primero
+      try {
+        return await apiService.uploadProfilePhoto(rut, file);
+      } catch (err: any) {
+        // Fallback a /personal/:rut/upload
+        return await apiService.uploadProfileImage(rut, file);
+      }
+    },
     onSuccess: (result: any) => {
       // Actualizar la imagen local inmediatamente
       if (result.data?.profile_image_url) {
@@ -64,7 +80,13 @@ export const useProfileImage = (rut: string) => {
 
   // Mutation para eliminar imagen
   const deleteImageMutation = useMutation({
-    mutationFn: () => apiService.deleteProfileImage(rut),
+    mutationFn: async () => {
+      try {
+        return await apiService.deleteProfilePhoto(rut);
+      } catch (err: any) {
+        return await apiService.deleteProfileImage(rut);
+      }
+    },
     onSuccess: () => {
       setProfileImage(null);
       queryClient.invalidateQueries({ queryKey: ['profile-image', rut] });

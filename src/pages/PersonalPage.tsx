@@ -103,6 +103,9 @@ export const PersonalPage: React.FC = () => {
 
   // Usar el hook original para obtener datos del backend con búsqueda debounced
   const { data: personalData, isLoading, error, refetch } = usePersonalList(fetchPage, fetchLimit, debouncedSearch);
+  // También obtener un conjunto amplio para poblar selectores (opciones globales)
+  const { data: personalAllData } = usePersonalList(1, 1000, '');
+  const personalForOptions = personalAllData?.data?.items || [];
   const deletePersonalMutation = useDeletePersonal();
 
   // Función para verificar si una persona tiene documentación completa
@@ -136,11 +139,28 @@ export const PersonalPage: React.FC = () => {
     return personal.filter(persona => {
       const cargoNorm = (persona.cargo || '').trim().toLowerCase();
       const estadoNorm = (persona.estado_nombre || '').trim().toLowerCase();
-      const licenciaNorm = (persona.licencia_conducir || '').trim().toLowerCase();
+
+      // Licencia: considerar campo legacy y array de licencias
+      const licenciaTarget = (filterLicencia || '').toLowerCase();
+      const licenciaLegacy = (persona.licencia_conducir || '').toString().toLowerCase().trim();
+      const licArr = Array.isArray((persona as any).licencias) ? (persona as any).licencias : [];
 
       if (filterCargo !== 'todos' && cargoNorm !== filterCargo) return false;
       if (filterEstadoPersonal !== 'todos' && estadoNorm !== filterEstadoPersonal) return false;
-      if (filterLicencia !== 'todos' && licenciaNorm !== filterLicencia) return false;
+
+      if (filterLicencia !== 'todos') {
+        if (licenciaLegacy === licenciaTarget) {
+          // matches legacy field
+        } else {
+          // check array entries
+          let matched = false;
+          for (const lic of licArr) {
+            const t = (lic?.tipo || lic?.clase || lic?.numero || '').toString().toLowerCase().trim();
+            if (t && t === licenciaTarget) { matched = true; break; }
+          }
+          if (!matched) return false;
+        }
+      }
 
       const zonaNorm = (persona.zona_geografica || '').trim().toLowerCase();
       if (filterZona !== 'todos' && zonaNorm !== filterZona) return false;
@@ -597,9 +617,38 @@ export const PersonalPage: React.FC = () => {
               className="px-3 py-1 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
             >
               <option value="todos">Todas</option>
-              {Array.from(new Set(personalListOriginal.map(p => (p.licencia_conducir || '').trim()).filter(Boolean))).map((l: any) => (
-                <option key={l} value={l.toLowerCase()}>{l}</option>
-              ))}
+                  {(() => {
+                    const values: string[] = [];
+                    // use broader list for options to show all possible licenses
+                    const source = personalForOptions.length > 0 ? personalForOptions : personalListOriginal;
+                    source.forEach(p => {
+                      const lc = p.licencia_conducir;
+                      if (lc && typeof lc === 'string' && lc.trim()) values.push(lc.trim());
+                      const licArr = (p as any).licencias;
+                      if (Array.isArray(licArr)) {
+                        licArr.forEach((lic: any) => {
+                          const t = lic?.tipo || lic?.clase || lic?.numero || '';
+                          if (t && typeof t === 'string' && t.trim()) values.push(t.trim());
+                        });
+                      }
+                    });
+                    // Lista canónica de clases de licencia que siempre deben mostrarse
+                    const canonical = ['A1','A2','A3','A4','A5','B','C','D','E','F'];
+                    const map = new Map<string, string>();
+                    // Añadir canónicos primero (mantener orden)
+                    canonical.forEach(c => map.set(c.toLowerCase(), c));
+
+                    // Añadir valores detectados dinámicamente
+                    values.forEach(v => {
+                      const key = v.toLowerCase();
+                      if (!map.has(key)) map.set(key, v);
+                    });
+
+                    // Renderizar en el orden: canónicos primero, luego el resto detectado
+                    return Array.from(map.values()).map((l: any) => (
+                      <option key={l} value={l.toLowerCase()}>{l}</option>
+                    ));
+                  })()}
             </select>
           </div>
 

@@ -927,24 +927,73 @@ class ApiService {
     formData.append('file', file);
 
     try {
-      const uploadApi = axios.create({
-        baseURL: API_CONFIG.BASE_URL,
-        timeout: 30000, // 30 segundos para imágenes
-        withCredentials: false,
+      // Use the main axios instance (this.api) so interceptors (Authorization) are applied.
+      // Provide a longer timeout for uploads via request config.
+      const response: AxiosResponse<ApiResponse<any>> = await this.api.post(`/personal/${rut}/upload`, formData, {
+        headers: {
+          // Let axios set the multipart boundary automatically, do not set full Content-Type string
+          'Content-Type': 'multipart/form-data'
+        },
+        timeout: 60000 // 60 seconds for profile image uploads
       });
 
-      const response: AxiosResponse<ApiResponse<any>> = await uploadApi.post(`/personal/${rut}/upload`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-      
       console.log('✅ Imagen de perfil subida exitosamente:', response.data);
       return response.data;
     } catch (error: any) {
       console.error('❌ Error al subir imagen de perfil:', error);
       throw error;
     }
+  }
+
+  // ==================== MÉTODOS ALTERNATIVOS PARA PROFILE-PHOTOS (backend variant) ====================
+
+  // POST /api/profile-photos/:rut/upload
+  async uploadProfilePhoto(rut: string, file: File): Promise<ApiResponse<any>> {
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const response: AxiosResponse<ApiResponse<any>> = await this.api.post(`/profile-photos/${rut}/upload`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        },
+        timeout: 60000
+      });
+      console.log('✅ uploadProfilePhoto response:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.warn('⚠️ uploadProfilePhoto failed, will surface error to caller:', error?.message || error);
+      throw error;
+    }
+  }
+
+  // GET /api/profile-photos/:rut/image
+  async getProfilePhoto(rut: string): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.get(`/profile-photos/${rut}/image`);
+    return response.data;
+  }
+
+  // GET /api/profile-photos/:rut/image/download
+  async downloadProfilePhoto(rut: string): Promise<{ blob: Blob; filename: string }> {
+    const response: any = await this.api.get(`/profile-photos/${rut}/image/download`, { responseType: 'blob' });
+    const contentDisposition = response.headers['content-disposition'];
+    let filename = `profile_${rut}.png`;
+    if (contentDisposition) {
+      const match = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+      if (match && match[1]) filename = match[1].replace(/['"]/g, '');
+    }
+    return { blob: response.data, filename };
+  }
+
+  // DELETE /api/profile-photos/:rut/image
+  async deleteProfilePhoto(rut: string): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.delete(`/profile-photos/${rut}/image`);
+    return response.data;
+  }
+
+  // GET /api/users/me/photo (convenience endpoint for authenticated user)
+  async getUsersMePhoto(): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.get('/users/me/photo');
+    return response.data;
   }
 
   // Obtener imagen de perfil
@@ -1270,25 +1319,77 @@ class ApiService {
 
   // GET /prerequisitos/clientes/:clienteId/match?rut=:rut
   async matchPrerequisitosCliente(clienteId: number, rut: string): Promise<ApiResponse<any>> {
+    const verbose = String(process.env.REACT_APP_PREREQ_VERBOSE_LOG || '').toLowerCase() === 'true';
+    const tag = '[prereq-match]';
     try {
+      if (verbose) console.debug(`${tag} Attempting server match for clienteId=${clienteId} rut=${rut}`);
       const response: AxiosResponse<ApiResponse<any>> = await this.api.get(`/prerequisitos/clientes/${clienteId}/match`, { params: { rut } });
+      if (verbose) console.debug(`${tag} Server match succeeded for clienteId=${clienteId} rut=${rut}`);
       return response.data;
     } catch (err: any) {
-      if (err?.response?.status === 404) {
+      const status = err?.response?.status;
+      if (verbose) console.debug(`${tag} Server match failed with status=${status} for clienteId=${clienteId} rut=${rut}`);
+
+      // Si no existe endpoint de match en backend (404), intentar varios fallbacks.
+      if (status === 404) {
         // Fallback 1: algunos servidores aceptan el match como query sobre el recurso base
         try {
+          if (verbose) console.debug(`${tag} Trying alt1: GET /prerequisitos/clientes/${clienteId}?rut=${rut}&match=1`);
           const alt1: AxiosResponse<ApiResponse<any>> = await this.api.get(`/prerequisitos/clientes/${clienteId}`, { params: { rut, match: 1 } });
+          if (verbose) console.debug(`${tag} alt1 succeeded for clienteId=${clienteId} rut=${rut}`);
           return alt1.data;
         } catch (err2: any) {
+          if (verbose) console.debug(`${tag} alt1 failed: ${err2?.response?.status || err2?.message || err2}`);
           // Fallback 2: ruta alternativa sin el prefijo /prerequisitos
           try {
+            if (verbose) console.debug(`${tag} Trying alt2: GET /clientes/${clienteId}/match?rut=${rut}`);
             const alt2: AxiosResponse<ApiResponse<any>> = await this.api.get(`/clientes/${clienteId}/match`, { params: { rut } });
+            if (verbose) console.debug(`${tag} alt2 succeeded for clienteId=${clienteId} rut=${rut}`);
             return alt2.data;
           } catch (err3: any) {
-            throw err3;
+            if (verbose) console.debug(`${tag} alt2 failed: ${err3?.response?.status || err3?.message || err3}`);
+            // Fallback 3: si el backend no soporta match endpoints, realizar el cálculo en el cliente
+            try {
+              if (verbose) console.debug(`${tag} Using local fallback for clienteId=${clienteId} rut=${rut}`);
+
+              // Obtener los prerrequisitos del cliente
+              const requisitosResp = await this.getClientePrerequisitos(clienteId);
+              const requisitos = ((requisitosResp as any)?.data) || (requisitosResp as any) || [];
+
+              // Obtener documentos de la persona
+              const docsResp = await this.getDocumentosByPersona(rut);
+              const documentos = ((docsResp as any)?.data) || (docsResp as any) || [];
+
+              // Normalizar tipos requeridos y tipos presentes
+              const tiposRequeridos: string[] = (Array.isArray(requisitos) ? requisitos : ((requisitos as any)?.requisitos || [])).map((r: any) => (r.tipo_documento || r.tipo || '').toString().toLowerCase()).filter(Boolean);
+              const tiposPresentes: string[] = (Array.isArray(documentos) ? documentos : ((documentos as any)?.data || [])).map((d: any) => (d.tipo_documento || d.tipo || '').toString().toLowerCase()).filter(Boolean);
+
+              const faltantes = tiposRequeridos.filter((t: string) => !tiposPresentes.includes(t));
+
+              const result = {
+                success: true,
+                data: {
+                  rut,
+                  clienteId,
+                  requisitos,
+                  documentos,
+                  faltantes,
+                  cumple: faltantes.length === 0
+                }
+              } as ApiResponse<any>;
+
+              if (verbose) console.debug(`${tag} Local fallback result for clienteId=${clienteId} rut=${rut}: cumple=${result.data.cumple} faltantes=${result.data.faltantes.length}`);
+              return result;
+            } catch (localErr: any) {
+              if (verbose) console.error(`${tag} Local fallback error:`, localErr);
+              // Si falla el fallback local, propagar el error del intento local
+              throw localErr || err;
+            }
           }
         }
       }
+      // Para otros errores (500, timeout, etc.) dejar que se propaguen
+      if (verbose) console.debug(`${tag} Propagating non-404 error for clienteId=${clienteId} rut=${rut}`);
       throw err;
     }
   }

@@ -86,8 +86,23 @@ const MultiUploadPage: React.FC = () => {
     if (prerrequisitosOptions.length > 0) return;
     try {
       const resp: any = await apiService.getGlobalPrerrequisitos();
-      const list = resp?.data || resp || [];
-      setPrerrequisitosOptions(list);
+      const rawList: any[] = resp?.data || resp || [];
+      // Filtrar prerrequisitos indeseados (no mostrar en UI de MultiUpload)
+      // Usar JSON stringify para capturar variantes en diferentes campos
+      const filtered = rawList.filter((pr) => {
+        try {
+          const text = JSON.stringify(pr).toLowerCase();
+          // Excluir cualquier prerrequisito que mencione 'carnet' o 'contrato' (palabras clave)
+          if (text.includes('carnet')) return false;
+          if (text.includes('contrato')) return false;
+        } catch (e) {
+          // Si no se puede serializar, intentar extraer campos comunes
+          const label = (pr?.nombre || pr?.descripcion || pr?.label || pr?.name || '').toString().toLowerCase();
+          if (label.includes('carnet') || label.includes('contrato')) return false;
+        }
+        return true;
+      });
+      setPrerrequisitosOptions(filtered);
     } catch (err) {
       console.error('Error loading global prerrequisitos via apiService:', err);
       setPrerrequisitosOptions([]);
@@ -271,11 +286,9 @@ const MultiUploadPage: React.FC = () => {
                         </select>
 
                         {/* Mostrar directamente los nombres de prerrequisitos (sin requerir seleccionar "Prerrequisitos" en el select) */}
-                        <div className="mt-2 border rounded p-2 bg-gray-50 max-h-40 overflow-y-auto">
-                          {prerrequisitosOptions.length === 0 ? (
-                            <div className="text-sm text-gray-500">Cargando prerrequisitos...</div>
-                          ) : (
-                            prerrequisitosOptions.map((pr: any) => {
+                        {prerrequisitosOptions.length > 0 && (
+                          <div className="mt-2 border rounded p-2 bg-gray-50 max-h-40 overflow-y-auto">
+                            {prerrequisitosOptions.map((pr: any) => {
                               const selected = files[idx].prerrequisitos || [];
                               const checked = selected.includes(pr.id);
                               const displayLabel = pr.nombre || pr.descripcion || pr.tipo_documento || pr.label || (pr.name) || `ID ${pr.id}`;
@@ -292,9 +305,9 @@ const MultiUploadPage: React.FC = () => {
                                   <span className="text-sm">{displayLabel}</span>
                                 </label>
                               );
-                            })
-                          )}
-                        </div>
+                            })}
+                          </div>
+                        )}
                       </div>
                       <div className="ml-3 flex-shrink-0">
                         <button type="button" onClick={() => removeFileAt(idx)} className="text-red-600 hover:text-red-800">
