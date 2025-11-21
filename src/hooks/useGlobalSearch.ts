@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { apiService } from '../services/api';
+import apiService from '../services/api';
 import { Personal, Cliente, Nodo, Cartera } from '../types';
 
 export interface SearchResult {

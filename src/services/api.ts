@@ -1,5 +1,8 @@
 /* eslint-disable no-console */
-import axios, { AxiosInstance, AxiosResponse } from 'axios';
+// Import axios ESM build to avoid bundlers resolving the `.cjs` file as a static asset.
+// Import only the types for TypeScript correctness.
+import type { AxiosInstance, AxiosResponse } from 'axios';
+import axios from 'axios';
 import { 
   User, 
   Personal, 
@@ -18,24 +21,66 @@ import {
 
 import { API_CONFIG, FILE_CONFIG } from '../config/api';
 
+// Note: tests that mock axios can still mock the module name 'axios'.
+
 class ApiService {
   private api: AxiosInstance;
 
   constructor() {
-    this.api = axios.create({
-      baseURL: API_CONFIG.BASE_URL,
-      timeout: API_CONFIG.TIMEOUT,
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      withCredentials: false, // Cambiar a false para evitar problemas CORS
-    });
+    // Some environments may provide an axios-like object without `create`.
+    // Prefer `axios.create(...)` when available, otherwise use the imported axios directly
+    // and ensure it has `defaults` and `interceptors` shape expected by the rest of the class.
+    const axiosLib = axios;
+    // Defensive check: axios should be an object or function with a `create` method.
+    if (!axiosLib || (typeof axiosLib !== 'object' && typeof axiosLib !== 'function')) {
+      // Common cause: build resolved axios to a static asset (string path) or it's missing.
+      // Throw a descriptive error to help debugging instead of attempting to mutate a primitive.
+      // eslint-disable-next-line no-console
+      console.error('ApiService - invalid axios import:', axiosLib);
+      throw new Error([
+        'Invalid `axios` import detected. Expected axios module (object/function),',
+        `but got a value of type '${typeof axiosLib}'. This often happens when webpack resolves 'axios' to a static asset or when axios is not installed.`,
+        'Remedies: (1) ensure `axios` is installed (`npm install axios`),',
+        "(2) check your project for files named 'axios.*' that could shadow the package import,", 
+        "(3) check webpack aliases or module resolution that may map 'axios' to an asset.",
+      ].join(' '));
+    }
+
+    if (axiosLib && typeof axiosLib.create === 'function') {
+      this.api = axiosLib.create({
+        baseURL: API_CONFIG.BASE_URL,
+        timeout: API_CONFIG.TIMEOUT,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        withCredentials: false,
+      });
+    } else if (axiosLib) {
+      // Use axiosLib directly as a fallback. Attach minimal defaults/interceptors if missing.
+      this.api = axiosLib;
+      if (typeof this.api !== 'object' && typeof this.api !== 'function') {
+        // Shouldn't happen due to the guard above, but keep defensive fallback
+        throw new Error('Axios import is present but is not usable as HTTP client. See console for details.');
+      }
+      if (!this.api.defaults) {
+        this.api.defaults = { baseURL: API_CONFIG.BASE_URL, withCredentials: false } as any;
+      }
+      if (!this.api.interceptors) {
+        this.api.interceptors = { request: { use: () => {} }, response: { use: () => {} } } as any;
+      }
+    } else {
+      throw new Error('Axios is not available in this environment');
+    }
 
     // Mostrar baseURL en consola al iniciar el cliente API para diagnóstico
     // (ayuda a verificar que el frontend está llamando al backend correcto)
-    // eslint-disable-next-line no-console
-    console.log('ApiService - baseURL:', this.api.defaults.baseURL, 'withCredentials:', this.api.defaults.withCredentials);
+    try {
+      // eslint-disable-next-line no-console
+      console.log('ApiService - baseURL:', (this.api.defaults && this.api.defaults.baseURL) || API_CONFIG.BASE_URL, 'withCredentials:', (this.api.defaults && this.api.defaults.withCredentials));
+    } catch (e) {
+      // ignore logging errors
+    }
 
     // Interceptor para agregar token a las peticiones
     this.api.interceptors.request.use(

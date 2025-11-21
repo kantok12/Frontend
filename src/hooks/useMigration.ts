@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiService } from '../services/api';
+import apiService from '../services/api';
 
 // Hook para verificar estado de migración
 export const useMigrationStatus = () => {

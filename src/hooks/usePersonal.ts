@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiService } from '../services/api';
+import apiService from '../services/api';
 import { Personal, UpdatePersonalData, CreatePersonalDisponibleData } from '../types';
 
 // Función para adaptar datos del backend al frontend

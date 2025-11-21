@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiService } from '../services/api';
+import apiService from '../services/api';
 import { useProgramacionSemanal } from './useProgramacion';
 
 // Hook para obtener programación optimizada por cartera y rango de fechas

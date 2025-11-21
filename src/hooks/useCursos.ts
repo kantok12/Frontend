@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiService } from '../services/api';
+import apiService from '../services/api';
 import { Curso, CreateCursoData, UpdateCursoData, CursosResponse } from '../types';
 
 // Hook para obtener todos los cursos con filtros

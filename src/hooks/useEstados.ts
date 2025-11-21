@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { apiService } from '../services/api';
+import apiService from '../services/api';
 
 // Interfaz para los estados
 export interface Estado {

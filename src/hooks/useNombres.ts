@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiService } from '../services/api';
+import apiService from '../services/api';
 
 // Interfaz para la tabla nombres
 export interface Nombre {

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import useClientePrerequisitos from '../hooks/useClientePrerequisitos';
-import useMatchPrerequisitos from '../hooks/useMatchPrerequisitos';
+import { useMatchPrerequisitos } from '../hooks/useMatchPrerequisitos';
 import PrereqForm from '../components/prereq/PrereqForm';
 import PrereqResultsTable from '../components/prereq/PrereqResultsTable';
 import DocumentList from '../components/prereq/DocumentList';

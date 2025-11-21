@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import { apiService } from '../../services/api';
+import apiService from '../../services/api';
 import { CalendarioOptimizado } from '../../components/programacion/CalendarioOptimizado';
 import { LoadingSpinner } from '../../components/common/LoadingSpinner';
 

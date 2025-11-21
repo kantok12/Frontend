@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { apiService } from '../services/api';
+import apiService from '../services/api';
 
 type Params = {
   cartera_id?: number;

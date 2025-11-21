@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiService } from '../services/api';
+import apiService from '../services/api';
 import type { ApiResponse } from '../types';
 
 // Resumen: carteras, personal por cartera y asignaciones por RUT (solo lectura)

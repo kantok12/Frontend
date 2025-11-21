@@ -11,7 +11,7 @@ import { usePersonalAssignments } from '../hooks/usePersonalAssignments';
 import { usePrerequisitos } from '../hooks/usePrerequisitos';
 import { useNavigationState } from '../hooks/useNavigationState';
 import { useUIState } from '../hooks/useUIState';
-import { apiService } from '../services/api';
+import apiService from '../services/api';
 import { useQueryClient } from '@tanstack/react-query';
 import { PrerrequisitosCliente } from '../components/servicios/PrerrequisitosCliente';
 import { PrerrequisitosModal } from '../components/servicios/PrerrequisitosModal';

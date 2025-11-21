@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { apiService } from '../services/api';
+import apiService from '../services/api';
 
 // Hook para obtener contadores globales de documentos y cursos
 export const useGlobalCounters = () => {

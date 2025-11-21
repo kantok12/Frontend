@@ -5,7 +5,7 @@ import { useUploadDocumento, useTiposDocumentos, createDocumentoFormData, valida
 import { mapTipoDocumentoToFolder, folderLabel } from '../utils/documentFolders';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { Link } from 'react-router-dom';
-import { apiService } from '../services/api';
+import apiService from '../services/api';
 
 const MultiUploadPage: React.FC = () => {
   const [selectedRuts, setSelectedRuts] = useState<string[]>([]);
