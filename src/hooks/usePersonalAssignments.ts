@@ -83,7 +83,14 @@ export const usePersonalAssignments = () => {
           return { hasPrereqIssues: true, prereqData: validacion };
         }
         
-        await apiService.assignClienteToPersona(assignmentState.selectedRutToAssign.trim(), selectedCliente.id);
+        // Usar el wrapper seguro que normaliza 201/409 en un formato consistente
+        const safeResp: any = await apiService.assignClienteToPersonaSafe(assignmentState.selectedRutToAssign.trim(), selectedCliente.id);
+        if (!safeResp?.ok) {
+          // Normalizar payload para la UI: puede venir como payload, data o directamente como objeto
+          const payload = safeResp?.payload || safeResp?.data || safeResp;
+          setAssignmentState(prev => ({ ...prev, assigning: false }));
+          return { hasPrereqIssues: true, prereqData: payload };
+        }
       } else if (selectedCartera) {
         await apiService.assignCarteraToPersona(assignmentState.selectedRutToAssign.trim(), selectedCartera.id);
       }
