@@ -2169,6 +2169,12 @@ class ApiService {
     return response.data;
   }
 
+  // GET /api/prerrequisitos/clientes/:clienteId/parciales
+  async getPartialPrerequisitosCliente(clienteId: number, params: { includeGlobal?: boolean; limit?: number; offset?: number }): Promise<ApiResponse<any[]>> {
+    const response: AxiosResponse<ApiResponse<any[]>> = await this.api.get(`/prerequisitos/clientes/${clienteId}/parciales`, { params });
+    return response.data;
+  }
+
   // GET /api/prerrequisitos/globales
   async getGlobalPrerrequisitos(): Promise<ApiResponse<any[]>> {
     const response: AxiosResponse<ApiResponse<any[]>> = await this.api.get('/prerequisitos/globales');

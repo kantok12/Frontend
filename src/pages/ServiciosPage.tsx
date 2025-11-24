@@ -19,6 +19,15 @@ import { PersonalDetailModal } from '../components/personal/PersonalDetailModal'
 import { GlobalPrerrequisitosModal } from '../components/servicios/GlobalPrerrequisitosModal';
 import PrereqAssignModal from '../components/servicios/PrereqAssignModal';
 
+// Helper: normalize RUT to a canonical form (no dots, no dash, uppercase)
+const normalizeRut = (r: any) => {
+  if (!r && r !== 0) return '';
+  try {
+    return String(r).replace(/\./g, '').replace(/-/g, '').toUpperCase().trim();
+  } catch (e) {
+    return String(r || '').trim();
+  }
+};
 export const ServiciosPage: React.FC = () => {
   const queryClient = useQueryClient();
   
@@ -211,15 +220,30 @@ export const ServiciosPage: React.FC = () => {
         // Si viene como array de resultados por rut
         if (Array.isArray(dataArray)) {
           dataArray.forEach((item: any) => {
-            if (item.rut) map[item.rut] = item.data || item;
-            else if (item?.data?.rut) map[item.data.rut] = item.data;
+            const key = item.rut || item?.data?.rut || item?.data?.payload?.rut;
+            const value = item.data || item;
+            if (key) {
+              map[key] = value;
+              const n = normalizeRut(key);
+              if (n) map[n] = value;
+            }
           });
         } else if (typeof dataArray === 'object') {
           // Si el servidor devolvió objeto con claves por rut
           Object.keys(dataArray).forEach((k) => {
             map[k] = dataArray[k];
+            const n = normalizeRut(k);
+            if (n) map[n] = dataArray[k];
           });
         }
+
+        // Log temporal para depuración: mostrar algunas claves
+        try {
+          console.debug('prereqBatch keys (sample):', Object.keys(map).slice(0, 20));
+        } catch (e) {
+          // noop
+        }
+
         setPrereqBatch(map);
       } catch (e: any) {
         console.warn('Error cargando batch prerrequisitos:', e);
@@ -357,24 +381,168 @@ export const ServiciosPage: React.FC = () => {
     await loadPrerequisitosMatch(navigationState.selectedCliente, rut);
   }, [loadPrerequisitosMatch, navigationState.selectedCliente]);
 
-  
+  // Nueva lógica para prerrequisitos parciales
+  const handleFetchPartialPrerequisites = useCallback(async () => {
+    if (!navigationState.selectedCliente) return;
 
-  if (isLoading) {
+    try {
+      setPrereqBatchLoading(true);
+      const response = await apiService.getPartialPrerequisitosCliente(
+        navigationState.selectedCliente.id,
+        {
+          includeGlobal: true,
+          limit: 1000,
+          offset: 0,
+        }
+      );
+
+      const partials = response?.data || [];
+
+      // Log the response for debugging
+      console.debug('Partial prerequisites response:', partials);
+
+      const map: Record<string, any> = {};
+
+      partials.forEach((item: any) => {
+        const key = item.persona?.rut || '';
+        if (key) {
+          map[key] = item;
+        }
+      });
+
+      setPrereqBatch(map);
+    } catch (error) {
+      console.error('Error fetching partial prerequisites:', error);
+      setPrereqBatchError('Error al cargar prerrequisitos parciales');
+    } finally {
+      setPrereqBatchLoading(false);
+    }
+  }, [navigationState.selectedCliente]);
+
+  useEffect(() => {
+    if (uiState.activeTab === 'nodos') {
+      handleFetchPartialPrerequisites();
+    }
+  }, [uiState.activeTab, handleFetchPartialPrerequisites]);
+
+  // Reemplazar la lógica para 'Personal con Requisitos Globales'
+  const renderPartialPrerequisites = () => {
+    if (!prereqBatch) {
+      return <p>No se encontraron datos.</p>;
+    }
+
     return (
-      <div className="flex justify-center items-center h-64">
-        <LoadingSpinner size="lg" />
+      <div>
+        {Object.values(prereqBatch).map((persona, index) => (
+          <div key={index} style={{ marginBottom: '20px', border: '1px solid #ccc', padding: '10px', borderRadius: '5px' }}>
+            <h3>{persona.nombres || 'Nombre no disponible'} ({persona.rut || 'RUT no disponible'})</h3>
+            <p><strong>Cargo:</strong> {persona.cargo || 'Cargo no disponible'}</p>
+            <p><strong>Documentos Faltantes:</strong> {persona.faltantes?.join(', ') || 'Ninguno'}</p>
+            <h4>Documentos:</h4>
+            <ul>
+              {persona.documentos?.length > 0 ? (
+                persona.documentos.map((doc: { tipo: string; vencido: boolean; fecha_subida: string }, docIndex: number) => (
+                  <li key={docIndex}>
+                    {doc.tipo} - {doc.vencido ? 'Vencido' : 'Vigente'} (Subido: {new Date(doc.fecha_subida).toLocaleDateString()})
+                  </li>
+                ))
+              ) : (
+                <li>No hay documentos disponibles</li>
+              )}
+            </ul>
+          </div>
+        ))}
       </div>
     );
-  }
+  };
 
-  if (error) {
+  // Add a type definition for the DebugWindow component
+  const DebugWindow: React.FC<{ data: any }> = ({ data }) => {
     return (
-      <div className="text-center py-8 text-red-500">
-        <p>Error al cargar los datos</p>
+      <div style={{ position: 'fixed', bottom: 0, right: 0, width: '400px', height: '300px', overflow: 'auto', backgroundColor: '#f9f9f9', border: '1px solid #ccc', padding: '10px', zIndex: 1000 }}>
+        <h4 style={{ margin: '0 0 10px 0', fontSize: '14px', fontWeight: 'bold' }}>Debug Data</h4>
+        <pre style={{ fontSize: '12px', whiteSpace: 'pre-wrap', wordWrap: 'break-word' }}>{JSON.stringify(data, null, 2)}</pre>
+        <h4 style={{ margin: '10px 0 5px 0', fontSize: '14px', fontWeight: 'bold' }}>Nombres de Personal</h4>
+        <ul>
+          {data && Object.values(data).map((persona: any, index: number) => (
+            <li key={index}>{persona.nombres || 'Nombre no disponible'}</li>
+          ))}
+        </ul>
       </div>
     );
-  }
+  };
 
+  // Modify fetchNamesForRuts to also fetch cargos
+  const fetchNamesAndCargosForRuts = async (ruts: string[], cache: Record<string, { nombre: string; cargo: string }>) => {
+    const dataMap: Record<string, { nombre: string; cargo: string }> = { ...cache };
+    const rutsToFetch = ruts.filter((rut) => !dataMap[rut]);
+
+    await Promise.all(
+      rutsToFetch.map(async (rut) => {
+        try {
+          const response = await apiService.getNombreByRut(rut);
+          const nombre = response?.data?.nombre || response?.data?.nombres || 'Nombre no disponible';
+          const cargo = response?.data?.cargo || 'Cargo no disponible';
+          dataMap[rut] = { nombre, cargo };
+        } catch (error) {
+          console.error(`Error fetching data for RUT ${rut}:`, error);
+          dataMap[rut] = { nombre: 'Error al obtener nombre', cargo: 'Error al obtener cargo' };
+        }
+      })
+    );
+
+    return dataMap;
+  };
+
+  // Update the state to cache fetched names and cargos
+  const [dataCache, setDataCache] = useState<Record<string, { nombre: string; cargo: string }>>({});
+
+  // Update the useEffect to use the new cache
+  useEffect(() => {
+    const updateDataInDebugData = async () => {
+      if (!prereqBatch) return;
+      const ruts = Object.keys(prereqBatch);
+      const dataMap = await fetchNamesAndCargosForRuts(ruts, dataCache);
+
+      // Update the debug data with fetched names and cargos
+      const updatedBatch = { ...prereqBatch };
+      Object.keys(updatedBatch).forEach((rut) => {
+        updatedBatch[rut].nombres = dataMap[rut]?.nombre;
+        updatedBatch[rut].cargo = dataMap[rut]?.cargo;
+      });
+
+      setDataCache(dataMap); // Cache the fetched data
+      setPrereqBatch(updatedBatch);
+    };
+
+    updateDataInDebugData();
+  }, [prereqBatch, dataCache]);
+
+  // Filter out people missing all documents
+  useEffect(() => {
+    const filterIncompleteDocuments = () => {
+      if (!prereqBatch) return;
+
+      const filteredBatch = Object.fromEntries(
+        Object.entries(prereqBatch).filter(([_, data]) => {
+          const faltantes = data?.faltantes || [];
+          const documentos = data?.documentos || [];
+
+          // Exclude people who are missing all documents
+          return faltantes.length > 0 && documentos.length > 0;
+        })
+      );
+
+      setPrereqBatch(filteredBatch);
+    };
+
+    filterIncompleteDocuments();
+  }, [prereqBatch]);
+
+  // Hide the debug data table
+  const [showDebugData, setShowDebugData] = useState(false);
+
+  // Update the UI to include the new section
   return (
     <div className="p-6 max-w-7xl mx-auto">
       {/* Header */}
@@ -691,7 +859,16 @@ export const ServiciosPage: React.FC = () => {
                   const assignedList: any[] = [];
 
                   filtered.forEach((p: any) => {
-                    const info = prereqBatch && prereqBatch[p.rut] ? prereqBatch[p.rut] : null;
+                    let info: any = null;
+                    if (prereqBatch) {
+                      const rawKey = p?.rut || String(p?.rut || '');
+                      const nKey = normalizeRut(rawKey);
+                      info = prereqBatch[rawKey] || (nKey ? prereqBatch[nKey] : null) || null;
+                      // Debug lookup to help diagnose mismatches between formats
+                      try {
+                        console.debug('prereq lookup', { personRut: rawKey, normalizedRut: nKey, found: !!info });
+                      } catch (e) {}
+                    }
                     const faltantes = info?.faltantes || [];
                     const meetsGlobal = info?.global_ok || info?.cumple_global || (info?.global && info.global === true);
 
@@ -809,13 +986,8 @@ export const ServiciosPage: React.FC = () => {
                       </div>
 
                       <div className="bg-white border border-gray-300 rounded-r-md shadow-sm overflow-hidden">
-                        <div className="px-3 py-2 bg-gray-50 border-b border-gray-300 text-sm font-semibold">Personal con Requisitos Globales</div>
-                        {globalPageItems.length === 0 ? (
-                          <div className="p-3 text-sm text-gray-500">No hay personas en esta categoría</div>
-                        ) : (
-                          <ul className="text-sm text-gray-800 divide-y divide-gray-200">{globalPageItems.map(renderPersonItem)}</ul>
-                        )}
-                        <div className="px-3 py-2">{renderPagination(currentGlobalPage, globalTotalPages, (n: number) => setPageGlobal(n), globalTotal, globalStart)}</div>
+                        <div className="px-3 py-2 bg-gray-50 border-b border-gray-300 text-sm font-semibold">Personal con Prerrequisitos Parciales</div>
+                        <div className="p-3">{renderPartialPrerequisites()}</div>
                       </div>
                     </div>
                   );
@@ -1237,6 +1409,9 @@ export const ServiciosPage: React.FC = () => {
         onClose={() => { setShowPersonalDetailModalLocal(false); setSelectedPersonalDetail(null); }}
         onUpdate={() => loadAssignedPersonal(navigationState.selectedCartera, navigationState.selectedCliente, navigationState.selectedNodo)}
       />
+
+      {/* Debug Window */}
+      {showDebugData && <DebugWindow data={prereqBatch} />}
     </div>
   );
 };
