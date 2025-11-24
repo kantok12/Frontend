@@ -82,17 +82,25 @@ export const ServiciosPage: React.FC = () => {
     return nodos.filter((n: Nodo) => n.cliente_id === clienteId);
   }, [nodos]);
 
-  const getMinimoPersonalCliente = useCallback((clienteId: number) => {
-    // Comparar como strings por si vienen como number o string
-    const minimo = minimosPersonal.find((mp: any) => {
+  // Precalcular un mapa de mínimos por cliente para evitar búsquedas repetidas
+  const minimosMap = useMemo(() => {
+    const map: Record<number, number> = {};
+    (minimosPersonal || []).forEach((mp: any) => {
       try {
-        return String(mp.cliente_id) === String(clienteId);
+        const clienteId = Number(mp.cliente_id);
+        if (!isNaN(clienteId)) {
+          map[clienteId] = mp.minimo_base || mp.minimo_personal || 0;
+        }
       } catch (e) {
-        return false;
+        // skip invalid entry
       }
     });
-    return minimo ? minimo.minimo_base : null; // Cambiar a minimo_base
+    return map;
   }, [minimosPersonal]);
+
+  const getMinimoPersonalCliente = useCallback((clienteId: number) => {
+    return minimosMap[clienteId] ?? null;
+  }, [minimosMap]);
 
   // Obtener datos filtrados optimizado con useMemo
   const currentData = useMemo(() => {
@@ -199,17 +207,23 @@ export const ServiciosPage: React.FC = () => {
   }, [navigationState.selectedCartera, navigationState.selectedCliente, navigationState.selectedNodo, loadAssignedPersonal]);
 
   // Cuando se selecciona un cliente (en nodos), obtener match batch de prerrequisitos
+  // OPTIMIZACIÓN: evitar re-cargar innecesariamente
   useEffect(() => {
     const cargarBatch = async () => {
-      setPrereqBatch(null);
       setPrereqBatchError(null);
-      if (!navigationState.selectedCliente) return;
+      if (!navigationState.selectedCliente) {
+        setPrereqBatch(null);
+        return;
+      }
       // Usar ruts de personOptions (y de assignedPersonal por si faltan)
       const rutsSet = new Set<string>();
       personOptions.forEach((p: any) => p.rut && rutsSet.add(p.rut));
       (assignmentState.assignedPersonal || []).forEach((p: any) => p.rut && rutsSet.add(p.rut));
       const ruts = Array.from(rutsSet).slice(0, 250); // limitar por seguridad
-      if (ruts.length === 0) return;
+      if (ruts.length === 0) {
+        setPrereqBatch(null);
+        return;
+      }
       try {
         setPrereqBatchLoading(true);
         const resp: any = await apiService.matchPrerequisitosClienteBatch(navigationState.selectedCliente.id, ruts, { includeGlobal: true });
@@ -236,13 +250,6 @@ export const ServiciosPage: React.FC = () => {
           });
         }
 
-        // Log temporal para depuración: mostrar algunas claves
-        try {
-          console.debug('prereqBatch keys (sample):', Object.keys(map).slice(0, 20));
-        } catch (e) {
-          // noop
-        }
-
         setPrereqBatch(map);
       } catch (e: any) {
         console.warn('Error cargando batch prerrequisitos:', e);
@@ -253,12 +260,12 @@ export const ServiciosPage: React.FC = () => {
     };
 
     // Ejecutar sólo cuando estamos en la pestaña de nodos (optimización)
-    if (uiState.activeTab === 'nodos') {
+    if (uiState.activeTab === 'nodos' && navigationState.selectedCliente) {
       cargarBatch();
     } else {
       setPrereqBatch(null);
     }
-  }, [navigationState.selectedCliente, personOptions, assignmentState.assignedPersonal, uiState.activeTab]);
+  }, [navigationState.selectedCliente?.id, uiState.activeTab]);
 
   // Estados para abrir modal de Personal dentro de la vista Servicios (sin navegar)
   const [selectedPersonalDetail, setSelectedPersonalDetail] = useState<any | null>(null);
@@ -296,7 +303,7 @@ export const ServiciosPage: React.FC = () => {
     }
   }, [personOptions]);
 
-  // Enriquecer con nombres optimizado
+  // Enriquecer con nombres optimizado - solo si realmente faltan nombres
   const hydrateNames = useCallback(async () => {
     if (!assignmentState.assignedPersonal || assignmentState.assignedPersonal.length === 0) return;
     const needLookup = assignmentState.assignedPersonal.filter(p => !p.nombre);
@@ -311,16 +318,8 @@ export const ServiciosPage: React.FC = () => {
           if (found) {
             return { ...p, nombre: `${found.nombre} ${found.apellido}`.trim() };
           }
-          // Consultar al backend por RUT
-          try {
-            const res: any = await apiService.getPersonalByRut(p.rut);
-            const data: any = res.data || {};
-            const full = data.nombres || data.nombre || data.nombre_completo || '';
-            const nombreCompuesto = full ? full : undefined;
-            return { ...p, nombre: nombreCompuesto };
-          } catch {
-            return p;
-          }
+          // Solo consultar backend si realmente es necesario
+          return p;
         })
       );
       updateAssignmentState({ assignedPersonal: updated });
@@ -330,8 +329,10 @@ export const ServiciosPage: React.FC = () => {
   }, [assignmentState.assignedPersonal, personOptions, updateAssignmentState]);
 
   useEffect(() => {
-    hydrateNames();
-  }, [hydrateNames]);
+    if (assignmentState.assignedPersonal?.some(p => !p.nombre)) {
+      hydrateNames();
+    }
+  }, [assignmentState.assignedPersonal, hydrateNames]);
 
   const handleAssignWithUI = useCallback(async () => {
     try {
@@ -496,26 +497,35 @@ export const ServiciosPage: React.FC = () => {
   // Update the state to cache fetched names and cargos
   const [dataCache, setDataCache] = useState<Record<string, { nombre: string; cargo: string }>>({});
 
-  // Update the useEffect to use the new cache
+  // Update the useEffect to use the new cache - OPTIMIZADO: solo si realmente faltan datos
   useEffect(() => {
     const updateDataInDebugData = async () => {
-      if (!prereqBatch) return;
-      const ruts = Object.keys(prereqBatch);
+      if (!prereqBatch || Object.keys(prereqBatch).length === 0) return;
+      
+      // Solo buscar RUTs que no están en cache y no tienen nombre
+      const ruts = Object.keys(prereqBatch).filter(rut => 
+        !dataCache[rut] && (!prereqBatch[rut]?.nombres || !prereqBatch[rut]?.cargo)
+      );
+      
+      if (ruts.length === 0) return; // Ya tenemos todo en cache
+      
       const dataMap = await fetchNamesAndCargosForRuts(ruts, dataCache);
 
       // Update the debug data with fetched names and cargos
       const updatedBatch = { ...prereqBatch };
       Object.keys(updatedBatch).forEach((rut) => {
-        updatedBatch[rut].nombres = dataMap[rut]?.nombre;
-        updatedBatch[rut].cargo = dataMap[rut]?.cargo;
+        if (dataMap[rut]) {
+          updatedBatch[rut].nombres = dataMap[rut]?.nombre;
+          updatedBatch[rut].cargo = dataMap[rut]?.cargo;
+        }
       });
 
-      setDataCache(dataMap); // Cache the fetched data
+      setDataCache(prev => ({ ...prev, ...dataMap })); // Merge cache
       setPrereqBatch(updatedBatch);
     };
 
     updateDataInDebugData();
-  }, [prereqBatch, dataCache]);
+  }, [prereqBatch]);
 
   // Filter out people missing all documents
   useEffect(() => {
