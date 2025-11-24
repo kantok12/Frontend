@@ -21,19 +21,6 @@ import {
 
 import { API_CONFIG, FILE_CONFIG } from '../config/api';
 
-// Helper: normaliza un tipo de documento para comparaciones tolerantes
-function normalizeTipo(input: any): string {
-  if (!input && input !== 0) return '';
-  let s = String(input).toLowerCase().trim();
-  // Normalizar acentos (NFKD) y eliminar marcas diacríticas
-  s = s.normalize ? s.normalize('NFKD').replace(/\p{Diacritic}/gu, '') : s;
-  // Reemplazar cualquier carácter no alfanumérico por underscore
-  s = s.replace(/[^a-z0-9]+/g, '_');
-  // Quitar underscores extra al inicio/fin y colapsar múltiples
-  s = s.replace(/^_+|_+$/g, '').replace(/_+/g, '_');
-  return s;
-}
-
 // Note: tests that mock axios can still mock the module name 'axios'.
 
 class ApiService {
@@ -1324,38 +1311,8 @@ class ApiService {
   async assignClienteToPersona(rut: string, clienteId: number, options?: { enforce?: boolean }): Promise<ApiResponse<any>> {
     const payload: any = { cliente_id: clienteId };
     if (options && typeof options.enforce !== 'undefined') payload.enforce = options.enforce;
-    try {
-      const response: AxiosResponse<ApiResponse<any>> = await this.api.post(`/asignaciones/persona/${rut}/clientes`, payload);
-      return response.data;
-    } catch (err: any) {
-      const status = err?.response?.status;
-      // Si el backend devuelve 409 con un payload explicativo, devolverlo para manejo uniforme en frontend
-      if (status === 409 && err.response?.data) {
-        return err.response.data as ApiResponse<any>;
-      }
-      throw err;
-    }
-  }
-
-  // Wrapper que normaliza la respuesta de assignClienteToPersona para uso en UI
-  // Devuelve un objeto uniforme: { ok: boolean, code?: string, message?: string, payload?: any }
-  async assignClienteToPersonaSafe(rut: string, clienteId: number, options?: { enforce?: boolean }): Promise<{ ok: boolean; code?: string; message?: string; payload?: any }> {
-    try {
-      const resp: any = await this.assignClienteToPersona(rut, clienteId, options);
-
-      // resp puede venir ya como ApiResponse o como body con payload
-      const code = resp?.code || resp?.data?.code;
-      const message = resp?.message || resp?.data?.message || (resp?.data && typeof resp.data === 'string' ? resp.data : undefined);
-      const payload = resp?.payload || resp?.data?.payload || resp?.data || resp;
-
-      // Si el backend devolvió un código de error o success === false, marcar ok=false
-      const ok = !(resp && ((resp.success === false) || (resp?.code && String(resp.code).toLowerCase().includes('prereq'))));
-
-      return { ok, code, message, payload };
-    } catch (err: any) {
-      // Si assignClienteToPersona lanza (no 409), propagar como error para manejo superior
-      throw err;
-    }
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.post(`/asignaciones/persona/${rut}/clientes`, payload);
+    return response.data;
   }
 
   // Eliminar asignación de cliente
@@ -1440,51 +1397,17 @@ class ApiService {
             try {
               if (verbose) console.debug(`${tag} Using local fallback for clienteId=${clienteId} rut=${rut}`);
 
-              // Intentar obtener los prerrequisitos del cliente; si el endpoint no existe devolvemos
-              // una respuesta clara en vez de seguir haciendo requests que provoquen 404 repetidos.
-              let requisitosResp: any;
-              try {
-                requisitosResp = await this.getClientePrerequisitos(clienteId);
-              } catch (reqErr: any) {
-                const reqStatus = reqErr?.response?.status;
-                if (reqStatus === 404) {
-                  if (verbose) console.debug(`${tag} No prerrequisitos endpoint for clienteId=${clienteId} (404)`);
-                  return {
-                    success: false,
-                    message: 'No se encontraron prerrequisitos definidos para este cliente en el backend',
-                    data: { clienteId, rut }
-                  } as ApiResponse<any>;
-                }
-                // Otros errores: rethrow
-                throw reqErr;
-              }
-
+              // Obtener los prerrequisitos del cliente
+              const requisitosResp = await this.getClientePrerequisitos(clienteId);
               const requisitos = ((requisitosResp as any)?.data) || (requisitosResp as any) || [];
 
               // Obtener documentos de la persona
               const docsResp = await this.getDocumentosByPersona(rut);
               const documentos = ((docsResp as any)?.data) || (docsResp as any) || [];
 
-              // Normalizar tipos requeridos y tipos presentes con función tolerante
-              const rawReqs = Array.isArray(requisitos) ? requisitos : ((requisitos as any)?.requisitos || []);
-              const tiposRequeridos: string[] = rawReqs.map((r: any) => normalizeTipo(r.tipo_documento || r.tipo || r.nombre_documento || '')).filter(Boolean);
-              const rawDocs = Array.isArray(documentos) ? documentos : ((documentos as any)?.data || []);
-
-              // Excluir documentos vencidos al considerar tipos presentes.
-              const now = Date.now();
-              const validDocs = rawDocs.filter((d: any) => {
-                // Preferir campo booleano `vencido` si existe
-                if (typeof d.vencido === 'boolean') return d.vencido === false;
-                // Si hay fecha de vencimiento, compararla
-                if (d.fecha_vencimiento) {
-                  const t = Date.parse(d.fecha_vencimiento);
-                  if (!isNaN(t)) return t > now;
-                }
-                // Si no hay información, asumir válido
-                return true;
-              });
-
-              const tiposPresentes: string[] = validDocs.map((d: any) => normalizeTipo(d.tipo_documento || d.tipo || d.nombre_documento || '')).filter(Boolean);
+              // Normalizar tipos requeridos y tipos presentes
+              const tiposRequeridos: string[] = (Array.isArray(requisitos) ? requisitos : ((requisitos as any)?.requisitos || [])).map((r: any) => (r.tipo_documento || r.tipo || '').toString().toLowerCase()).filter(Boolean);
+              const tiposPresentes: string[] = (Array.isArray(documentos) ? documentos : ((documentos as any)?.data || [])).map((d: any) => (d.tipo_documento || d.tipo || '').toString().toLowerCase()).filter(Boolean);
 
               const faltantes = tiposRequeridos.filter((t: string) => !tiposPresentes.includes(t));
 
@@ -1494,12 +1417,9 @@ class ApiService {
                   rut,
                   clienteId,
                   requisitos,
-                  documentos: rawDocs,
-                  documentos_validos: validDocs,
+                  documentos,
                   faltantes,
-                  cumple: faltantes.length === 0,
-                  required_count: tiposRequeridos.length,
-                  provided_count: tiposPresentes.length
+                  cumple: faltantes.length === 0
                 }
               } as ApiResponse<any>;
 
@@ -1531,20 +1451,6 @@ class ApiService {
       return response.data;
     } catch (err: any) {
       console.warn('⚠️ matchPrerrequisitosClienteBatch - batch endpoint not available, falling back to per-rut requests', err?.message || err);
-
-      // Antes de lanzar N requests por rut, comprobar si existen prerrequisitos para este cliente.
-      try {
-        await this.getClientePrerequisitos(clienteId);
-      } catch (pErr: any) {
-        const status = pErr?.response?.status;
-        if (status === 404) {
-          // Si no hay endpoint de prerrequisitos, devolver una respuesta informativa para todo el batch
-          const data = ruts.map(rut => ({ rut, success: false, message: 'No se encontraron prerrequisitos definidos para este cliente en el backend' }));
-          return { success: false, data } as unknown as ApiResponse<any[]>;
-        }
-        // Si otro error ocurrió al obtener prerrequisitos, seguir con el fallback por rut
-      }
-
       // Fallback: call single-match endpoint per rut sequentially (or in parallel)
       const promises = ruts.map(rut => this.matchPrerequisitosCliente(clienteId, rut).then(res => ({ rut, data: res })).catch(e => ({ rut, error: e })));
       const settled = await Promise.all(promises);
@@ -2163,9 +2069,9 @@ class ApiService {
 
   // ==================== MÉTODOS PARA PRERREQUISITOS ====================
   
-  // GET /api/prerequisitos/clientes/:cliente_id
+  // GET /api/prerrequisitos/cliente/:cliente_id
   async getPrerrequisitosByCliente(clienteId: number): Promise<ApiResponse<any[]>> {
-    const response: AxiosResponse<ApiResponse<any[]>> = await this.api.get(`/prerequisitos/clientes/${clienteId}`);
+    const response: AxiosResponse<ApiResponse<any[]>> = await this.api.get(`/prerrequisitos/cliente/${clienteId}`);
     return response.data;
   }
 
@@ -2177,13 +2083,13 @@ class ApiService {
 
   // GET /api/prerrequisitos/globales
   async getGlobalPrerrequisitos(): Promise<ApiResponse<any[]>> {
-    const response: AxiosResponse<ApiResponse<any[]>> = await this.api.get('/prerequisitos/globales');
+    const response: AxiosResponse<ApiResponse<any[]>> = await this.api.get('/prerrequisitos/globales');
     return response.data;
   }
 
   // GET /api/prerrequisitos
   async getPrerrequisitos(): Promise<ApiResponse<any[]>> {
-    const response: AxiosResponse<ApiResponse<any[]>> = await this.api.get('/prerequisitos');
+    const response: AxiosResponse<ApiResponse<any[]>> = await this.api.get('/prerrequisitos');
     return response.data;
   }
 
@@ -2194,19 +2100,19 @@ class ApiService {
     if (payload.cliente_id === null) {
       delete payload.cliente_id;
     }
-    const response: AxiosResponse<ApiResponse<any>> = await this.api.post('/prerequisitos', payload);
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.post('/prerrequisitos', payload);
     return response.data;
   }
 
   // PUT /api/prerrequisitos/:id
   async actualizarPrerrequisito(id: number, data: any): Promise<ApiResponse<any>> {
-    const response: AxiosResponse<ApiResponse<any>> = await this.api.put(`/prerequisitos/${id}`, data);
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.put(`/prerrequisitos/${id}`, data);
     return response.data;
   }
 
   // DELETE /api/prerrequisitos/:id
   async eliminarPrerrequisito(id: number): Promise<ApiResponse<any>> {
-    const response: AxiosResponse<ApiResponse<any>> = await this.api.delete(`/prerequisitos/${id}`);
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.delete(`/prerrequisitos/${id}`);
     return response.data;
   }
 

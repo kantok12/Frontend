@@ -69,7 +69,7 @@ export const useAsignaciones = (rut: string) => {
     staleTime: 60 * 1000,
   });
 
-  const mutateAndRefetch = async (fn: () => Promise<any>) => {
+  const mutateAndRefetch = async (fn: () => Promise<ApiResponse<any>>) => {
     const res = await fn();
     await queryClient.invalidateQueries({ queryKey: ['asignaciones', rut] });
     return res;
@@ -84,7 +84,7 @@ export const useAsignaciones = (rut: string) => {
   });
 
   const assignCliente = useMutation({
-    mutationFn: (clienteId: number) => mutateAndRefetch(() => apiService.assignClienteToPersonaSafe(rut, clienteId))
+    mutationFn: (clienteId: number) => mutateAndRefetch(() => apiService.assignClienteToPersona(rut, clienteId))
   });
 
   const unassignCliente = useMutation({

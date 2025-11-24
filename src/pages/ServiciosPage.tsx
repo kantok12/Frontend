@@ -17,7 +17,6 @@ import { PrerrequisitosCliente } from '../components/servicios/PrerrequisitosCli
 import { PrerrequisitosModal } from '../components/servicios/PrerrequisitosModal';
 import { PersonalDetailModal } from '../components/personal/PersonalDetailModal';
 import { GlobalPrerrequisitosModal } from '../components/servicios/GlobalPrerrequisitosModal';
-import PrereqAssignModal from '../components/servicios/PrereqAssignModal';
 
 // Helper: normalize RUT to a canonical form (no dots, no dash, uppercase)
 const normalizeRut = (r: any) => {
@@ -1382,24 +1381,6 @@ export const ServiciosPage: React.FC = () => {
       <GlobalPrerrequisitosModal
         isOpen={uiState.showGlobalPrerrequisitosModal}
         onClose={() => handleModalToggle('showGlobalPrerrequisitosModal', false)}
-      />
-
-      <PrereqAssignModal
-        isOpen={uiState.showPrereqPanel}
-        onClose={() => handleModalToggle('showPrereqPanel', false)}
-        clienteId={navigationState.selectedCliente?.id || null}
-        rut={assignmentState.selectedRutToAssign || null}
-        prereqData={prereqState.prereqData}
-        onAfterAssign={() => {
-          handleModalToggle('showPrereqPanel', false);
-          loadAssignedPersonal(navigationState.selectedCartera, navigationState.selectedCliente, navigationState.selectedNodo);
-        }}
-        onOpenUpload={() => {
-          // open the full prerrequisitos modal for uploading
-          handleModalToggle('showPrerrequisitosModal', true);
-          // set the selected rut and prerq data so the modal can focus on upload for this RUT
-          updatePrereqState({ selectedRutForMatch: assignmentState.selectedRutToAssign, prereqData: prereqState.prereqData });
-        }}
       />
 
       {/* Modal local para ver detalle de Personal sin navegar fuera de Servicios */}
