@@ -156,8 +156,8 @@ function App() {
         }
       />
 
-      {/* Default redirect */}
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      {/* Default redirect - always go to login first */}
+      <Route path="/" element={<Navigate to="/login" replace />} />
 
       {/* 404 route */}
       <Route

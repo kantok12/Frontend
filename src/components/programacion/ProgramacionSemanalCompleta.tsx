@@ -31,8 +31,8 @@ export const ProgramacionSemanalCompleta: React.FC = () => {
       try {
         // Parámetros: cartera_id y fecha (puedes ajustar según tu lógica de selección)
         const carteraId = carteras.length > 0 ? carteras[0].id : 6; // Por defecto 6 si no hay carteras
-  // Usar fecha fija hasta conocer la estructura real de semanaInfo
-  const fecha = '2025-11-03';
+        // Usar la fecha de inicio de la semana seleccionada (semanaInfo.fechaInicio)
+        const fecha = semanaInfo.fechaInicio.toISOString().split('T')[0]; // Formato YYYY-MM-DD
         const url = `/api/programacion-optimizada?cartera_id=${carteraId}&fecha=${fecha}`;
         const response = await fetch(url);
         const result = await response.json();
