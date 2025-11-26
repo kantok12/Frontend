@@ -1052,23 +1052,25 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                       console.log('✅ Renderizando documento:', documento.nombre_documento);
                       return (
                       <div key={documento.id} className="bg-white rounded-lg border border-purple-200 p-3 hover:shadow-md transition-shadow">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1 min-w-0 pr-3">
                             <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center">
-                                <span className="text-lg mr-2">{getDocumentIcon(documento.tipo_documento)}</span>
-                                <h4 className="font-semibold text-purple-900 text-sm">{documento.nombre_documento}</h4>
-                                <span className={`ml-2 text-xs px-2 py-1 rounded-full border ${getDocumentColor(documento.tipo_documento)}`}>{documento.tipo_documento}</span>
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center min-w-0">
+                                  <span className="text-lg mr-2 flex-shrink-0">{getDocumentIcon(documento.tipo_documento)}</span>
+                                  <h4 className="font-semibold text-purple-900 text-sm max-w-[20rem] truncate">{documento.nombre_documento}</h4>
+                                </div>
+                                <span className={`ml-2 text-xs px-2 py-1 rounded-full border flex-shrink-0 ${getDocumentColor(documento.tipo_documento)}`}>{documento.tipo_documento}</span>
                               </div>
                               <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-800">Activo</span>
                             </div>
                             <div className="space-y-1">
-                              <p className="text-xs text-purple-600"><span className="font-medium">Archivo:</span> <span className="inline-block max-w-full break-words whitespace-normal">{truncateFilename(documento.nombre_original || documento.nombre_archivo || documento.nombre_documento, 60)}</span></p>
+                              <p className="text-xs text-purple-600"><span className="font-medium">Archivo:</span> <span className="inline-block max-w-[20rem] truncate">{truncateFilename(documento.nombre_original || documento.nombre_archivo || documento.nombre_documento, 60)}</span></p>
                                 {(() => {
                                   const ubic = documento.ruta_archivo || (documento.ruta_local as any) || documento.url || (documento.drive_file_id ? `drive://${documento.drive_file_id}` : null);
                                   if (!ubic) return null;
                                   return (
-                                    <p className="text-xs text-gray-500"><span className="font-medium">Ubicación:</span> <span className="inline-block max-w-full break-words whitespace-normal">{truncateFilename(ubic, 80)}</span></p>
+                                    <p className="text-xs text-gray-500"><span className="font-medium">Ubicación:</span> <span className="inline-block max-w-[20rem] truncate">{truncateFilename(ubic, 80)}</span></p>
                                   );
                                 })()}
                               <p className="text-xs text-gray-500"><span className="font-medium">Subido:</span> {new Date(documento.fecha_subida).toLocaleDateString('es-CL', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
@@ -1083,7 +1085,7 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                               )}
                             </div>
                           </div>
-                          <div className="flex flex-col space-y-1 ml-3">
+                          <div className="flex flex-col space-y-1 ml-3 flex-shrink-0">
                             <button 
                               onClick={() => handleDownloadDocument(documento)}
                               disabled={downloadMutation.isLoading}
@@ -1151,23 +1153,25 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                   <div className="space-y-3">
                     {personalDocuments.map((documento: any) => (
                       <div key={documento.id} className="bg-white rounded-lg border border-orange-200 p-3 hover:shadow-md transition-shadow">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1 min-w-0 pr-3">
                             <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center">
-                                <span className="text-lg mr-2">{getDocumentIcon(documento.tipo_documento)}</span>
-                                <h4 className="font-semibold text-orange-900 text-sm">{documento.nombre_documento}</h4>
-                                <span className={`ml-2 text-xs px-2 py-1 rounded-full border ${getDocumentColor(documento.tipo_documento)}`}>{documento.tipo_documento}</span>
+                                <div className="flex items-center justify-between">
+                                <div className="flex items-center min-w-0">
+                                  <span className="text-lg mr-2 flex-shrink-0">{getDocumentIcon(documento.tipo_documento)}</span>
+                                  <h4 className="font-semibold text-orange-900 text-sm max-w-[20rem] truncate">{documento.nombre_documento}</h4>
+                                </div>
+                                <span className={`ml-2 text-xs px-2 py-1 rounded-full border flex-shrink-0 ${getDocumentColor(documento.tipo_documento)}`}>{documento.tipo_documento}</span>
                               </div>
                               <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-800">Activo</span>
                             </div>
                             <div className="space-y-1">
-                              <p className="text-xs text-orange-600"><span className="font-medium">Archivo:</span> <span className="inline-block max-w-full break-words whitespace-normal">{truncateFilename(documento.nombre_original || documento.nombre_archivo || documento.nombre_documento, 60)}</span></p>
+                              <p className="text-xs text-orange-600"><span className="font-medium">Archivo:</span> <span className="inline-block max-w-[20rem] truncate">{truncateFilename(documento.nombre_original || documento.nombre_archivo || documento.nombre_documento, 60)}</span></p>
                                 {(() => {
                                   const ubic = documento.ruta_archivo || (documento.ruta_local as any) || documento.url || (documento.drive_file_id ? `drive://${documento.drive_file_id}` : null);
                                   if (!ubic) return null;
                                   return (
-                                    <p className="text-xs text-gray-500"><span className="font-medium">Ubicación:</span> <span className="inline-block max-w-full break-words whitespace-normal">{truncateFilename(ubic, 80)}</span></p>
+                                    <p className="text-xs text-gray-500"><span className="font-medium">Ubicación:</span> <span className="inline-block max-w-[20rem] truncate">{truncateFilename(ubic, 80)}</span></p>
                                   );
                                 })()}
                               <p className="text-xs text-gray-500"><span className="font-medium">Subido:</span> {new Date(documento.fecha_subida).toLocaleDateString('es-CL', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
@@ -1182,7 +1186,7 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                               )}
                             </div>
                           </div>
-                          <div className="flex flex-col space-y-1 ml-3">
+                          <div className="flex flex-col space-y-1 ml-3 flex-shrink-0">
                             <button onClick={() => handleDownloadDocument(documento)} className="text-green-500 hover:text-green-700 p-1 rounded hover:bg-green-50 transition-colores disabled:opacity-50 disabled:cursor-not-allowed" title="Descargar documento" disabled={downloadMutation.isLoading}>
                               {downloadMutation.isLoading ? (<div className="animate-spin rounded-full h-3 w-3 border-b-2 border-green-500"></div>) : (<Download className="h-3 w-3" />)}
                             </button>
