@@ -16,6 +16,7 @@ import EditDocumentModal from './EditDocumentModal';
 import { API_CONFIG } from '../../config/api';
 import { apiService } from '../../services/api';
 import { standardizeName, formatRUT } from '../../utils/formatters';
+import { truncateFilename, daysUntilNumber, daysUntilText } from '../../utils/format';
 
 interface PersonalDetailModalProps {
   personal: Personal | null;
@@ -1062,15 +1063,24 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                               <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-800">Activo</span>
                             </div>
                             <div className="space-y-1">
-                              <p className="text-xs text-purple-600"><span className="font-medium">Archivo:</span> <span className="inline-block max-w-full break-words whitespace-normal">{documento.nombre_original || documento.nombre_archivo || documento.nombre_documento}</span></p>
+                              <p className="text-xs text-purple-600"><span className="font-medium">Archivo:</span> <span className="inline-block max-w-full break-words whitespace-normal">{truncateFilename(documento.nombre_original || documento.nombre_archivo || documento.nombre_documento, 60)}</span></p>
                                 {(() => {
                                   const ubic = documento.ruta_archivo || (documento.ruta_local as any) || documento.url || (documento.drive_file_id ? `drive://${documento.drive_file_id}` : null);
                                   if (!ubic) return null;
                                   return (
-                                    <p className="text-xs text-gray-500"><span className="font-medium">Ubicación:</span> <span className="inline-block max-w-full break-words whitespace-normal">{ubic}</span></p>
+                                    <p className="text-xs text-gray-500"><span className="font-medium">Ubicación:</span> <span className="inline-block max-w-full break-words whitespace-normal">{truncateFilename(ubic, 80)}</span></p>
                                   );
                                 })()}
                               <p className="text-xs text-gray-500"><span className="font-medium">Subido:</span> {new Date(documento.fecha_subida).toLocaleDateString('es-CL', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                              {documento.fecha_vencimiento && (
+                                (() => {
+                                  const days = daysUntilNumber(documento.fecha_vencimiento);
+                                  const text = daysUntilText(documento.fecha_vencimiento);
+                                  if (text == null || days == null) return null;
+                                  const cls = days < 0 ? 'text-xs text-red-600' : days <= 7 ? 'text-xs text-yellow-700' : 'text-xs text-gray-600';
+                                  return <p className={cls}><span className="font-medium">Vencimiento:</span> {text}</p>;
+                                })()
+                              )}
                             </div>
                           </div>
                           <div className="flex flex-col space-y-1 ml-3">
@@ -1152,15 +1162,24 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                               <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-800">Activo</span>
                             </div>
                             <div className="space-y-1">
-                              <p className="text-xs text-orange-600"><span className="font-medium">Archivo:</span> <span className="inline-block max-w-full break-words whitespace-normal">{documento.nombre_original || documento.nombre_archivo || documento.nombre_documento}</span></p>
+                              <p className="text-xs text-orange-600"><span className="font-medium">Archivo:</span> <span className="inline-block max-w-full break-words whitespace-normal">{truncateFilename(documento.nombre_original || documento.nombre_archivo || documento.nombre_documento, 60)}</span></p>
                                 {(() => {
                                   const ubic = documento.ruta_archivo || (documento.ruta_local as any) || documento.url || (documento.drive_file_id ? `drive://${documento.drive_file_id}` : null);
                                   if (!ubic) return null;
                                   return (
-                                    <p className="text-xs text-gray-500"><span className="font-medium">Ubicación:</span> <span className="inline-block max-w-full break-words whitespace-normal">{ubic}</span></p>
+                                    <p className="text-xs text-gray-500"><span className="font-medium">Ubicación:</span> <span className="inline-block max-w-full break-words whitespace-normal">{truncateFilename(ubic, 80)}</span></p>
                                   );
                                 })()}
                               <p className="text-xs text-gray-500"><span className="font-medium">Subido:</span> {new Date(documento.fecha_subida).toLocaleDateString('es-CL', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                              {documento.fecha_vencimiento && (
+                                (() => {
+                                  const days = daysUntilNumber(documento.fecha_vencimiento);
+                                  const text = daysUntilText(documento.fecha_vencimiento);
+                                  if (text == null || days == null) return null;
+                                  const cls = days < 0 ? 'text-xs text-red-600' : days <= 7 ? 'text-xs text-yellow-700' : 'text-xs text-gray-600';
+                                  return <p className={cls}><span className="font-medium">Vencimiento:</span> {text}</p>;
+                                })()
+                              )}
                             </div>
                           </div>
                           <div className="flex flex-col space-y-1 ml-3">

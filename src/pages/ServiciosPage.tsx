@@ -537,8 +537,12 @@ export const ServiciosPage: React.FC = () => {
           const faltantes = data?.faltantes || [];
           const documentos = data?.documentos || [];
 
-          // Exclude people who are missing all documents
-          return faltantes.length > 0 && documentos.length > 0;
+          // Keep people who have missing prerequisites (faltantes > 0).
+          // Previously we required both faltantes > 0 AND documentos > 0,
+          // which removed persons that have faltantes but an empty documentos
+          // array (format differences from backend). This caused many
+          // entries to disappear from the partials/without lists.
+          return Array.isArray(faltantes) && faltantes.length > 0;
         })
       );
 
