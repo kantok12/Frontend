@@ -10,7 +10,7 @@ import apiService from '../services/api';
 const MultiUploadPage: React.FC = () => {
   const [selectedRuts, setSelectedRuts] = useState<string[]>([]);
   // Soporte para múltiples archivos: cada entrada tiene el file, nombre destino y tipo
-  const [files, setFiles] = useState<Array<{ file: File; nombre_destino: string; tipo: string; prerrequisitos?: number[]; carpeta_destino?: string }>>([]);
+  const [files, setFiles] = useState<Array<{ file: File; nombre_destino: string; tipo: string; prerrequisitos?: number[]; carpeta_destino?: string; fecha_emision?: string; fecha_vencimiento?: string; dias_validez?: number; estado_documento?: string; institucion_emisora?: string }>>([]);
   const [prerrequisitosOptions, setPrerrequisitosOptions] = useState<Array<any>>([]);
   // (No global default tipo — cada archivo elegirá su propio tipo)
   const [errors, setErrors] = useState<string[]>([]);
@@ -77,8 +77,37 @@ const MultiUploadPage: React.FC = () => {
     setFiles(prev => prev.filter((_, i) => i !== index));
   };
 
-  const updateFileField = (index: number, patch: Partial<{ nombre_destino: string; tipo: string; categoria?: 'personal' | 'cursos'; prerrequisitos?: number[]; carpeta_destino?: string }>) => {
+  const updateFileField = (index: number, patch: Partial<any>) => {
     setFiles(prev => prev.map((f, i) => i === index ? { ...f, ...patch } : f));
+  };
+
+  // Helpers to compute validez similar to SubirDocumentoModal
+  const toUTCDate = (dateStr: string | undefined | null) => {
+    if (!dateStr) return null;
+    const [y, m, d] = (dateStr || '').split('-').map((n) => parseInt(n, 10));
+    if (!y || !m || !d) return null;
+    return new Date(Date.UTC(y, (m - 1), d, 0, 0, 0));
+  };
+
+  const diffDaysUTC = (fromStr?: string, toStr?: string) => {
+    const from = toUTCDate(fromStr || '');
+    const to = toUTCDate(toStr || '');
+    if (!from || !to) return NaN;
+    const ms = to.getTime() - from.getTime();
+    return Math.max(0, Math.round(ms / (1000 * 60 * 60 * 24)));
+  };
+
+  const getEstadoFromVencimiento = (vencStr?: string) => {
+    if (!vencStr) return 'sin_fecha';
+    const hoy = new Date();
+    const hoyUTC = new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth(), hoy.getUTCDate()));
+    const vencUTC = toUTCDate(vencStr);
+    if (!vencUTC) return 'sin_fecha';
+    const diff = Math.round((vencUTC.getTime() - hoyUTC.getTime()) / (1000 * 60 * 60 * 24));
+    if (diff < 0) return 'vencido';
+    const THRESHOLD_POR_VENCER = 30;
+    if (diff <= THRESHOLD_POR_VENCER) return 'por_vencer';
+    return 'vigente';
   };
 
   // Helper to load global prerrequisitos once
@@ -145,6 +174,11 @@ const MultiUploadPage: React.FC = () => {
                 archivo: fEntry.file,
                 prerrequisitos: fEntry.prerrequisitos && fEntry.prerrequisitos.length ? fEntry.prerrequisitos : undefined,
                 carpeta_destino: fEntry.carpeta_destino || undefined,
+                fecha_emision: fEntry.fecha_emision || undefined,
+                fecha_vencimiento: fEntry.fecha_vencimiento || undefined,
+                dias_validez: typeof fEntry.dias_validez === 'number' ? fEntry.dias_validez : undefined,
+                estado_documento: fEntry.estado_documento || undefined,
+                institucion_emisora: fEntry.institucion_emisora || undefined,
               };
               const v = validateDocumentoData(data);
               if (v.length) return { rut, fileName: fEntry.nombre_destino, success: false, message: v.join('; ') };
@@ -245,6 +279,27 @@ const MultiUploadPage: React.FC = () => {
                         <label className="text-xs text-gray-600">Nombre destino</label>
                         <input className="w-full px-2 py-1 border rounded text-sm" value={fEntry.nombre_destino} onChange={(e) => updateFileField(idx, { nombre_destino: e.target.value })} />
 
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
+                          <div>
+                            <label className="text-xs text-gray-600">Fecha de Emisión</label>
+                            <input type="date" className="w-full px-2 py-1 border rounded text-sm" value={fEntry.fecha_emision || ''} onChange={(e) => {
+                              const val = e.target.value || undefined;
+                              const nextDias = diffDaysUTC(val, fEntry.fecha_vencimiento);
+                              const nextEstado = fEntry.fecha_vencimiento ? getEstadoFromVencimiento(fEntry.fecha_vencimiento) : (val ? 'sin_fecha' : (fEntry.estado_documento || 'sin_fecha'));
+                              updateFileField(idx, { fecha_emision: val, dias_validez: Number.isNaN(nextDias) ? undefined : nextDias, estado_documento: nextEstado });
+                            }} />
+                          </div>
+                          <div>
+                            <label className="text-xs text-gray-600">Fecha de Vencimiento</label>
+                            <input type="date" className="w-full px-2 py-1 border rounded text-sm" value={fEntry.fecha_vencimiento || ''} onChange={(e) => {
+                              const val = e.target.value || undefined;
+                              const nextDias = diffDaysUTC(fEntry.fecha_emision, val);
+                              const nextEstado = getEstadoFromVencimiento(val);
+                              updateFileField(idx, { fecha_vencimiento: val, dias_validez: Number.isNaN(nextDias) ? undefined : nextDias, estado_documento: nextEstado });
+                            }} />
+                          </div>
+                        </div>
+
                         {/* Mostrar tipo por archivo (sin distinción de categoría) */}
 
                         <label className="text-xs text-gray-600 mt-2 block">Tipo</label>
@@ -308,6 +363,17 @@ const MultiUploadPage: React.FC = () => {
                             })}
                           </div>
                         )}
+
+                        <div className="mt-2">
+                          <label className="text-xs text-gray-600">Institución emisora (opcional)</label>
+                          <input className="w-full px-2 py-1 border rounded text-sm" value={fEntry.institucion_emisora || ''} onChange={(e) => updateFileField(idx, { institucion_emisora: e.target.value || undefined })} />
+                        </div>
+
+                        <div className="mt-2 text-xs text-gray-600">
+                          {fEntry.dias_validez !== undefined && (
+                            <div>Validez: <strong>{fEntry.dias_validez} días</strong> — Estado: <strong>{fEntry.estado_documento || 'sin_fecha'}</strong></div>
+                          )}
+                        </div>
                       </div>
                       <div className="ml-3 flex-shrink-0">
                         <button type="button" onClick={() => removeFileAt(idx)} className="text-red-600 hover:text-red-800">

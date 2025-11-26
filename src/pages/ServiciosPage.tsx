@@ -27,6 +27,11 @@ const normalizeRut = (r: any) => {
     return String(r || '').trim();
   }
 };
+// Normalizar respuesta de match a un objeto consistente
+const normalizeMatch = (m: any) => {
+  if (!m) return null;
+  return m.data || m || null;
+};
 export const ServiciosPage: React.FC = () => {
   const queryClient = useQueryClient();
   
@@ -259,8 +264,8 @@ export const ServiciosPage: React.FC = () => {
       }
     };
 
-    // Ejecutar sólo cuando estamos en la pestaña de nodos (optimización)
-    if (uiState.activeTab === 'nodos' && navigationState.selectedCliente) {
+    // Ejecutar cuando estamos en la pestaña de nodos o clientes (mostrar match)
+    if ((uiState.activeTab === 'nodos' || uiState.activeTab === 'clientes') && navigationState.selectedCliente) {
       cargarBatch();
     } else {
       setPrereqBatch(null);
@@ -380,82 +385,7 @@ export const ServiciosPage: React.FC = () => {
   const handlePrerequisitosMatch = useCallback(async (rut?: string) => {
     await loadPrerequisitosMatch(navigationState.selectedCliente, rut);
   }, [loadPrerequisitosMatch, navigationState.selectedCliente]);
-
-  // Nueva lógica para prerrequisitos parciales
-  const handleFetchPartialPrerequisites = useCallback(async () => {
-    if (!navigationState.selectedCliente) return;
-
-    try {
-      setPrereqBatchLoading(true);
-      const response = await apiService.getPartialPrerequisitosCliente(
-        navigationState.selectedCliente.id,
-        {
-          includeGlobal: true,
-          limit: 1000,
-          offset: 0,
-        }
-      );
-
-      const partials = response?.data || [];
-
-      // Log the response for debugging
-      console.debug('Partial prerequisites response:', partials);
-
-      const map: Record<string, any> = {};
-
-      partials.forEach((item: any) => {
-        const key = item.persona?.rut || '';
-        if (key) {
-          map[key] = item;
-        }
-      });
-
-      setPrereqBatch(map);
-    } catch (error) {
-      console.error('Error fetching partial prerequisites:', error);
-      setPrereqBatchError('Error al cargar prerrequisitos parciales');
-    } finally {
-      setPrereqBatchLoading(false);
-    }
-  }, [navigationState.selectedCliente]);
-
-  useEffect(() => {
-    if (uiState.activeTab === 'nodos') {
-      handleFetchPartialPrerequisites();
-    }
-  }, [uiState.activeTab, handleFetchPartialPrerequisites]);
-
-  // Reemplazar la lógica para 'Personal con Requisitos Globales'
-  const renderPartialPrerequisites = () => {
-    if (!prereqBatch) {
-      return <p>No se encontraron datos.</p>;
-    }
-
-    return (
-      <div>
-        {Object.values(prereqBatch).map((persona, index) => (
-          <div key={index} style={{ marginBottom: '20px', border: '1px solid #ccc', padding: '10px', borderRadius: '5px' }}>
-            <h3>{persona.nombres || 'Nombre no disponible'} ({persona.rut || 'RUT no disponible'})</h3>
-            <p><strong>Cargo:</strong> {persona.cargo || 'Cargo no disponible'}</p>
-            <p><strong>Documentos Faltantes:</strong> {persona.faltantes?.join(', ') || 'Ninguno'}</p>
-            <h4>Documentos:</h4>
-            <ul>
-              {persona.documentos?.length > 0 ? (
-                persona.documentos.map((doc: { tipo: string; vencido: boolean; fecha_subida: string }, docIndex: number) => (
-                  <li key={docIndex}>
-                    {doc.tipo} - {doc.vencido ? 'Vencido' : 'Vigente'} (Subido: {new Date(doc.fecha_subida).toLocaleDateString()})
-                  </li>
-                ))
-              ) : (
-                <li>No hay documentos disponibles</li>
-              )}
-            </ul>
-          </div>
-        ))}
-      </div>
-    );
-  };
-
+  // NOTE: prerrequisitos parciales and name-fetching removed — using match endpoint exclusively
   // Add a type definition for the DebugWindow component
   const DebugWindow: React.FC<{ data: any }> = ({ data }) => {
     return (
@@ -472,193 +402,13 @@ export const ServiciosPage: React.FC = () => {
     );
   };
 
-  // Modify fetchNamesForRuts to also fetch cargos
-  const fetchNamesAndCargosForRuts = async (ruts: string[], cache: Record<string, { nombre: string; cargo: string }>) => {
-    const dataMap: Record<string, { nombre: string; cargo: string }> = { ...cache };
-    const rutsToFetch = ruts.filter((rut) => !dataMap[rut]);
+  
 
-    await Promise.all(
-      rutsToFetch.map(async (rut) => {
-        try {
-          const response = await apiService.getNombreByRut(rut);
-          const nombre = response?.data?.nombre || response?.data?.nombres || 'Nombre no disponible';
-          const cargo = response?.data?.cargo || 'Cargo no disponible';
-          dataMap[rut] = { nombre, cargo };
-        } catch (error) {
-          console.error(`Error fetching data for RUT ${rut}:`, error);
-          dataMap[rut] = { nombre: 'Error al obtener nombre', cargo: 'Error al obtener cargo' };
-        }
-      })
-    );
+  // Debug flag (disabled by default in production)
+  const showDebugData = false;
 
-    return dataMap;
-  };
-
-  // Update the state to cache fetched names and cargos
-  const [dataCache, setDataCache] = useState<Record<string, { nombre: string; cargo: string }>>({});
-
-  // Update the useEffect to use the new cache - OPTIMIZADO: solo si realmente faltan datos
-  useEffect(() => {
-    const updateDataInDebugData = async () => {
-      if (!prereqBatch || Object.keys(prereqBatch).length === 0) return;
-      
-      // Solo buscar RUTs que no están en cache y no tienen nombre
-      const ruts = Object.keys(prereqBatch).filter(rut => 
-        !dataCache[rut] && (!prereqBatch[rut]?.nombres || !prereqBatch[rut]?.cargo)
-      );
-      
-      if (ruts.length === 0) return; // Ya tenemos todo en cache
-      
-      const dataMap = await fetchNamesAndCargosForRuts(ruts, dataCache);
-
-      // Update the debug data with fetched names and cargos
-      const updatedBatch = { ...prereqBatch };
-      Object.keys(updatedBatch).forEach((rut) => {
-        if (dataMap[rut]) {
-          updatedBatch[rut].nombres = dataMap[rut]?.nombre;
-          updatedBatch[rut].cargo = dataMap[rut]?.cargo;
-        }
-      });
-
-      setDataCache(prev => ({ ...prev, ...dataMap })); // Merge cache
-      setPrereqBatch(updatedBatch);
-    };
-
-    updateDataInDebugData();
-  }, [prereqBatch]);
-
-  // Filter out people missing all documents
-  useEffect(() => {
-    const filterIncompleteDocuments = () => {
-      if (!prereqBatch) return;
-
-      const filteredBatch = Object.fromEntries(
-        Object.entries(prereqBatch).filter(([_, data]) => {
-          const faltantes = data?.faltantes || [];
-          const documentos = data?.documentos || [];
-
-          // Keep people who have missing prerequisites (faltantes > 0).
-          // Previously we required both faltantes > 0 AND documentos > 0,
-          // which removed persons that have faltantes but an empty documentos
-          // array (format differences from backend). This caused many
-          // entries to disappear from the partials/without lists.
-          return Array.isArray(faltantes) && faltantes.length > 0;
-        })
-      );
-
-      setPrereqBatch(filteredBatch);
-    };
-
-    filterIncompleteDocuments();
-  }, [prereqBatch]);
-
-  // Hide the debug data table
-  const [showDebugData, setShowDebugData] = useState(false);
-
-  // Update the UI to include the new section
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="mb-8">
-        <div className="flex justify-between items-start mb-2">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Gestión de Servicios</h1>
-            <p className="text-gray-600 mt-1">Administra carteras, clientes y nodos de servicios</p>
-          </div>
-          
-          {/* Botones de acción según pestaña activa */}
-          <div className="flex gap-3">
-            {/* Mostrar el botón de Prerrequisitos Globales sólo en la pestaña "clientes" */}
-            {uiState.activeTab === 'clientes' && (
-              <button
-                onClick={() => handleModalToggle('showGlobalPrerrequisitosModal', true)}
-                className="bg-gray-700 hover:bg-gray-800 text-white px-6 py-3 rounded-lg font-medium transition-colors flex items-center shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
-              >
-                <Globe className="h-5 w-5 mr-2" />
-                Prerrequisitos Globales
-              </button>
-            )}
-            
-            {navigationState.selectedCliente && (
-              <button
-                onClick={() => handleModalToggle('showPrerrequisitosModal', true)}
-                className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg font-medium transition-colors flex items-center shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
-              >
-                <AlertCircle className="h-5 w-5 mr-2" />
-                Gestionar Prerrequisitos
-              </button>
-            )}
-            {uiState.activeTab === 'clientes' && (
-            <button
-              onClick={() => handleModalToggle('showAgregarClienteModal', true)}
-                className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-medium transition-colors flex items-center shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
-              >
-                <Plus className="h-5 w-5 mr-2" />
-                Agregar Cliente
-              </button>
-            )}
-            
-            {uiState.activeTab === 'nodos' && (
-            <button
-              onClick={() => handleModalToggle('showAgregarNodoModal', true)}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors flex items-center shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
-              >
-                <Plus className="h-5 w-5 mr-2" />
-                Agregar Nodo
-              </button>
-            )}
-          </div>
-        </div>
-        {!!error && (
-          <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-            <div className="flex items-center">
-              <AlertCircle className="h-5 w-5 text-red-600 mr-2" />
-              <p className="text-sm text-red-800">
-                <strong>Error:</strong> No se pudieron cargar los datos de servicios. Los endpoints del backend pueden no estar disponibles.
-              </p>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Breadcrumb Navigation */}
-      {(navigationState.selectedCartera || navigationState.selectedCliente) && (
-        <div className="mb-6">
-          <nav className="flex items-center space-x-2 text-sm">
-            <button
-              onClick={handleBackToCarterasWithUI}
-              className="flex items-center text-blue-600 hover:text-blue-800 transition-colors"
-            >
-              <Settings className="h-4 w-4 mr-1" />
-              Carteras
-            </button>
-            
-            {navigationState.selectedCartera && (
-              <>
-                <ChevronRight className="h-4 w-4 text-gray-400" />
-                <button
-                  onClick={handleBackToClientesWithUI}
-                  className="flex items-center text-blue-600 hover:text-blue-800 transition-colors"
-                >
-                  <Users className="h-4 w-4 mr-1" />
-                  {navigationState.selectedCartera.nombre}
-                </button>
-              </>
-            )}
-            
-            {navigationState.selectedCliente && (
-              <>
-                <ChevronRight className="h-4 w-4 text-gray-400" />
-                <span className="flex items-center text-gray-600">
-                  <MapPin className="h-4 w-4 mr-1" />
-                  {navigationState.selectedCliente.nombre}
-                </span>
-              </>
-            )}
-          </nav>
-        </div>
-      )}
-
+    <>
       {/* Pestañas */}
       <div className="mb-6">
         <div className="border-b border-gray-200">
@@ -806,7 +556,7 @@ export const ServiciosPage: React.FC = () => {
       {/* Tabla dinámica según pestaña activa */}
       <div className="slide-up animate-delay-300">
         {/* Panel de personal asignado según la selección */}
-        {(uiState.activeTab === 'nodos' && (navigationState.selectedCliente || navigationState.selectedNodo)) && (
+        {((uiState.activeTab === 'nodos' || uiState.activeTab === 'clientes') && (navigationState.selectedCliente || navigationState.selectedNodo)) && (
           <div className="mb-6 bg-white rounded-lg border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900">
@@ -830,11 +580,33 @@ export const ServiciosPage: React.FC = () => {
                   disabled={personListLoading}
                 >
                   <option value="">{personListLoading ? 'Cargando personal...' : 'Seleccionar personal'}</option>
-                  {personOptions.map((p: any) => (
-                    <option key={p.rut} value={p.rut}>
-                      {p.nombre} {p.apellido} ({p.rut})
-                    </option>
-                  ))}
+                    {/* Mostrar primero personas provenientes del match (si están disponibles) */}
+                    {prereqBatch && Object.keys(prereqBatch).length > 0 && (
+                      <optgroup label="Personas (match)">
+                        {Object.keys(prereqBatch).map((rutKey) => {
+                          const entry: any = prereqBatch[rutKey] || {};
+                          const match = normalizeMatch(entry);
+                          // Mostrar solo personas que cumplen todos los prerrequisitos
+                          if (!match || match.cumple !== true) return null;
+                          const rutVal = rutKey;
+                          const nombre = match?.nombres || match?.nombre || match?.nombres_persona || '';
+                          const apellido = match?.apellidos || match?.apellido || '';
+                          const display = nombre ? `${nombre}${apellido ? ' ' + apellido : ''}` : rutVal;
+                          return (
+                            <option key={`match-${rutVal}`} value={rutVal}>
+                              {display} ({rutVal})
+                            </option>
+                          );
+                        })}
+                      </optgroup>
+                    )}
+
+                    {/* Luego el listado general de personal */}
+                    {personOptions.map((p: any) => (
+                      <option key={p.rut} value={p.rut}>
+                        {p.nombre} {p.apellido} ({p.rut})
+                      </option>
+                    ))}
                 </select>
               </div>
               <button
@@ -877,20 +649,42 @@ export const ServiciosPage: React.FC = () => {
                       const rawKey = p?.rut || String(p?.rut || '');
                       const nKey = normalizeRut(rawKey);
                       info = prereqBatch[rawKey] || (nKey ? prereqBatch[nKey] : null) || null;
-                      // Debug lookup to help diagnose mismatches between formats
-                      try {
-                        console.debug('prereq lookup', { personRut: rawKey, normalizedRut: nKey, found: !!info });
-                      } catch (e) {}
+                      // eslint-disable-next-line no-console
+                      try { console.debug && console.debug('prereq lookup', { personRut: rawKey, normalizedRut: nKey, found: !!info }); } catch (e) {}
                     }
-                    const faltantes = info?.faltantes || [];
-                    const meetsGlobal = info?.global_ok || info?.cumple_global || (info?.global && info.global === true);
+
+                    const match = info ? normalizeMatch(info) : null;
+                    const faltantes: any[] = match?.faltantes || match?.missing_docs || [];
+                    const meetsGlobal = match?.cumple === true;
+
+                    // Determine if the person has provided any of the required documents
+                    const providedCount: number | undefined = typeof match?.provided_count === 'number'
+                      ? match.provided_count
+                      : (Array.isArray(match?.documentos) ? (
+                        // if the server returned documentos and requisitos, try to infer
+                        (() => {
+                          const reqTypes: string[] = (Array.isArray(match?.requisitos) ? match.requisitos : (match?.required_types || [])).map((r: any) => String(r).toLowerCase());
+                          if (reqTypes.length === 0) return undefined;
+                          const present = (match.documentos || []).map((d: any) => String(d.tipo_documento || d.tipo || '').toLowerCase());
+                          return present.filter((t: string) => reqTypes.includes(t)).length;
+                        })()
+                      ) : undefined);
+
+                    const requiredCount: number | undefined = typeof match?.required_count === 'number'
+                      ? match.required_count
+                      : (Array.isArray(match?.requisitos) ? match.requisitos.length : undefined);
+
+                    const hasNone = (typeof providedCount === 'number' && providedCount === 0)
+                      || (Array.isArray(faltantes) && typeof requiredCount === 'number' && faltantes.length === requiredCount);
 
                     if (assignedRuts.has(p.rut)) assignedList.push(p);
                     else if (meetsGlobal) withGlobal.push(p);
-                    else if (Array.isArray(faltantes) && faltantes.length > 0) withoutPrereq.push(p);
-                    else {
-                      // default: show under withGlobal if no faltantes and not assigned
-                      withGlobal.push(p);
+                    else if (hasNone) {
+                      // Person does not have any document that matches client's prerequisites
+                      withoutPrereq.push(p);
+                    } else {
+                      // Partial matches (some but not all) are intentionally not shown in selectable pools
+                      // (keep them hidden to avoid partial-prereq flow)
                     }
                   });
 
@@ -934,7 +728,7 @@ export const ServiciosPage: React.FC = () => {
 
                   const withoutPageItems = withoutPrereq.slice(withoutStart, withoutStart + pageSize);
                   const assignedPageItems = assignedList.slice(assignedStart, assignedStart + pageSize);
-                  const globalPageItems = withGlobal.slice(globalStart, globalStart + pageSize);
+                  
 
                   const renderPagination = (current: number, totalPages: number, setPage: (n: number) => void, totalItems: number, startIndex: number) => {
                     if (totalPages <= 1) return null;
@@ -977,7 +771,7 @@ export const ServiciosPage: React.FC = () => {
                   };
 
                     return (
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="bg-white border border-gray-300 rounded-l-md shadow-sm overflow-hidden">
                         <div className="px-3 py-2 bg-gray-50 border-b border-gray-300 text-sm font-semibold">Personal sin Prerrequisitos</div>
                         {withoutPageItems.length === 0 ? (
@@ -997,11 +791,7 @@ export const ServiciosPage: React.FC = () => {
                         )}
                         <div className="px-3 py-2">{renderPagination(currentAssignedPage, assignedTotalPages, (n: number) => setPageAssigned(n), assignedTotal, assignedStart)}</div>
                       </div>
-
-                      <div className="bg-white border border-gray-300 rounded-r-md shadow-sm overflow-hidden">
-                        <div className="px-3 py-2 bg-gray-50 border-b border-gray-300 text-sm font-semibold">Personal con Prerrequisitos Parciales</div>
-                        <div className="p-3">{renderPartialPrerequisites()}</div>
-                      </div>
+                      
                     </div>
                   );
                 })()}
@@ -1407,7 +1197,7 @@ export const ServiciosPage: React.FC = () => {
 
       {/* Debug Window */}
       {showDebugData && <DebugWindow data={prereqBatch} />}
-    </div>
+    </>
   );
 };
 

@@ -93,9 +93,27 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
   
   // Cargar documentos del personal desde el backend
   const { data: documentosData, isLoading: documentosLoading, refetch: refetchDocumentos } = useDocumentosByPersona(personal?.rut || '');
-  
+
   // Filtrar documentos por categorías
-  const rawDocumentos = (documentosData?.data as any)?.documentos || [];
+  // La API puede devolver varias formas:
+  //  - { success: true, data: { documentos: [...] } }
+  //  - { success: true, data: [...] } (array directo)
+  //  - { success: true, data: { documentos_locales_split: { documentos: [...], cursos_certificaciones: [...] } } }
+  // Normalizar a un array plano de documentos en `rawDocumentos` para evitar resultados vacíos.
+  const rawDocumentos: any[] = (() => {
+    const d: any = documentosData?.data;
+    if (!d) return [];
+    // Caso: backend devolvió un array directo
+    if (Array.isArray(d)) return d;
+    // Caso: objeto con 'documentos_locales_split'
+    if (d.documentos_locales_split && Array.isArray(d.documentos_locales_split.documentos)) return d.documentos_locales_split.documentos;
+    // Caso: objeto con 'documentos'
+    if (Array.isArray(d.documentos)) return d.documentos;
+    // Caso legacy: 'documentos_locales'
+    if (Array.isArray(d.documentos_locales)) return d.documentos_locales;
+    // No reconocido → devolver array vacío
+    return [];
+  })();
 
   // Dedupe: el backend a veces puede devolver entradas duplicadas (por ejemplo registro y copia local).
   // Usar el nombre de archivo normalizado como clave principal (elimina sufijos de timestamp, underscores, mayúsculas)
@@ -782,21 +800,54 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                   Información Personal
                 </h3>
                 <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600 font-medium">Sexo:</span>
-                    {isEditing ? (
-                      <select
-                        value={editData.sexo || 'M'}
-                        onChange={(e) => handleInputChange('sexo', e.target.value as 'M' | 'F')}
-                        className="px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      >
-                        <option value="M">Masculino</option>
-                        <option value="F">Femenino</option>
-                      </select>
-                    ) : (
-                      <span className="text-gray-900">{personal.sexo === 'M' ? 'Masculino' : 'Femenino'}</span>
-                    )}
-                  </div>
+                    <div className="flex flex-col md:flex-row md:space-x-4">
+                      <div className="flex-1">
+                        <span className="text-gray-600 font-medium">Nombre</span>
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={editData.nombre || personal.nombre || ''}
+                            onChange={(e) => handleInputChange('nombre', e.target.value)}
+                            className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 mt-1"
+                          />
+                        ) : (
+                          <div className="text-gray-900 mt-1">{personal.nombre}</div>
+                        )}
+                        {errors.nombre && (<p className="text-xs text-red-600">{errors.nombre}</p>)}
+                      </div>
+                      <div className="flex-1 mt-3 md:mt-0">
+                        <span className="text-gray-600 font-medium">Apellido</span>
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={editData.apellido || personal.apellido || ''}
+                            onChange={(e) => handleInputChange('apellido', e.target.value)}
+                            className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 mt-1"
+                          />
+                        ) : (
+                          <div className="text-gray-900 mt-1">{personal.apellido}</div>
+                        )}
+                        {errors.apellido && (<p className="text-xs text-red-600">{errors.apellido}</p>)}
+                      </div>
+                    </div>
+
+                    <div className="mt-3" />
+
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600 font-medium">Sexo:</span>
+                      {isEditing ? (
+                        <select
+                          value={editData.sexo || 'M'}
+                          onChange={(e) => handleInputChange('sexo', e.target.value as 'M' | 'F')}
+                          className="px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="M">Masculino</option>
+                          <option value="F">Femenino</option>
+                        </select>
+                      ) : (
+                        <span className="text-gray-900">{personal.sexo === 'M' ? 'Masculino' : 'Femenino'}</span>
+                      )}
+                    </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600 font-medium">Fecha de Nacimiento:</span>
                     {isEditing ? (
