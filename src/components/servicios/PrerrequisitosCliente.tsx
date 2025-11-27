@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Prerrequisito, usePrerrequisitosByCliente, useAllPrerrequisitos, useCreatePrerrequisito, useUpdatePrerrequisito, useDeletePrerrequisito } from '../../hooks/useGestionPrerrequisitos';
 import { toast } from 'react-toastify';
 import { FaPlus, FaSave, FaTimes } from 'react-icons/fa';
@@ -11,11 +11,37 @@ interface PrerrequisitosClienteProps {
 
 export const PrerrequisitosCliente: React.FC<PrerrequisitosClienteProps> = ({ clienteId }) => {
   const [newPrerrequisito, setNewPrerrequisito] = useState({ tipo_documento: '', dias_duracion: '' });
+  const [clients, setClients] = useState<Array<{ id: number; nombre: string }>>([]);
+  const [selectedClienteForCreate, setSelectedClienteForCreate] = useState<number | null>(clienteId ?? null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingData, setEditingData] = useState<{ tipo_documento: string; dias_duracion: string | number }>({ tipo_documento: '', dias_duracion: '' });
   const [searchTerm, setSearchTerm] = useState('');
 
   const isGlobalMode = clienteId === null;
+
+  useEffect(() => {
+    // Keep the default selected client in sync with the prop
+    setSelectedClienteForCreate(clienteId ?? null);
+  }, [clienteId]);
+
+  useEffect(() => {
+    // Load clients list to allow associating a prerrequisito to a specific client
+    let mounted = true;
+    const load = async () => {
+      try {
+        const res: any = await (await import('../../services/api')).default.getClientes({ limit: 2000 });
+        if (!mounted) return;
+        const data = res?.data || (res?.data?.data) || res;
+        // normalize to array
+        const list = Array.isArray(data) ? data : (data?.items || []);
+        setClients(list.map((c: any) => ({ id: c.id, nombre: c.nombre || c.nombre_completo || `Cliente ${c.id}`})));
+      } catch (e) {
+        // ignore load errors — clients dropdown is optional
+      }
+    };
+    load();
+    return () => { mounted = false; };
+  }, []);
 
   const { data: prerrequisitosCliente, isLoading: isLoadingCliente } = usePrerrequisitosByCliente(clienteId, {
     enabled: !isGlobalMode,
@@ -66,7 +92,7 @@ export const PrerrequisitosCliente: React.FC<PrerrequisitosClienteProps> = ({ cl
     }
     const payload = {
       ...newPrerrequisito,
-      cliente_id: clienteId,
+      cliente_id: typeof selectedClienteForCreate !== 'undefined' ? selectedClienteForCreate : clienteId,
       dias_duracion: newPrerrequisito.dias_duracion ? Number(newPrerrequisito.dias_duracion) : null,
     };
     createMutation.mutate(payload, {
@@ -148,6 +174,22 @@ export const PrerrequisitosCliente: React.FC<PrerrequisitosClienteProps> = ({ cl
                 className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                 placeholder="Ej: Licencia de conducir"
               />
+              {/* If creating a non-global prerrequisito allow selecting the client association */}
+              {!isGlobalMode && (
+                <div className="mt-2">
+                  <label className="block text-xs text-gray-600">Asociar a cliente (parciales)</label>
+                  <select
+                    value={selectedClienteForCreate ?? ''}
+                    onChange={(e) => setSelectedClienteForCreate(e.target.value ? Number(e.target.value) : null)}
+                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                  >
+                    <option value="">Seleccionar cliente (por defecto el cliente actual)</option>
+                    {clients.map(c => (
+                      <option key={c.id} value={c.id}>{c.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <datalist id="prerrequisitos-tipos">
                 {allPrerrequisitosTipos.map(tipo => <option key={tipo} value={tipo} />)}
               </datalist>

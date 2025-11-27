@@ -12,6 +12,7 @@ interface UIState {
   showModal: boolean;
   showPrerrequisitosModal: boolean;
   showGlobalPrerrequisitosModal: boolean;
+  showPrerrequisitosParcialesModal: boolean;
 }
 
 export const useUIState = () => {
@@ -25,6 +26,7 @@ export const useUIState = () => {
     showModal: false,
     showPrerrequisitosModal: false,
     showGlobalPrerrequisitosModal: false
+    , showPrerrequisitosParcialesModal: false
   });
 
   const handleTabChange = useCallback((tab: Tab) => {
@@ -43,7 +45,7 @@ export const useUIState = () => {
     setUiState(prev => ({ ...prev, search: '', page: 1 }));
   }, []);
 
-  const handleModalToggle = useCallback((modal: keyof Pick<UIState, 'showAgregarClienteModal' | 'showAgregarNodoModal' | 'showPrereqPanel' | 'showModal' | 'showPrerrequisitosModal' | 'showGlobalPrerrequisitosModal'>, show: boolean) => {
+  const handleModalToggle = useCallback((modal: keyof Pick<UIState, 'showAgregarClienteModal' | 'showAgregarNodoModal' | 'showPrereqPanel' | 'showModal' | 'showPrerrequisitosModal' | 'showGlobalPrerrequisitosModal' | 'showPrerrequisitosParcialesModal'>, show: boolean) => {
     setUiState(prev => ({ ...prev, [modal]: show }));
   }, []);
 

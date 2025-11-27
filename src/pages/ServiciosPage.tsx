@@ -17,6 +17,7 @@ import { PrerrequisitosCliente } from '../components/servicios/PrerrequisitosCli
 import { PrerrequisitosModal } from '../components/servicios/PrerrequisitosModal';
 import { PersonalDetailModal } from '../components/personal/PersonalDetailModal';
 import { GlobalPrerrequisitosModal } from '../components/servicios/GlobalPrerrequisitosModal';
+import { PrerrequisitosParcialesModal } from '../components/servicios/PrerrequisitosParcialesModal';
 
 // Helper: normalize RUT to a canonical form (no dots, no dash, uppercase)
 const normalizeRut = (r: any) => {
@@ -188,9 +189,31 @@ export const ServiciosPage: React.FC = () => {
   }, [handleCarteraClick, handleTabChange]);
 
   const handleClienteClickWithUI = useCallback((cliente: Cliente) => {
+    // If we have the cartera list available, ensure the parent cartera is selected
+    try {
+      const parent = carteras.find((c: any) => Number(c.id) === Number(cliente.cartera_id));
+      if (parent) handleCarteraClick(parent as any);
+    } catch (err) {
+      // ignore if carteras not available
+    }
     handleClienteClick(cliente);
     handleTabChange('nodos');
-  }, [handleClienteClick, handleTabChange]);
+  }, [handleClienteClick, handleTabChange, carteras, handleCarteraClick]);
+
+  const handleNodoClickWithUI = useCallback((nodo: Nodo) => {
+    try {
+      // Try to select parent cliente and cartera when available
+      const parentCliente = clientes.find((cl: any) => Number(cl.id) === Number(nodo.cliente_id));
+      if (parentCliente) {
+        const parentCartera = carteras.find((c: any) => Number(c.id) === Number(parentCliente.cartera_id));
+        if (parentCartera) handleCarteraClick(parentCartera as any);
+        handleClienteClick(parentCliente as any);
+      }
+    } catch (err) {
+      // ignore lookup errors
+    }
+    handleNodoClick(nodo);
+  }, [carteras, clientes, handleCarteraClick, handleClienteClick, handleNodoClick]);
 
   const handleBackToCarterasWithUI = useCallback(() => {
     handleBackToCarteras();
@@ -275,6 +298,7 @@ export const ServiciosPage: React.FC = () => {
   // Estados para abrir modal de Personal dentro de la vista Servicios (sin navegar)
   const [selectedPersonalDetail, setSelectedPersonalDetail] = useState<any | null>(null);
   const [showPersonalDetailModalLocal, setShowPersonalDetailModalLocal] = useState(false);
+  const [parcialesClienteId, setParcialesClienteId] = useState<number | null>(null);
 
   // Paginación interna para cada sección
   const [pageWithout, setPageWithout] = useState(1);
@@ -409,6 +433,8 @@ export const ServiciosPage: React.FC = () => {
 
   return (
     <>
+      {/* (breadcrumb removed — only shown above the tabs) */}
+
       {/* Pestañas */}
       <div className="mb-6">
         <div className="border-b border-gray-200">
@@ -456,7 +482,7 @@ export const ServiciosPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Filtros y búsqueda */}
+        {/* Filtros y búsqueda */}
       <div className="mb-6">
         <form onSubmit={handleSearch} className="flex gap-3 items-center">
           {/* Barra de búsqueda */}
@@ -492,6 +518,52 @@ export const ServiciosPage: React.FC = () => {
           )}
         </form>
       </div>
+
+      {/* Breadcrumb / guía de navegación: muestra Cartera > Cliente > Nodo cuando hay selección */}
+      {(navigationState.selectedCartera || navigationState.selectedCliente || navigationState.selectedNodo) && (
+        <div className="mb-4">
+          <div className="text-sm text-gray-600 bg-white rounded-md p-2 border border-gray-100">
+            <nav className="flex items-center gap-2">
+              <button
+                onClick={() => { handleBackToCarterasWithUI(); }}
+                className="text-blue-600 hover:underline text-sm"
+              >
+                Carteras
+              </button>
+              <span className="text-gray-400">›</span>
+              {navigationState.selectedCartera ? (
+                <>
+                  <button
+                    onClick={() => { handleCarteraClickWithUI(navigationState.selectedCartera as any); handleTabChange('clientes'); }}
+                    className="text-gray-800 hover:underline text-sm font-medium"
+                  >
+                    {navigationState.selectedCartera.nombre}
+                  </button>
+                  {navigationState.selectedCliente && (
+                    <>
+                      <span className="text-gray-400">›</span>
+                      <button
+                        onClick={() => { handleClienteClickWithUI(navigationState.selectedCliente as any); handleTabChange('nodos'); }}
+                        className="text-gray-800 hover:underline text-sm font-medium"
+                      >
+                        {navigationState.selectedCliente.nombre}
+                      </button>
+                    </>
+                  )}
+                  {navigationState.selectedNodo && (
+                    <>
+                      <span className="text-gray-400">›</span>
+                      <span className="text-gray-700 text-sm font-medium">{navigationState.selectedNodo.nombre}</span>
+                    </>
+                  )}
+                </>
+              ) : (
+                <span className="text-sm text-gray-700">Todas</span>
+              )}
+            </nav>
+          </div>
+        </div>
+      )}
 
       {/* Resumen sutil extendido según pestaña activa */}
       <div className="mb-6 slide-up animate-delay-300">
@@ -547,6 +619,18 @@ export const ServiciosPage: React.FC = () => {
                   {isLoading ? '...' : `${uiState.page} de ${totalPages}`}
                 </span>
               </div>
+              {/* Botón para abrir gestión de prerrequisitos globales (solo en vista Clientes) */}
+              {uiState.activeTab === 'clientes' && (
+                <div className="ml-4">
+                  <button
+                    onClick={() => handleModalToggle('showGlobalPrerrequisitosModal', true)}
+                    className="px-3 py-2 text-sm bg-gray-100 rounded-md hover:bg-gray-200"
+                    title="Gestionar Prerrequisitos Globales"
+                  >
+                    <Globe className="inline-block mr-2" />Global
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -894,6 +978,9 @@ export const ServiciosPage: React.FC = () => {
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Fecha Creación
                           </th>
+                          <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Acciones
+                          </th>
                           {/* Sin acciones */}
                         </>
                       ) : uiState.activeTab === 'clientes' ? (
@@ -945,7 +1032,7 @@ export const ServiciosPage: React.FC = () => {
                         onClick={
                           uiState.activeTab === 'carteras' ? () => handleCarteraClickWithUI(item as Cartera) :
                           uiState.activeTab === 'clientes' ? () => handleClienteClickWithUI(item as Cliente) :
-                          uiState.activeTab === 'nodos' ? () => handleNodoClick(item as Nodo) :
+                          uiState.activeTab === 'nodos' ? () => handleNodoClickWithUI(item as Nodo) :
                           undefined
                         }
                       >
@@ -1059,7 +1146,23 @@ export const ServiciosPage: React.FC = () => {
                                 {new Date((item as Cliente).created_at).toLocaleDateString()}
                               </div>
                             </td>
-                            {/* Sin acciones */}
+                            <td className="px-6 py-4 whitespace-nowrap text-right">
+                              <div className="flex items-center justify-end space-x-2">
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleClienteClick(item as Cliente); handleModalToggle('showPrerrequisitosModal', true); }}
+                                  className="px-2 py-1 text-xs bg-blue-50 text-blue-600 rounded hover:bg-blue-100"
+                                >
+                                  Prerrequisitos
+                                </button>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleModalToggle('showGlobalPrerrequisitosModal', true); }}
+                                  className="px-2 py-1 text-xs bg-gray-50 text-gray-700 rounded hover:bg-gray-100"
+                                  title="Prerrequisitos globales"
+                                >
+                                  Global
+                                </button>
+                              </div>
+                            </td>
                           </>
                         ) : uiState.activeTab === 'nodos' ? (
                           <>
@@ -1093,7 +1196,22 @@ export const ServiciosPage: React.FC = () => {
                                 {new Date((item as Nodo).created_at).toLocaleDateString()}
                               </div>
                             </td>
-                            {/* Sin acciones */}
+                            <td className="px-6 py-4 whitespace-nowrap text-right">
+                              <div className="flex items-center justify-end space-x-2">
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); const cid = (item as Nodo).cliente_id; setParcialesClienteId(cid); handleModalToggle('showPrerrequisitosParcialesModal', true); }}
+                                  className="px-2 py-1 text-xs bg-yellow-50 text-yellow-700 rounded hover:bg-yellow-100"
+                                >
+                                  Parciales
+                                </button>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); /* open client prereqs for the node's client */ handleClienteClick({ id: (item as Nodo).cliente_id } as any); handleModalToggle('showPrerrequisitosModal', true); }}
+                                  className="px-2 py-1 text-xs bg-blue-50 text-blue-600 rounded hover:bg-blue-100"
+                                >
+                                  Prerrequisitos
+                                </button>
+                              </div>
+                            </td>
                           </>
                         ) : null}
                       </tr>
@@ -1185,6 +1303,12 @@ export const ServiciosPage: React.FC = () => {
       <GlobalPrerrequisitosModal
         isOpen={uiState.showGlobalPrerrequisitosModal}
         onClose={() => handleModalToggle('showGlobalPrerrequisitosModal', false)}
+      />
+
+      <PrerrequisitosParcialesModal
+        isOpen={uiState.showPrerrequisitosParcialesModal}
+        onClose={() => { handleModalToggle('showPrerrequisitosParcialesModal', false); setParcialesClienteId(null); }}
+        clienteId={parcialesClienteId || navigationState.selectedCliente?.id || null}
       />
 
       {/* Modal local para ver detalle de Personal sin navegar fuera de Servicios */}
