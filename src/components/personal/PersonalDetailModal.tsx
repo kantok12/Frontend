@@ -16,6 +16,7 @@ import EditDocumentModal from './EditDocumentModal';
 import { API_CONFIG } from '../../config/api';
 import { apiService } from '../../services/api';
 import { standardizeName, formatRUT } from '../../utils/formatters';
+import { displayValue } from '../../utils/display';
 import { truncateFilename, daysUntilNumber, daysUntilText } from '../../utils/format';
 
 interface PersonalDetailModalProps {
@@ -734,7 +735,13 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                 <p className="text-blue-100 text-lg">
                   {personal.cargo || 'Sin cargo especificado'}
                 </p>
-                <p className="text-blue-200 text-sm">{personal.zona_geografica || 'No asignada'}</p>
+                {(() => {
+                  const zonaLabel = displayValue(personal.zona_geografica, personal.rut);
+                  if (zonaLabel && zonaLabel !== 'No asignada') {
+                    return <p className="text-blue-200 text-sm">{zonaLabel}</p>;
+                  }
+                  return null;
+                })()}
                 
                 <p className="text-blue-200 text-sm">RUT: {formatRUT(personal.rut)}</p>
               </div>
@@ -796,15 +803,15 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
             <div className="mt-3 grid grid-cols-1 gap-2">
               <div className="flex justify-between items-center">
                 <span className="text-white text-sm opacity-90 font-medium">Profesión:</span>
-                <span className="text-white font-semibold text-base drop-shadow-sm">{personal.profesion || 'No asignada'}</span>
+                <span className="text-white font-semibold text-base drop-shadow-sm">{displayValue(personal.profesion, personal.rut)}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-white text-sm opacity-90 font-medium">Área:</span>
-                <span className="text-white font-semibold text-base drop-shadow-sm text-right">{personal.area || 'No asignada'}</span>
+                <span className="text-white font-semibold text-base drop-shadow-sm text-right">{displayValue(personal.area, personal.rut)}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-white text-sm opacity-90 font-medium">Supervisor:</span>
-                <span className="text-white font-semibold text-base drop-shadow-sm text-right">{personal.supervisor || 'No asignada'}</span>
+                <span className="text-white font-semibold text-base drop-shadow-sm text-right">{displayValue(personal.supervisor, personal.rut)}</span>
               </div>
               {/* Tipo de asistencia eliminado por petición del usuario */}
             </div>
@@ -967,7 +974,7 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                               placeholder="Región"
                             />
                           ) : (
-                            <span className="text-gray-900">{personal.ubicacion?.region || 'No asignada'}</span>
+                            <span className="text-gray-900">{displayValue(personal.ubicacion?.region, personal.rut)}</span>
                           )}
                         </div>
                         <div className="flex justify-between items-center">
@@ -984,7 +991,7 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                               placeholder="Ciudad"
                             />
                           ) : (
-                            <span className="text-gray-900">{personal.ubicacion?.ciudad || 'No asignada'}</span>
+                            <span className="text-gray-900">{displayValue(personal.ubicacion?.ciudad, personal.rut)}</span>
                           )}
                         </div>
                         <div className="flex justify-between items-center">
@@ -1001,7 +1008,7 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                               placeholder="Comuna"
                             />
                           ) : (
-                            <span className="text-gray-900">{personal.ubicacion?.comuna || 'No asignada'}</span>
+                            <span className="text-gray-900">{displayValue(personal.ubicacion?.comuna, personal.rut)}</span>
                           )}
                         </div>
                       </div>
@@ -1036,7 +1043,7 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                         <option value="F">F</option>
                       </select>
                     ) : (
-                      <span className="text-gray-900 font-semibold">{personal.licencia_conducir || 'No asignada'}</span>
+                      <span className="text-gray-900 font-semibold">{displayValue(personal.licencia_conducir, personal.rut)}</span>
                     )}
                   </div>
                   {errors.licencia_conducir && (
@@ -1063,7 +1070,7 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                         placeholder="Ej: 42, 38"
                       />
                     ) : (
-                      <span className="text-gray-900 font-semibold">{personal.talla_zapatos || 'No asignada'}</span>
+                      <span className="text-gray-900 font-semibold">{displayValue(personal.talla_zapatos, personal.rut)}</span>
                     )}
                   </div>
                   <div className="flex justify-between items-center">
@@ -1077,7 +1084,7 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                         placeholder="Ej: M, 32, L"
                       />
                     ) : (
-                      <span className="text-gray-900 font-semibold">{personal.talla_pantalones || 'No asignada'}</span>
+                      <span className="text-gray-900 font-semibold">{displayValue(personal.talla_pantalones, personal.rut)}</span>
                     )}
                   </div>
                   <div className="flex justify-between items-center">
@@ -1091,7 +1098,7 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                         placeholder="Ej: S, M, L, XL"
                       />
                     ) : (
-                      <span className="text-gray-900 font-semibold">{personal.talla_poleras || 'No asignada'}</span>
+                      <span className="text-gray-900 font-semibold">{displayValue(personal.talla_poleras, personal.rut)}</span>
                     )}
                   </div>
                 </div>

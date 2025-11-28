@@ -8,6 +8,7 @@ import { ProfileImage } from '../components/common/ProfileImage';
 import { Search, Plus, Trash2, Eye, User, Mail, CheckCircle, XCircle, Activity, FileText, Upload } from 'lucide-react';
 import { Personal } from '../types';
 import { formatRUT } from '../utils/formatters';
+import { displayValue } from '../utils/display';
 
 // Estados de actividad (para UI, no relacionados con backend)
 const estadosActividad = [
@@ -79,6 +80,8 @@ export const PersonalPage: React.FC = () => {
     // Filtros adicionales solicitados: zona geográfica y empresa
     const [filterZona, setFilterZona] = useState<string>('todos');
     const [filterEmpresa, setFilterEmpresa] = useState<string>('todos');
+    // Nuevo filtro: profesión
+    const [filterProfesion, setFilterProfesion] = useState<string>('todos');
 
   // Debounce search para evitar demasiadas consultas
   React.useEffect(() => {
@@ -91,10 +94,10 @@ export const PersonalPage: React.FC = () => {
     return () => clearTimeout(timer);
   }, [search]);
 
-    // Determinar si hay filtros locales activos (cargo/estado/licencia/zona/empresa)
+    // Determinar si hay filtros locales activos (cargo/estado/licencia/zona/empresa/profesion)
     const hasLocalFilters = (
       filterCargo !== 'todos' || filterEstadoPersonal !== 'todos' || filterLicencia !== 'todos' ||
-      filterZona !== 'todos' || filterEmpresa !== 'todos'
+      filterZona !== 'todos' || filterEmpresa !== 'todos' || filterProfesion !== 'todos'
     );
 
   // Si hay filtros locales, pedimos más registros al backend para filtrar en cliente (limit grande)
@@ -139,6 +142,7 @@ export const PersonalPage: React.FC = () => {
     return personal.filter(persona => {
       const cargoNorm = (persona.cargo || '').trim().toLowerCase();
       const estadoNorm = (persona.estado_nombre || '').trim().toLowerCase();
+      const profesionNorm = (persona.profesion || '').trim().toLowerCase();
 
       // Licencia: considerar campo legacy y array de licencias
       const licenciaTarget = (filterLicencia || '').toLowerCase();
@@ -146,6 +150,7 @@ export const PersonalPage: React.FC = () => {
       const licArr = Array.isArray((persona as any).licencias) ? (persona as any).licencias : [];
 
       if (filterCargo !== 'todos' && cargoNorm !== filterCargo) return false;
+      if (filterProfesion !== 'todos' && profesionNorm !== filterProfesion) return false;
       if (filterEstadoPersonal !== 'todos' && estadoNorm !== filterEstadoPersonal) return false;
 
       if (filterLicencia !== 'todos') {
@@ -162,7 +167,7 @@ export const PersonalPage: React.FC = () => {
         }
       }
 
-      const zonaNorm = (persona.zona_geografica || '').trim().toLowerCase();
+      const zonaNorm = (persona.ubicacion?.region || persona.zona_geografica || '').trim().toLowerCase();
       if (filterZona !== 'todos' && zonaNorm !== filterZona) return false;
 
       const empresaNorm = (persona.empresa?.nombre || '').trim().toLowerCase();
@@ -368,7 +373,7 @@ export const PersonalPage: React.FC = () => {
   // Cuando cambian los filtros, volver a la primera página
   useEffect(() => {
     setPage(1);
-  }, [filterCargo, filterEstadoPersonal, filterLicencia]);
+  }, [filterCargo, filterEstadoPersonal, filterLicencia, filterZona, filterEmpresa, filterProfesion]);
 
   // Extraer datos de la respuesta
   const personalListOriginal = personalData?.data?.items || [];
@@ -577,7 +582,7 @@ export const PersonalPage: React.FC = () => {
               className="px-3 py-1 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
             >
               <option value="todos">Todos los cargos</option>
-              {Array.from(new Set(personalListOriginal.map(p => (p.cargo || '').trim()).filter(Boolean))).map((c: any) => (
+              {(Array.from(new Set((personalForOptions.length > 0 ? personalForOptions : personalListOriginal).map((p: any) => (p.cargo || '').trim()).filter(Boolean)))).map((c: any) => (
                 <option key={c} value={c.toLowerCase()}>{c}</option>
               ))}
             </select>
@@ -592,8 +597,23 @@ export const PersonalPage: React.FC = () => {
               className="px-3 py-1 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
             >
               <option value="todos">Todas</option>
-              {Array.from(new Set(personalListOriginal.map(p => (p.zona_geografica || '').trim()).filter(Boolean))).map((z: any) => (
+              {Array.from(new Set(personalListOriginal.map(p => (p.ubicacion?.region || p.zona_geografica || '').trim()).filter(Boolean))).map((z: any) => (
                 <option key={z} value={z.toLowerCase()}>{z}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Filtro por Profesión */}
+          <div className="flex items-center space-x-2">
+            <label className="text-sm text-gray-600">Profesión:</label>
+            <select
+              value={filterProfesion}
+              onChange={(e) => setFilterProfesion(e.target.value)}
+              className="px-3 py-1 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+            >
+              <option value="todos">Todas</option>
+              {Array.from(new Set(personalListOriginal.map(p => (p.profesion || '').trim()).filter(Boolean))).map((pr: any) => (
+                <option key={pr} value={pr.toLowerCase()}>{pr}</option>
               ))}
             </select>
           </div>
@@ -675,12 +695,15 @@ export const PersonalPage: React.FC = () => {
           {/* Servicio / Fecha creación / Documentación filters removed */}
 
           {/* Botón para limpiar filtros */}
-          {(filterCargo !== 'todos' || filterEstadoPersonal !== 'todos' || filterLicencia !== 'todos') && (
+          {(filterCargo !== 'todos' || filterEstadoPersonal !== 'todos' || filterLicencia !== 'todos' || filterZona !== 'todos' || filterEmpresa !== 'todos' || filterProfesion !== 'todos') && (
             <button
               onClick={() => {
                 setFilterCargo('todos');
                 setFilterEstadoPersonal('todos');
                 setFilterLicencia('todos');
+                setFilterZona('todos');
+                setFilterEmpresa('todos');
+                setFilterProfesion('todos');
               }}
               className="bg-gray-500 hover:bg-gray-600 text-white px-3 py-1 rounded-lg text-sm font-medium transition-colors"
             >
@@ -759,22 +782,36 @@ export const PersonalPage: React.FC = () => {
                             {persona.nombre} {persona.apellido}
                           </h3>
                           <p className="text-sm text-gray-600">{persona.cargo}</p>
-                          <div className="flex items-center mt-1 text-sm text-blue-600">
-                            <User className="h-3 w-3 mr-1" />
-                            {persona.empresa?.nombre || 'No asignada'}
-                          </div>
-                          <div className="text-xs text-gray-500 mt-1">{persona.zona_geografica || 'No asignada'}</div>
+                          {(() => {
+                            const empresaLabel = displayValue(persona.empresa?.nombre, persona.rut);
+                            if (empresaLabel && empresaLabel !== 'No asignada') {
+                              return (
+                                <div className="flex items-center mt-1 text-sm text-blue-600">
+                                  <User className="h-3 w-3 mr-1" />
+                                  {empresaLabel}
+                                </div>
+                              );
+                            }
+                            return null;
+                          })()}
+                          {(() => {
+                            const zonaLabel = displayValue(persona.zona_geografica, persona.rut);
+                            if (zonaLabel && zonaLabel !== 'No asignada') {
+                              return <div className="text-xs text-gray-500 mt-1">{zonaLabel}</div>;
+                            }
+                            return null;
+                          })()}
                           <div className="text-xs text-gray-500 mt-1">
                             RUT: {formatRUT(persona.rut)}
                           </div>
                           <div className="text-xs text-gray-500 mt-1 flex items-center space-x-3">
                             <div className="flex items-center text-xs text-gray-600">
                               <svg className="h-3 w-3 mr-1 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.09 4.18 2 2 0 0 1 4 2h3a2 2 0 0 1 2 1.72c.12 1.05.36 2.07.72 3.03a2 2 0 0 1-.45 2.11L8.09 10.91c1.45 3.02 3.98 5.55 6.99 7l1.95-1.95a2 2 0 0 1 2.11-.45c.96.36 1.98.6 3.03.72A2 2 0 0 1 22 16.92z"></path></svg>
-                              <span>{persona.telefono || 'No asignada'}</span>
+                              <span>{displayValue(persona.telefono, persona.rut)}</span>
                             </div>
                             <div className="flex items-center text-xs text-gray-600">
                               <Mail className="h-3 w-3 mr-1" />
-                              <span>{persona.email || 'No asignada'}</span>
+                              <span>{displayValue(persona.email, persona.rut)}</span>
                             </div>
                           </div>
                         </div>
@@ -834,7 +871,7 @@ export const PersonalPage: React.FC = () => {
 
                         <div className="flex items-center">
                           <Mail className="h-3 w-3 mr-1" />
-                          <span>Licencia: {persona.licencia_conducir || 'No asignada'}</span>
+                          <span>Licencia: {displayValue(persona.licencia_conducir, persona.rut)}</span>
                         </div>
 
                         <div className="flex items-center">

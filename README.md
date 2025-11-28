@@ -1,11 +1,12 @@
-# 🏢 Sistema de Gestión de Personal - Frontend
+# 🏢 Sistema de Gestión de Personal — Frontend
 
-[![Node.js](https://img.shields.io/badge/Node.js-18.19.0-green.svg)](https://nodejs.org/)
-[![React](https://img.shields.io/badge/React-18.2.0-blue.svg)](https://reactjs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.3.3-blue.svg)](https://www.typescriptlang.org/)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.3.6-38B2AC.svg)](https://tailwindcss.com/)
+Frontend React + TypeScript para la aplicación de gestión de personal.
 
-Frontend moderno para el Sistema de Gestión de Personal, desarrollado con las mejores prácticas y tecnologías actuales.
+**Resumen rápido**
+- Stack: React 18 + TypeScript + Tailwind CSS
+- Gestor de datos: React Query (@tanstack/react-query)
+- State local ligero: Zustand
+- Peticiones HTTP: Axios (centralizado en `src/services/api.ts`)
 
 ## 🚀 Instalación Rápida
 
