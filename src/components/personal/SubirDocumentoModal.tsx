@@ -23,6 +23,7 @@ const SubirDocumentoModal: React.FC<SubirDocumentoModalProps> = ({ isOpen, onClo
     archivo: null as File | null,
     fecha_emision_documento: '',
     fecha_vencimiento_documento: '',
+    fecha_vencimiento_indefinido: false,
     dias_validez_documento: '',
     estado_documento: '',
     institucion_emisora: '',
@@ -31,6 +32,7 @@ const SubirDocumentoModal: React.FC<SubirDocumentoModalProps> = ({ isOpen, onClo
   const [formData, setFormData] = useState(initialFormState());
   const [errors, setErrors] = useState<string[]>([]);
   const [selectedPrerrequisitos, setSelectedPrerrequisitos] = useState<string[]>([]);
+  const [uploadCategory, setUploadCategory] = useState<'personal' | 'prerrequisitos'>('personal');
   const [showOptionsModal, setShowOptionsModal] = useState(false);
   const [showPendientesModal, setShowPendientesModal] = useState(false);
   const [selectedPendiente, setSelectedPendiente] = useState<{ file: any; displayName: string } | null>(null);
@@ -81,21 +83,25 @@ const SubirDocumentoModal: React.FC<SubirDocumentoModalProps> = ({ isOpen, onClo
   };
 
   useEffect(() => {
-    const { fecha_emision_documento, fecha_vencimiento_documento } = formData;
+    const { fecha_emision_documento, fecha_vencimiento_documento, fecha_vencimiento_indefinido } = formData as any;
     let nextDias = formData.dias_validez_documento;
-    if (fecha_emision_documento && fecha_vencimiento_documento) {
+
+    if (!fecha_vencimiento_indefinido && fecha_emision_documento && fecha_vencimiento_documento) {
       const days = diffDaysUTC(fecha_emision_documento, fecha_vencimiento_documento);
       if (!Number.isNaN(days)) {
         const daysStr = String(days);
         if (daysStr !== formData.dias_validez_documento) nextDias = daysStr;
       }
+    } else if (fecha_vencimiento_indefinido) {
+      nextDias = '';
     }
-    const nextEstado = getEstadoFromVencimiento(formData.fecha_vencimiento_documento || undefined);
+
+    const nextEstado = fecha_vencimiento_indefinido ? 'sin_fecha' : getEstadoFromVencimiento(formData.fecha_vencimiento_documento || undefined);
     if (nextDias !== formData.dias_validez_documento || nextEstado !== formData.estado_documento) {
       setFormData((prev) => ({ ...prev, dias_validez_documento: nextDias, estado_documento: nextEstado }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formData.fecha_emision_documento, formData.fecha_vencimiento_documento]);
+  }, [formData.fecha_emision_documento, formData.fecha_vencimiento_documento, (formData as any).fecha_vencimiento_indefinido]);
 
   const handleInputChange = (field: string, value: string | File | null) => {
     setFormData((prev) => ({ ...prev, [field]: value as any }));
@@ -118,10 +124,15 @@ const SubirDocumentoModal: React.FC<SubirDocumentoModalProps> = ({ isOpen, onClo
   const handleClose = () => { resetModalState(); onClose(); };
 
   const tiposDocumentoUnicos = useMemo(() => {
-    const tiposEstaticos = ["cv", "epp", "examen_preocupacional", "otro"];
+    const tiposEstaticos = ["cv", "carnet_identidad", "examen_preocupacional", "licencia_conducir", "otro"];
     const tiposDinamicos = prerrequisitos?.map(p => p.tipo_documento.toLowerCase()) || [];
-    return Array.from(new Set([...tiposEstaticos, ...tiposDinamicos]));
-  }, [prerrequisitos]);
+    if (uploadCategory === 'prerrequisitos') {
+      // show only prerrequisitos types
+      return Array.from(new Set(tiposDinamicos));
+    }
+    // personal documents category: show static personal types
+    return Array.from(new Set(tiposEstaticos));
+  }, [prerrequisitos, uploadCategory]);
 
   // Helper: unique prerrequisitos tipos (texto) available
   const prerrequisitosTiposUnicos = useMemo(() => {
@@ -130,12 +141,11 @@ const SubirDocumentoModal: React.FC<SubirDocumentoModalProps> = ({ isOpen, onClo
   }, [prerrequisitos]);
 
   const shouldShowPrerrequisitosPicker = useMemo(() => {
-    if (!formData.tipo_documento) return false;
-    const tipo = formData.tipo_documento.toString().toLowerCase();
-    if (tipo === 'prerrequisitos') return true;
-    // show if selected tipo matches any prerrequisito tipo (case-insensitive)
-    return prerrequisitosTiposUnicos.some(t => t.toLowerCase() === tipo);
-  }, [formData.tipo_documento, prerrequisitosTiposUnicos]);
+    // show the prerrequisitos checkbox picker only when category is prerrequisitos
+    if (uploadCategory !== 'prerrequisitos') return false;
+    // if there are no prerrequisitos defined, don't show
+    return prerrequisitosTiposUnicos.length > 0;
+  }, [uploadCategory, prerrequisitosTiposUnicos]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -250,6 +260,16 @@ const SubirDocumentoModal: React.FC<SubirDocumentoModalProps> = ({ isOpen, onClo
             {/* Tipo de documento (seleccionable) */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Tipo de Documento *</label>
+              <div className="mb-2 flex items-center space-x-4">
+                <label className="inline-flex items-center text-sm">
+                  <input type="radio" name="uploadCategory" value="personal" checked={uploadCategory === 'personal'} onChange={() => { setUploadCategory('personal'); setFormData(prev => ({ ...prev, tipo_documento: '', institucion_emisora: '' })); setSelectedPrerrequisitos([]); }} className="mr-2" />
+                  Documentación Personal
+                </label>
+                <label className="inline-flex items-center text-sm">
+                  <input type="radio" name="uploadCategory" value="prerrequisitos" checked={uploadCategory === 'prerrequisitos'} onChange={() => { setUploadCategory('prerrequisitos'); setFormData(prev => ({ ...prev, tipo_documento: '' })); setSelectedPrerrequisitos([]); }} className="mr-2" />
+                  Documentos Prerrequisitos
+                </label>
+              </div>
               <select
                 value={formData.tipo_documento}
                 onChange={(e) => handleInputChange('tipo_documento', e.target.value)}
@@ -343,7 +363,28 @@ const SubirDocumentoModal: React.FC<SubirDocumentoModalProps> = ({ isOpen, onClo
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Fecha de Vencimiento</label>
-                  <input type="date" value={formData.fecha_vencimiento_documento} onChange={(e) => handleInputChange('fecha_vencimiento_documento', e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500" disabled={isLoading} />
+                  <div className="flex items-center space-x-3">
+                    <input
+                      type="date"
+                      value={formData.fecha_vencimiento_documento}
+                      onChange={(e) => handleInputChange('fecha_vencimiento_documento', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                      disabled={isLoading || !!(formData as any).fecha_vencimiento_indefinido}
+                    />
+                    <label className="inline-flex items-center text-sm">
+                      <input
+                        type="checkbox"
+                        checked={(formData as any).fecha_vencimiento_indefinido}
+                        onChange={(e) => {
+                          const checked = e.target.checked;
+                          setFormData(prev => ({ ...prev, fecha_vencimiento_indefinido: checked, fecha_vencimiento_documento: checked ? '' : prev.fecha_vencimiento_documento }));
+                        }}
+                        className="mr-2"
+                        disabled={isLoading}
+                      />
+                      Indefinido
+                    </label>
+                  </div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Días de Validez</label>
@@ -360,10 +401,12 @@ const SubirDocumentoModal: React.FC<SubirDocumentoModalProps> = ({ isOpen, onClo
                   </select>
                 </div>
               </div>
-              <div className="mt-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Institución Emisora</label>
-                <input type="text" value={formData.institucion_emisora} onChange={(e) => handleInputChange('institucion_emisora', e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500" placeholder="Ej: Ministerio del Trabajo, SII, etc." disabled={isLoading} />
-              </div>
+              {uploadCategory !== 'personal' && (
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Institución Emisora</label>
+                  <input type="text" value={formData.institucion_emisora} onChange={(e) => handleInputChange('institucion_emisora', e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500" placeholder="Ej: Ministerio del Trabajo, SII, etc." disabled={isLoading} />
+                </div>
+              )}
             </div>
           </div>
 
