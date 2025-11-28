@@ -102,12 +102,21 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
   //  - { success: true, data: { documentos_locales_split: { documentos: [...], cursos_certificaciones: [...] } } }
   // Normalizar a un array plano de documentos en `rawDocumentos` para evitar resultados vacíos.
   const rawDocumentos: any[] = (() => {
-    const d: any = documentosData?.data;
+    // Normalize many possible shapes returned by the backend.
+    // The hook may return: { success, data: [...] } OR { success, data: { documentos: [...] } }
+    // or might already be the array. Add defensive logs to help debugging.
+    console.log('🔍 documentosData full:', documentosData);
+    let d: any = documentosData?.data ?? documentosData;
     if (!d) return [];
     // Caso: backend devolvió un array directo
     if (Array.isArray(d)) return d;
-    // Caso: objeto con 'documentos_locales_split'
-    if (d.documentos_locales_split && Array.isArray(d.documentos_locales_split.documentos)) return d.documentos_locales_split.documentos;
+    // Caso: objeto con 'documentos_locales_split' -> combinar documentos + cursos_certificaciones
+    if (d.documentos_locales_split) {
+      const split = d.documentos_locales_split;
+      const docs = Array.isArray(split.documentos) ? split.documentos : [];
+      const cursos = Array.isArray(split.cursos_certificaciones) ? split.cursos_certificaciones : [];
+      return [...docs, ...cursos];
+    }
     // Caso: objeto con 'documentos'
     if (Array.isArray(d.documentos)) return d.documentos;
     // Caso legacy: 'documentos_locales'

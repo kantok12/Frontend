@@ -620,10 +620,18 @@ class ApiService {
         timeout: FILE_CONFIG.UPLOAD_TIMEOUT, // Timeout específico para archivos grandes
         withCredentials: false,
       });
-      
+
+      // Intentar adjuntar token de Authorization si existe en localStorage
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      const headers: Record<string, any> = {};
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
       const response: AxiosResponse<ApiResponse<any>> = await uploadApi.post('/documentos', documentoData, {
         headers: {
           // No establecer Content-Type para que axios lo establezca automáticamente con boundary
+          ...headers
         },
       });
       console.log('✅ Respuesta exitosa del backend:', response.data);
