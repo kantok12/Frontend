@@ -505,10 +505,6 @@ export const PersonalPage: React.FC = () => {
           </Link>
         </div>
         <div className="flex items-center space-x-3">
-          <Link to="/personal/multi-upload" className="btn-outline btn-action mr-2" title="Subir archivo a múltiples personas">
-            <Upload className="h-4 w-4 mr-2 inline" />
-            <span>Subir a múltiples</span>
-          </Link>
           <button 
             onClick={() => setShowCreateModal(true)}
             className="btn-primary btn-action hover-grow"
@@ -754,14 +750,23 @@ export const PersonalPage: React.FC = () => {
                             {persona.nombre} {persona.apellido}
                           </h3>
                           <p className="text-sm text-gray-600">{persona.cargo}</p>
-                          {persona.empresa && (
-                            <div className="flex items-center mt-1 text-sm text-blue-600">
-                              <User className="h-3 w-3 mr-1" />
-                              {persona.empresa.nombre}
-                            </div>
-                          )}
+                          <div className="flex items-center mt-1 text-sm text-blue-600">
+                            <User className="h-3 w-3 mr-1" />
+                            {persona.empresa?.nombre || 'No asignada'}
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1">{persona.zona_geografica || 'No asignada'}</div>
                           <div className="text-xs text-gray-500 mt-1">
                             RUT: {formatRUT(persona.rut)}
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1 flex items-center space-x-3">
+                            <div className="flex items-center text-xs text-gray-600">
+                              <svg className="h-3 w-3 mr-1 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.09 4.18 2 2 0 0 1 4 2h3a2 2 0 0 1 2 1.72c.12 1.05.36 2.07.72 3.03a2 2 0 0 1-.45 2.11L8.09 10.91c1.45 3.02 3.98 5.55 6.99 7l1.95-1.95a2 2 0 0 1 2.11-.45c.96.36 1.98.6 3.03.72A2 2 0 0 1 22 16.92z"></path></svg>
+                              <span>{persona.telefono || 'No asignada'}</span>
+                            </div>
+                            <div className="flex items-center text-xs text-gray-600">
+                              <Mail className="h-3 w-3 mr-1" />
+                              <span>{persona.email || 'No asignada'}</span>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -810,16 +815,51 @@ export const PersonalPage: React.FC = () => {
                       </p>
                     </div> */}
 
-                    {/* Información Adicional */}
+                    {/* Información Adicional: sexo, licencia, contacto y emergencia */}
                     <div className="border-t pt-3">
-                      <div className="flex justify-between items-center text-xs text-gray-500">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-gray-500">
                         <div className="flex items-center">
                           <User className="h-3 w-3 mr-1" />
-                          {persona.sexo === 'M' ? 'Masculino' : 'Femenino'}
+                          <span>{persona.sexo === 'M' ? 'Masculino' : 'Femenino'}</span>
                         </div>
+
                         <div className="flex items-center">
                           <Mail className="h-3 w-3 mr-1" />
-                          Licencia: {persona.licencia_conducir}
+                          <span>Licencia: {persona.licencia_conducir || 'No asignada'}</span>
+                        </div>
+
+                        <div className="flex items-center">
+                          <svg className="h-3 w-3 mr-1 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.09 4.18 2 2 0 0 1 4 2h3a2 2 0 0 1 2 1.72c.12 1.05.36 2.07.72 3.03a2 2 0 0 1-.45 2.11L8.09 10.91c1.45 3.02 3.98 5.55 6.99 7l1.95-1.95a2 2 0 0 1 2.11-.45c.96.36 1.98.6 3.03.72A2 2 0 0 1 22 16.92z"></path></svg>
+                          <span>{(persona.contacto?.telefono) || persona.telefono || 'Sin teléfono'}</span>
+                        </div>
+
+                        <div className="flex items-center">
+                          <Mail className="h-3 w-3 mr-1" />
+                          <span>{(persona.contacto?.email) || persona.email || 'Sin email'}</span>
+                        </div>
+
+                        {/* Contacto de emergencia */}
+                        <div className="col-span-1 sm:col-span-2 mt-1 text-xs text-gray-600">
+                          <div className="font-medium text-gray-700">Contacto de Emergencia</div>
+                          {persona.contacto_emergencia ? (
+                            <div className="flex items-center space-x-3 mt-1">
+                              <div className="text-xs text-gray-600">
+                                <div><strong>{persona.contacto_emergencia.nombre}</strong> ({persona.contacto_emergencia.relacion})</div>
+                                <div className="flex items-center text-xs text-gray-600">
+                                  <svg className="h-3 w-3 mr-1 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.09 4.18 2 2 0 0 1 4 2h3a2 2 0 0 1 2 1.72c.12 1.05.36 2.07.72 3.03a2 2 0 0 1-.45 2.11L8.09 10.91c1.45 3.02 3.98 5.55 6.99 7l1.95-1.95a2 2 0 0 1 2.11-.45c.96.36 1.98.6 3.03.72A2 2 0 0 1 22 16.92z"></path></svg>
+                                  <span>{persona.contacto_emergencia.telefono}</span>
+                                </div>
+                                {persona.contacto_emergencia.email && (
+                                  <div className="flex items-center text-xs text-gray-600">
+                                    <Mail className="h-3 w-3 mr-1" />
+                                    <span>{persona.contacto_emergencia.email}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="text-xs text-gray-500 mt-1">Sin contacto de emergencia registrado</div>
+                          )}
                         </div>
                       </div>
                     </div>

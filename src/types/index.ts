@@ -21,6 +21,7 @@ export interface Personal {
   empresa_id: string;
   servicio_id: string;
   email?: string;
+  telefono?: string;
   activo: boolean;
   sexo: 'M' | 'F';
   licencia_conducir: string;
@@ -33,6 +34,10 @@ export interface Personal {
   comentario_estado: string;
   profile_image_url?: string;
   ubicacion?: Ubicacion;
+  profesion?: string;
+  area?: string;
+  supervisor?: string;
+  tipo_asistencia?: string;
   contacto?: Contacto;
   contacto_emergencia?: ContactoEmergencia;
   formacion?: Formacion;
@@ -43,6 +48,7 @@ export interface Personal {
     id: string;
     nombre: string;
   };
+  fecha_inicio_contrato?: string;
   created_at: string;
   updated_at: string;
 }
@@ -129,10 +135,11 @@ export interface FormatoArchivo {
 
 // Interfaces auxiliares
 export interface Ubicacion {
-  direccion: string;
-  ciudad: string;
-  region: string;
+  direccion?: string;
+  ciudad?: string;
+  region?: string;
   codigo_postal?: string;
+  comuna?: string;
 }
 
 export interface Contacto {
@@ -345,6 +352,7 @@ export interface UpdatePersonalData {
   talla_pantalones?: string;
   talla_poleras?: string;
   zona_geografica?: string;
+  ubicacion?: Partial<Ubicacion>;
   comentario_estado?: string;
   // Campos legacy (mantener para compatibilidad)
   nombre?: string;
@@ -353,6 +361,11 @@ export interface UpdatePersonalData {
   empresa_id?: string;
   servicio_id?: string;
   activo?: boolean;
+  // Contacto y emergencia
+  telefono?: string;
+  email?: string;
+  contacto?: Contacto;
+  contacto_emergencia?: ContactoEmergencia;
 }
 
 export interface CreateServicioData {

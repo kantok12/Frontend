@@ -224,12 +224,21 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
         nombre: personal.nombre || '',
         apellido: personal.apellido || '',
         cargo: personal.cargo,
+        telefono: (personal.telefono as any) || '',
+        email: personal.email || '',
+        contacto: personal.contacto || undefined,
+        contacto_emergencia: personal.contacto_emergencia || undefined,
         sexo: personal.sexo,
         licencia_conducir: personal.licencia_conducir,
         talla_zapatos: personal.talla_zapatos,
         talla_pantalones: personal.talla_pantalones,
         talla_poleras: personal.talla_poleras,
-        zona_geografica: personal.zona_geografica,
+        ubicacion: {
+          region: personal.ubicacion?.region || '',
+          ciudad: personal.ubicacion?.ciudad || '',
+          comuna: personal.ubicacion?.comuna || '',
+          direccion: personal.ubicacion?.direccion || ''
+        },
         activo: personal.activo,
         estado_id: personal.estado_id,
         comentario_estado: personal.comentario_estado,
@@ -262,7 +271,35 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
     if (editData.apellido !== undefined && !editData.apellido?.trim()) newErrors.apellido = 'El apellido es requerido';
     if (editData.cargo !== undefined && !editData.cargo?.trim()) newErrors.cargo = 'El cargo es requerido';
     if (editData.licencia_conducir !== undefined && !editData.licencia_conducir?.trim()) newErrors.licencia_conducir = 'La licencia es requerida';
-    if (editData.zona_geografica !== undefined && !editData.zona_geografica?.trim()) newErrors.zona_geografica = 'La zona geográfica es requerida';
+    // zona_geografica removed from UI per request — skip validation here
+    // Validación de contacto
+    const emailValue = (editData as any).email || personal.email || '';
+    const telefonoValue = (editData as any).telefono || personal.telefono || '';
+    const contactoEmerg = (editData as any).contacto_emergencia || personal.contacto_emergencia || {};
+
+    const isValidEmail = (value: string) => {
+      if (!value) return true; // vacío permitido, se maneja como 'sin email'
+      return /^\S+@\S+\.\S+$/.test(value.trim());
+    };
+
+    const isValidPhone = (value: string) => {
+      if (!value) return true; // vacío permitido
+      const digits = (value || '').replace(/\D/g, '');
+      if (digits.length < 6) return false;
+      return /^[+]?[-()\s\d]+$/.test(value.trim());
+    };
+
+    if (!isValidPhone(telefonoValue)) newErrors.telefono = 'Teléfono inválido (mínimo 6 dígitos)';
+    if (!isValidEmail(emailValue)) newErrors.email = 'Email con formato inválido';
+
+    // Si se provee algún dato de contacto de emergencia, validar campos mínimos
+    const anyEmerg = Boolean(contactoEmerg && (contactoEmerg.nombre || contactoEmerg.telefono || contactoEmerg.email || contactoEmerg.relacion));
+    if (anyEmerg) {
+      if (!contactoEmerg.nombre || !String(contactoEmerg.nombre).trim()) newErrors['contacto_emergencia.nombre'] = 'Nombre del contacto de emergencia es requerido';
+      if (!contactoEmerg.telefono || !String(contactoEmerg.telefono).trim()) newErrors['contacto_emergencia.telefono'] = 'Teléfono del contacto de emergencia es requerido';
+      if (contactoEmerg.telefono && !isValidPhone(String(contactoEmerg.telefono))) newErrors['contacto_emergencia.telefono'] = 'Teléfono de emergencia inválido';
+      if (contactoEmerg.email && !isValidEmail(String(contactoEmerg.email))) newErrors['contacto_emergencia.email'] = 'Email de emergencia con formato inválido';
+    }
     if (editData.comentario_estado && editData.comentario_estado.length > 1000) newErrors.comentario_estado = 'El comentario no puede exceder 1000 caracteres';
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -287,7 +324,13 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
           talla_zapatos: editData.talla_zapatos || personal.talla_zapatos || '',
           talla_pantalones: editData.talla_pantalones || personal.talla_pantalones || '',
           talla_poleras: editData.talla_poleras || personal.talla_poleras || '',
-          zona_geografica: editData.zona_geografica || personal.zona_geografica || '',
+          // Enviar campos de ubicación (región/ciudad/comuna) en el payload
+          region: (editData as any).ubicacion?.region || personal.ubicacion?.region || undefined,
+          ciudad: (editData as any).ubicacion?.ciudad || personal.ubicacion?.ciudad || undefined,
+          comuna: (editData as any).ubicacion?.comuna || personal.ubicacion?.comuna || undefined,
+          telefono: (editData as any).telefono || personal.telefono || undefined,
+          email: (editData as any).email || personal.email || undefined,
+          contacto_emergencia: (editData as any).contacto_emergencia || personal.contacto_emergencia || undefined,
           comentario_estado: editData.comentario_estado !== undefined ? editData.comentario_estado : personal.comentario_estado || '',
           nombre: nombreCompleto
         };
@@ -307,10 +350,17 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
         talla_zapatos: editData.talla_zapatos || personal.talla_zapatos || '',
         talla_pantalones: editData.talla_pantalones || personal.talla_pantalones || '',
         talla_poleras: editData.talla_poleras || personal.talla_poleras || '',
-        zona_geografica: editData.zona_geografica || personal.zona_geografica || '',
+        // Incluir datos de ubicación (región/ciudad/comuna)
+        region: (editData as any).ubicacion?.region || personal.ubicacion?.region || undefined,
+        ciudad: (editData as any).ubicacion?.ciudad || personal.ubicacion?.ciudad || undefined,
+        comuna: (editData as any).ubicacion?.comuna || personal.ubicacion?.comuna || undefined,
         comentario_estado: editData.comentario_estado !== undefined ? editData.comentario_estado : personal.comentario_estado || '',
+        telefono: (editData as any).telefono || personal.telefono || undefined,
+        email: (editData as any).email || personal.email || undefined,
+        contacto_emergencia: (editData as any).contacto_emergencia || personal.contacto_emergencia || undefined,
       };
-      promises.push(updateMutation.mutateAsync({ id: personal.rut, data: updateData }));
+      // cast a any because api may accept extra keys for region/ciudad/comuna
+      promises.push(updateMutation.mutateAsync({ id: personal.rut, data: updateData as any }));
       await Promise.all(promises);
       const newEstadoId = editData.estado_id !== undefined ? editData.estado_id : personal.estado_id;
       if (newEstadoId !== undefined) setCurrentEstadoId(newEstadoId);
@@ -340,7 +390,12 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
       talla_zapatos: personal.talla_zapatos,
       talla_pantalones: personal.talla_pantalones,
       talla_poleras: personal.talla_poleras,
-      zona_geografica: personal.zona_geografica,
+      ubicacion: {
+        region: personal.ubicacion?.region || '',
+        ciudad: personal.ubicacion?.ciudad || '',
+        comuna: personal.ubicacion?.comuna || '',
+        direccion: personal.ubicacion?.direccion || ''
+      },
       activo: personal.activo,
       estado_id: personal.estado_id,
       comentario_estado: personal.comentario_estado,
@@ -679,7 +734,8 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                 <p className="text-blue-100 text-lg">
                   {personal.cargo || 'Sin cargo especificado'}
                 </p>
-                <p className="text-blue-200 text-sm">{personal.zona_geografica || 'Sin ubicación especificada'}</p>
+                <p className="text-blue-200 text-sm">{personal.zona_geografica || 'No asignada'}</p>
+                
                 <p className="text-blue-200 text-sm">RUT: {formatRUT(personal.rut)}</p>
               </div>
             </div>
@@ -732,57 +788,30 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
           </div>
           
           <div className="mt-4">
-            <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-              personal.activo 
-                ? 'bg-green-100 text-green-800 border border-green-200' 
-                : 'bg-red-100 text-red-800 border border-red-200'
-            }`}>
+            <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${personal.activo ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-red-100 text-red-800 border border-red-200'}`}>
               <Activity className="h-4 w-4 mr-2" />
               {personal.estado_nombre}
             </span>
+            {/* Profesión / Área / Supervisor / Tipo de asistencia */}
+            <div className="mt-3 grid grid-cols-1 gap-2">
+              <div className="flex justify-between items-center">
+                <span className="text-white text-sm opacity-90 font-medium">Profesión:</span>
+                <span className="text-white font-semibold text-base drop-shadow-sm">{personal.profesion || 'No asignada'}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-white text-sm opacity-90 font-medium">Área:</span>
+                <span className="text-white font-semibold text-base drop-shadow-sm text-right">{personal.area || 'No asignada'}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-white text-sm opacity-90 font-medium">Supervisor:</span>
+                <span className="text-white font-semibold text-base drop-shadow-sm text-right">{personal.supervisor || 'No asignada'}</span>
+              </div>
+              {/* Tipo de asistencia eliminado por petición del usuario */}
+            </div>
+
+            {/* Asignaciones (Carteras/Clientes/Nodos) eliminadas de la vista por petición */}
           </div>
         </div>
-
-        {/* Panel de Asignaciones (solo visible si showAsignaciones = true) */}
-        {showAsignaciones && (
-          <div className="px-6 pt-4">
-            <div className="bg-white rounded-lg border p-4">
-              <h3 className="text-lg font-semibold text-gray-900 mb-3">Asignaciones</h3>
-              {asignacionesLoading ? (
-                <div className="py-2 text-gray-600">Cargando asignaciones...</div>
-              ) : asignacionesError ? (
-                <div className="py-2 text-red-600">Error al cargar asignaciones</div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                  <div>
-                    <h4 className="font-medium text-gray-800 mb-2">Carteras</h4>
-                    <ul className="list-disc pl-5 space-y-1">
-                      {(asignaciones?.carteras || []).map((c: any) => (
-                        <li key={c.id}>{c.nombre || `ID ${c.id}`}</li>
-                      ))}
-                    </ul>
-                  </div>
-                  <div>
-                    <h4 className="font-medium text-gray-800 mb-2">Clientes</h4>
-                    <ul className="list-disc pl-5 space-y-1">
-                      {(asignaciones?.clientes || []).map((cl: any) => (
-                        <li key={cl.id}>{cl.nombre || `ID ${cl.id}`}</li>
-                      ))}
-                    </ul>
-                  </div>
-                  <div>
-                    <h4 className="font-medium text-gray-800 mb-2">Nodos</h4>
-                    <ul className="list-disc pl-5 space-y-1">
-                      {(asignaciones?.nodos || []).map((n: any) => (
-                        <li key={n.id}>{n.nombre || `ID ${n.id}`}</li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
 
         {/* Content */}
         <div className="p-6">
@@ -879,6 +908,40 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                       <span className="text-gray-900">{getAge(personal.fecha_nacimiento)} años</span>
                     )}
                   </div>
+                  {/* Contacto directo (teléfono / email) */}
+                  <div className="mt-3 border-t pt-3">
+                    <h4 className="text-sm font-medium text-gray-700 mb-2">Contacto</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <span className="text-gray-600 font-medium">Teléfono</span>
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={(editData as any).telefono || personal.telefono || ''}
+                            onChange={(e) => handleInputChange('telefono', e.target.value)}
+                            className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 mt-1"
+                          />
+                        ) : (
+                          <div className="text-gray-900 mt-1">{personal.telefono || 'Sin teléfono'}</div>
+                        )}
+                        {errors.telefono && (<p className="text-xs text-red-600 mt-1">{errors.telefono}</p>)}
+                      </div>
+                      <div>
+                        <span className="text-gray-600 font-medium">Email</span>
+                        {isEditing ? (
+                          <input
+                            type="email"
+                            value={(editData as any).email || personal.email || ''}
+                            onChange={(e) => handleInputChange('email', e.target.value)}
+                            className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 mt-1"
+                          />
+                        ) : (
+                          <div className="text-gray-900 mt-1">{personal.email || 'Sin email'}</div>
+                        )}
+                        {errors.email && (<p className="text-xs text-red-600 mt-1">{errors.email}</p>)}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -889,23 +952,59 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                   Ubicación
                 </h3>
                 <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600 font-medium">Zona Geográfica:</span>
-                    {isEditing ? (
-                      <input
-                        type="text"
-                        value={editData.zona_geografica || ''}
-                        onChange={(e) => handleInputChange('zona_geografica', e.target.value)}
-                        className={`px-2 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.zona_geografica ? 'border-red-500' : 'border-gray-300'}`}
-                        placeholder="Zona geográfica"
-                      />
-                    ) : (
-                      <span className="text-gray-900">{personal.zona_geografica}</span>
-                    )}
-                  </div>
-                  {errors.zona_geografica && (
-                    <p className="text-xs text-red-600">{errors.zona_geografica}</p>
-                  )}
+                      <div className="grid grid-cols-1 gap-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-600 font-medium">Región:</span>
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              value={(editData as any).ubicacion?.region || personal.ubicacion?.region || ''}
+                              onChange={(e) => {
+                                const prev = (editData as any).ubicacion || {};
+                                handleInputChange('ubicacion', { ...prev, region: e.target.value });
+                              }}
+                              className="px-2 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              placeholder="Región"
+                            />
+                          ) : (
+                            <span className="text-gray-900">{personal.ubicacion?.region || 'No asignada'}</span>
+                          )}
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-600 font-medium">Ciudad:</span>
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              value={(editData as any).ubicacion?.ciudad || personal.ubicacion?.ciudad || ''}
+                              onChange={(e) => {
+                                const prev = (editData as any).ubicacion || {};
+                                handleInputChange('ubicacion', { ...prev, ciudad: e.target.value });
+                              }}
+                              className="px-2 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              placeholder="Ciudad"
+                            />
+                          ) : (
+                            <span className="text-gray-900">{personal.ubicacion?.ciudad || 'No asignada'}</span>
+                          )}
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-600 font-medium">Comuna:</span>
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              value={(editData as any).ubicacion?.comuna || personal.ubicacion?.comuna || ''}
+                              onChange={(e) => {
+                                const prev = (editData as any).ubicacion || {};
+                                handleInputChange('ubicacion', { ...prev, comuna: e.target.value });
+                              }}
+                              className="px-2 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              placeholder="Comuna"
+                            />
+                          ) : (
+                            <span className="text-gray-900">{personal.ubicacion?.comuna || 'No asignada'}</span>
+                          )}
+                        </div>
+                      </div>
                 </div>
               </div>
 
@@ -937,7 +1036,7 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                         <option value="F">F</option>
                       </select>
                     ) : (
-                      <span className="text-gray-900 font-semibold">{personal.licencia_conducir || 'No especificada'}</span>
+                      <span className="text-gray-900 font-semibold">{personal.licencia_conducir || 'No asignada'}</span>
                     )}
                   </div>
                   {errors.licencia_conducir && (
@@ -964,7 +1063,7 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                         placeholder="Ej: 42, 38"
                       />
                     ) : (
-                      <span className="text-gray-900 font-semibold">{personal.talla_zapatos}</span>
+                      <span className="text-gray-900 font-semibold">{personal.talla_zapatos || 'No asignada'}</span>
                     )}
                   </div>
                   <div className="flex justify-between items-center">
@@ -978,7 +1077,7 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                         placeholder="Ej: M, 32, L"
                       />
                     ) : (
-                      <span className="text-gray-900 font-semibold">{personal.talla_pantalones}</span>
+                      <span className="text-gray-900 font-semibold">{personal.talla_pantalones || 'No asignada'}</span>
                     )}
                   </div>
                   <div className="flex justify-between items-center">
@@ -992,7 +1091,7 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                         placeholder="Ej: S, M, L, XL"
                       />
                     ) : (
-                      <span className="text-gray-900 font-semibold">{personal.talla_poleras}</span>
+                      <span className="text-gray-900 font-semibold">{personal.talla_poleras || 'No asignada'}</span>
                     )}
                   </div>
                 </div>
@@ -1262,6 +1361,63 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                 )}
               </div>
 
+              {/* Contacto de Emergencia editable */}
+              <div className="bg-gray-50 rounded-lg p-4">
+                <h3 className="text-lg font-semibold text-gray-900 mb-3">Contacto de Emergencia</h3>
+                {isEditing ? (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-sm text-gray-600">Nombre</label>
+                        <input type="text" value={(editData as any).contacto_emergencia?.nombre || personal.contacto_emergencia?.nombre || ''} onChange={(e) => {
+                          const prev = (editData as any).contacto_emergencia || {};
+                          handleInputChange('contacto_emergencia', { ...prev, nombre: e.target.value });
+                        }} className="w-full px-2 py-1 border border-gray-300 rounded mt-1" />
+                        {errors['contacto_emergencia.nombre'] && (<p className="text-xs text-red-600 mt-1">{errors['contacto_emergencia.nombre']}</p>)}
+                      </div>
+                      <div>
+                        <label className="text-sm text-gray-600">Relación</label>
+                        <input type="text" value={(editData as any).contacto_emergencia?.relacion || personal.contacto_emergencia?.relacion || ''} onChange={(e) => {
+                          const prev = (editData as any).contacto_emergencia || {};
+                          handleInputChange('contacto_emergencia', { ...prev, relacion: e.target.value });
+                        }} className="w-full px-2 py-1 border border-gray-300 rounded mt-1" />
+                        {errors['contacto_emergencia.relacion'] && (<p className="text-xs text-red-600 mt-1">{errors['contacto_emergencia.relacion']}</p>)}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-sm text-gray-600">Teléfono</label>
+                        <input type="text" value={(editData as any).contacto_emergencia?.telefono || personal.contacto_emergencia?.telefono || ''} onChange={(e) => {
+                          const prev = (editData as any).contacto_emergencia || {};
+                          handleInputChange('contacto_emergencia', { ...prev, telefono: e.target.value });
+                        }} className="w-full px-2 py-1 border border-gray-300 rounded mt-1" />
+                        {errors['contacto_emergencia.telefono'] && (<p className="text-xs text-red-600 mt-1">{errors['contacto_emergencia.telefono']}</p>)}
+                      </div>
+                      <div>
+                        <label className="text-sm text-gray-600">Email</label>
+                        <input type="email" value={(editData as any).contacto_emergencia?.email || personal.contacto_emergencia?.email || ''} onChange={(e) => {
+                          const prev = (editData as any).contacto_emergencia || {};
+                          handleInputChange('contacto_emergencia', { ...prev, email: e.target.value });
+                        }} className="w-full px-2 py-1 border border-gray-300 rounded mt-1" />
+                        {errors['contacto_emergencia.email'] && (<p className="text-xs text-red-600 mt-1">{errors['contacto_emergencia.email']}</p>)}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    {personal.contacto_emergencia ? (
+                      <div className="text-sm text-gray-700">
+                        <div><strong>{personal.contacto_emergencia.nombre}</strong> ({personal.contacto_emergencia.relacion})</div>
+                        <div className="text-gray-600">{personal.contacto_emergencia.telefono}</div>
+                        {personal.contacto_emergencia.email && <div className="text-gray-600">{personal.contacto_emergencia.email}</div>}
+                      </div>
+                    ) : (
+                      <div className="text-sm text-gray-500">Sin contacto de emergencia registrado</div>
+                    )}
+                  </div>
+                )}
+              </div>
+
             </div>
           </div>
         </div>
@@ -1270,8 +1426,7 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
         <div className="bg-gray-50 px-6 py-4 rounded-b-xl border-t">
           <div className="flex justify-between items-center">
             <div className="text-sm text-gray-600">
-              <span className="font-medium">RUT:</span> {personal.rut} • 
-              <span className="font-medium ml-2">Zona:</span> {personal.zona_geografica}
+              <span className="font-medium">RUT:</span> {personal.rut}
             </div>
             <button onClick={onClose} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colores font-medium">Cerrar</button>
           </div>

@@ -177,23 +177,62 @@ const adaptPersonalData = (personalBackend: any): Personal => {
 
   // eslint-disable-next-line no-console
   console.log('🎯 Nombre final asignado:', { nombre, apellido });
+  // Normalizar contacto de emergencia en una variable para evitar expresiones complejas inline
+  let contactoEmerg: any = undefined;
+  if (personalBackend.nombre_contacto_emergencia || personalBackend.telefono_contacto_emergencia || personalBackend.vinculo_contacto_emergencia || personalBackend.contacto_emergencia) {
+    const raw = personalBackend.contacto_emergencia;
+    let cNombre = personalBackend.nombre_contacto_emergencia || undefined;
+    let cRelacion = personalBackend.vinculo_contacto_emergencia || undefined;
+    let cTelefono = personalBackend.telefono_contacto_emergencia || undefined;
+    const cEmail = personalBackend.email_contacto_emergencia || undefined;
+    if (!cNombre && typeof raw === 'string') {
+      const parts = raw.split('-').map((p: string) => p.trim());
+      if (parts.length >= 1 && parts[0]) cNombre = parts[0];
+      if (!cRelacion && parts.length >= 2 && parts[1]) cRelacion = 'Contacto';
+      if (!cTelefono && parts.length >= 2 && parts[1]) cTelefono = parts[1];
+    }
+    contactoEmerg = { nombre: cNombre, relacion: cRelacion, telefono: cTelefono, email: cEmail };
+  }
 
   return {
     ...personalBackend,
-    id: personalBackend.rut,
+    id: personalBackend.rut || personalBackend.id,
     nombre,
     apellido,
-    activo: personalBackend.estado_nombre === 'Activo',
-    email: undefined,
-    contacto: undefined,
-    profile_image_url: personalBackend.profile_image_url || undefined,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    empresa_id: '1',
-    servicio_id: '1',
+    rut: personalBackend.rut || personalBackend.id,
+    activo: (personalBackend.estado_nombre || '').toString().toLowerCase() === 'activo' || Boolean(personalBackend.activo),
+    email: personalBackend.correo_electronico || personalBackend.email || personalBackend.correo || undefined,
+    telefono: personalBackend.telefono || personalBackend.telefono_2 || personalBackend.phone || undefined,
+    contacto: personalBackend.contacto_emergencia || undefined,
+    profile_image_url: personalBackend.profile_image_url || personalBackend.profile_image || undefined,
+    created_at: personalBackend.created_at || new Date().toISOString(),
+    updated_at: personalBackend.updated_at || new Date().toISOString(),
+    empresa_id: personalBackend.empresa_id || '1',
+    servicio_id: personalBackend.servicio_id || '1',
+    fecha_inicio_contrato: personalBackend.fecha_inicio_contrato || personalBackend.fecha_inicio || undefined,
+    zona_geografica: personalBackend.zona_geografica || personalBackend.zona || undefined,
+    fecha_nacimiento: personalBackend.fecha_nacimiento || personalBackend.nacimiento || undefined,
+    talla_zapatos: personalBackend.talla_zapatos || personalBackend.talla_zapato || personalBackend.talla_z || undefined,
+    talla_pantalones: personalBackend.talla_pantalones || personalBackend.talla_pantalon || personalBackend.talla_p || undefined,
+    talla_poleras: personalBackend.talla_poleras || personalBackend.talla_polera || personalBackend.talla_camisa || undefined,
+    // Información adicional del ejemplo de backend
+    profesion: personalBackend.profesion || personalBackend.profesión || undefined,
+    area: personalBackend.area || personalBackend.id_area || undefined,
+    supervisor: personalBackend.supervisor || personalBackend.nombre_supervisor || undefined,
+    tipo_asistencia: personalBackend.tipo_asistencia || personalBackend.asistencia || undefined,
+    // Contacto de emergencia ya normalizado
+    contacto_emergencia: contactoEmerg,
+    // Ubicación detallada
+    ubicacion: {
+      pais: personalBackend.pais || undefined,
+      region: personalBackend.region || undefined,
+      ciudad: personalBackend.ciudad || undefined,
+      comuna: personalBackend.comuna || undefined,
+      direccion: personalBackend.direccion || personalBackend.domicilio || undefined,
+    },
     empresa: {
-      id: '1',
-      nombre: personalBackend.zona_geografica
+      id: personalBackend.empresa_id ? String(personalBackend.empresa_id) : '1',
+      nombre: personalBackend.empresa || personalBackend.empresa_nombre || personalBackend.empresa_name || personalBackend.zona_geografica || ''
     }
   };
 };
