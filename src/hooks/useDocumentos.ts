@@ -41,6 +41,18 @@ export const useDocumentosByPersona = (rut: string) => {
       try {
         const result = await apiService.getDocumentosByPersona(rut);
         console.log('📄 Documentos recibidos para RUT', rut, ':', result);
+
+        // Normalizar caso donde el backend devuelve directamente un array
+        // (sin el wrapper { success, data }). Esto es frecuente en APIs
+        // que retornan solo el arreglo de documentos.
+        if (Array.isArray(result)) {
+          console.log('ℹ️ Backend devolvió array crudo para documentos, normalizando respuesta.');
+          return {
+            success: true,
+            data: result,
+            pagination: { total: result.length, limit: result.length || 10, offset: 0, hasMore: false }
+          } as any;
+        }
         
         // Verificar la estructura de respuesta según la documentación
         if (result?.success && result?.data) {

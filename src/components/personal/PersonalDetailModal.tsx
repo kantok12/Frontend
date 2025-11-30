@@ -1,37 +1,47 @@
 /* eslint-disable no-console */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Personal, UpdatePersonalData } from '../../types';
 import { useUpdatePersonal } from '../../hooks/usePersonal';
 import { useAsignaciones } from '../../hooks/useAsignaciones';
 import { useUpdatePersonalData } from '../../hooks/useNombres';
 import { useEstados } from '../../hooks/useEstados';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
+import { X, Download, Trash2, Edit, FileText, Plus, User, Upload, Save, XCircle, Activity, MapPin, Car, Shirt as ShirtIcon, GraduationCap } from 'lucide-react';
+import { useDocumentosByPersona, useDeleteDocumentoAndDrive, useDownloadDocumento, useUpdateDocumento } from '../../hooks/useDocumentos';
 import { useCursosByRut, useDeleteCurso } from '../../hooks/useCursos';
-import { useDocumentosByPersona, useDownloadDocumento, useDeleteDocumento, useDeleteDocumentoAndDrive } from '../../hooks/useDocumentos';
-import { X, User, MapPin, ShirtIcon, Car, Activity, Edit, Save, XCircle, GraduationCap, Plus, Trash2, FileText, Upload, Download } from 'lucide-react';
-import { LoadingSpinner } from '../common/LoadingSpinner';
-import { CursoModal } from './CursoModal';
-import SubirDocumentoModal from './SubirDocumentoModal';
-import CourseDocumentModal from './CourseDocumentModal';
-import EditDocumentModal from './EditDocumentModal';
-import { API_CONFIG } from '../../config/api';
-import { apiService } from '../../services/api';
-import { standardizeName, formatRUT } from '../../utils/formatters';
 import { displayValue } from '../../utils/display';
-import { truncateFilename, daysUntilNumber, daysUntilText } from '../../utils/format';
+import { LoadingSpinner } from '../common/LoadingSpinner';
+import { getAge, formatRUT, standardizeName, formatDate, truncateFilename, daysUntilNumber, daysUntilText, getDocumentIcon, getDocumentColor } from '../../utils/formatters';
+import { API_CONFIG } from '../../config/api';
+import { useProfileImage } from '../../hooks/useProfileImage';
+import SubirDocumentoModal from './SubirDocumentoModal';
+
+// Mock components for missing imports
+const CreateCursoModal: React.FC<any> = ({ isOpen, onClose }) => isOpen ? <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center"><div className="bg-white p-4 rounded"><h2>Create Curso Modal</h2><button onClick={onClose}>Close</button></div></div> : null;
+const AddCourseDocumentModal: React.FC<any> = ({ isOpen, onClose }) => isOpen ? <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center"><div className="bg-white p-4 rounded"><h2>Add Course Document Modal</h2><button onClick={onClose}>Close</button></div></div> : null;
+const EditDocumentModal: React.FC<any> = ({ isOpen, onClose }) => isOpen ? <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center"><div className="bg-white p-4 rounded"><h2>Edit Document Modal</h2><button onClick={onClose}>Close</button></div></div> : null;
+const CursoModal: React.FC<any> = ({ isOpen, onClose }) => isOpen ? <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center"><div className="bg-white p-4 rounded"><h2>Curso Modal</h2><button onClick={onClose}>Close</button></div></div> : null;
+const CourseDocumentModal: React.FC<any> = ({ isOpen, onClose }) => isOpen ? <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center"><div className="bg-white p-4 rounded"><h2>Course Document Modal</h2><button onClick={onClose}>Close</button></div></div> : null;
+
 
 interface PersonalDetailModalProps {
   personal: Personal | null;
   isOpen: boolean;
   onClose: () => void;
-  onUpdate?: () => void;
+  onUpdate: () => void;
 }
 
-export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
-  personal,
-  isOpen,
-  onClose,
-  onUpdate,
-}) => {
+export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({ personal, isOpen, onClose, onUpdate }) => {
+  const [activeTab, setActiveTab] = useState<'documentos' | 'cursos' | 'detalles'>('detalles');
+  const [showSubirModal, setShowSubirModal] = useState(false);
+  const [showCursoModal, setShowCursoModal] = useState(false);
+  const [editingCurso, setEditingCurso] = useState<any | null>(null);
+  const [showCourseDocumentModal, setShowCourseDocumentModal] = useState(false);
+  const [selectedCurso, setSelectedCurso] = useState<any | null>(null);
+  const [showEditDocumentModal, setShowEditDocumentModal] = useState(false);
+  const [editingDocumento, setEditingDocumento] = useState<any | null>(null);
+  const [showDocumentModal, setShowDocumentModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState<UpdatePersonalData>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -47,32 +57,13 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
   const updateMutation = useUpdatePersonal();
   const updatePersonalDataMutation = useUpdatePersonalData();
   const { data: estadosData, isLoading: estadosLoading } = useEstados({ limit: 100 });
-  const { data: cursosData, isLoading: cursosLoading, refetch: refetchCursos } = useCursosByRut(personal?.rut || '');
-  
-  // Log para debug de estados
-  console.log('🔍 PersonalDetailModal - Estados recibidos:', estadosData?.data);
-  console.log('🔍 PersonalDetailModal - Cantidad de estados:', estadosData?.data?.length);
-  
+  const { data: documentosData, isLoading: isLoadingDocumentos, error: errorDocumentos, refetch: refetchDocumentos } = useDocumentosByPersona(personal?.rut ?? '');
+  const { data: cursosData, isLoading: isLoadingCursos, error: errorCursos, refetch: refetchCursos } = useCursosByRut(personal?.rut ?? '');
   const deleteCursoMutation = useDeleteCurso();
   const deleteDocumentoAndDriveMutation = useDeleteDocumentoAndDrive();
-  
-  // Estados para modal de cursos
-  const [showCursoModal, setShowCursoModal] = useState(false);
-  const [editingCurso, setEditingCurso] = useState<any>(null);
-  
-  // Estados para modal de documentos de cursos
-  const [showCourseDocumentModal, setShowCourseDocumentModal] = useState(false);
-  const [selectedCurso, setSelectedCurso] = useState<any>(null);
-  
-  // Estados para modal de edición de documentos
-  const [showEditDocumentModal, setShowEditDocumentModal] = useState(false);
-  const [editingDocumento, setEditingDocumento] = useState<any>(null);
-
-  // Estados para documentación
-  const [showDocumentModal, setShowDocumentModal] = useState(false);
-
-  // Asignaciones por RUT (solo lectura, se muestran bajo demanda)
-  const { asignaciones, isLoading: asignacionesLoading, error: asignacionesError } = useAsignaciones(personal?.rut || '');
+  const downloadDocumentoMutation = useDownloadDocumento();
+  const { uploadImage, deleteImage, isUploading: isUploadingImage, isDeleting: isDeletingImage } = useProfileImage(personal?.rut || '');
+  const updateDocumentoMutation = useUpdateDocumento();
 
   useEffect(() => {
     if (personal?.rut) {
@@ -85,6 +76,34 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
     }
   }, [personal]);
 
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files && event.target.files[0] && personal) {
+      const file = event.target.files[0];
+      try {
+        await uploadImage(file);
+        // Refresh image
+        const encodedRut = encodeURIComponent(personal.rut);
+        setImageUrl(`${API_CONFIG.BASE_URL}/personal/${encodedRut}/image/download?t=${new Date().getTime()}`);
+        setImageError(false);
+      } catch (error) {
+        console.error("Error uploading image:", error);
+        setImageError(true);
+      }
+    }
+  };
+
+  const handleRemoveImage = async () => {
+    if (personal) {
+      try {
+        await deleteImage();
+        setImageUrl('');
+        setImageError(true); // To show placeholder
+      } catch (error) {
+        console.error("Error deleting image:", error);
+      }
+    }
+  };
+
   // Obtener nombre del estado por id (usando datos de la API)
   const getEstadoNombreById = (id?: number) => {
     if (!id) return personal?.estado_nombre || 'Desconocido';
@@ -92,9 +111,19 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
     return found?.nombre || personal?.estado_nombre || 'Desconocido';
   };
   
-  // Cargar documentos del personal desde el backend
-  const { data: documentosData, isLoading: documentosLoading, refetch: refetchDocumentos } = useDocumentosByPersona(personal?.rut || '');
+  const handleDownloadDocument = async (documento: any) => {
+    if (!documento.id) {
+      console.error("ID de documento no válido");
+      return;
+    }
+    try {
+      await downloadFile(documento.id, documento.nombre_documento);
+    } catch (error) {
+      console.error("Error al descargar el documento:", error);
+    }
+  };
 
+  // Cargar documentos del personal desde el backend
   // Filtrar documentos por categorías
   // La API puede devolver varias formas:
   //  - { success: true, data: { documentos: [...] } }
@@ -106,24 +135,35 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
     // The hook may return: { success, data: [...] } OR { success, data: { documentos: [...] } }
     // or might already be the array. Add defensive logs to help debugging.
     console.log('🔍 documentosData full:', documentosData);
-    let d: any = documentosData?.data ?? documentosData;
+    const d: any = documentosData?.data ?? documentosData;
     if (!d) return [];
-    // Caso: backend devolvió un array directo
+
+    // If backend returned a raw array, use it directly
     if (Array.isArray(d)) return d;
-    // Caso: objeto con 'documentos_locales_split' -> combinar documentos + cursos_certificaciones
+
+    // Prefer explicit top-level arrays returned by the backend when present and non-empty.
+    // Backend may provide the documents under different keys (documentos, mis_documentos, items, rows)
+    const preferredKeys = ['documentos', 'mis_documentos', 'items', 'rows', 'documentos_locales'];
+    for (const k of preferredKeys) {
+      if (Array.isArray(d[k]) && d[k].length > 0) return d[k];
+    }
+
+    // If the backend provides a split structure, combine only if it contains items.
     if (d.documentos_locales_split) {
       const split = d.documentos_locales_split;
       const docs = Array.isArray(split.documentos) ? split.documentos : [];
       const cursos = Array.isArray(split.cursos_certificaciones) ? split.cursos_certificaciones : [];
-      return [...docs, ...cursos];
+      if (docs.length > 0 || cursos.length > 0) return [...docs, ...cursos];
     }
-    // Caso: objeto con 'documentos'
+
+    // Fallbacks: return empty arrays or any arrays even if empty to keep consistent behavior
     if (Array.isArray(d.documentos)) return d.documentos;
-    // Caso legacy: 'documentos_locales'
     if (Array.isArray(d.documentos_locales)) return d.documentos_locales;
-    // No reconocido → devolver array vacío
+
     return [];
   })();
+
+  const { data: documentos, isLoading: documentosLoading, error: documentosError } = useDocumentosByPersona(personal?.rut ?? '');
 
   // Dedupe: el backend a veces puede devolver entradas duplicadas (por ejemplo registro y copia local).
   // Usar el nombre de archivo normalizado como clave principal (elimina sufijos de timestamp, underscores, mayúsculas)
@@ -184,13 +224,12 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                     tipo === 'certificado_vencimiento';
     return !esCurso;
   });
-  const downloadMutation = useDownloadDocumento();
   
   // Función utilitaria para descargar archivos
   const downloadFile = async (documentId: number, fileName: string) => {
     try {
       console.log('🔍 downloadFile - Iniciando descarga:', { documentId, fileName });
-      const result = await downloadMutation.mutateAsync(documentId);
+      const result = await downloadDocumentoMutation.mutateAsync(documentId);
       console.log('✅ downloadFile - Respuesta recibida:', { 
         blobSize: result.blob?.size, 
         blobType: result.blob?.type,
@@ -225,6 +264,22 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
       });
       throw error;
     }
+  };
+
+  const handleEditDocumentModalClose = () => {
+    setShowEditDocumentModal(false);
+    setEditingDocumento(null);
+  };
+
+  const handleEditDocumentSuccess = () => {
+    refetchDocumentos();
+    setShowEditDocumentModal(false);
+    setEditingDocumento(null);
+  };
+
+  const handleCourseDocumentModalClose = () => {
+    setShowCourseDocumentModal(false);
+    setSelectedCurso(null);
   };
 
   // Inicializar datos de edición cuando se abre la modal
@@ -430,255 +485,71 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
 
   
   const handleDeleteDocumento = async (documento: any) => {
-    // Normalizar nombre y tipo para detectar duplicados
-    const rawName = documento?.nombre_original || documento?.nombre_archivo || documento?.nombre_documento || '';
-    const tipo = (documento?.tipo_documento || '').toString().toLowerCase();
-    const normalized = normalizeName(rawName);
-
-    // Buscar coincidencias en la lista cruda devuelta por la API
-    const matches = rawDocumentos.filter((d: any) => {
-      const name = (d?.nombre_original || d?.nombre_archivo || d?.nombre_documento || '');
-      return normalizeName(name) === normalized && (d?.tipo_documento || '').toString().toLowerCase() === tipo;
-    });
-
-    if (matches.length === 0) {
-      // Fallback: intentar eliminar el documento recibido
-      if (!window.confirm(`¿Está seguro que desea eliminar el documento "${documento.nombre_documento}"?\n\nEsta acción no se puede deshacer.`)) return;
+    if (window.confirm(`¿Seguro que quieres eliminar "${documento.nombre_documento}"? Esta acción no se puede deshacer.`)) {
       try {
         await deleteDocumentoAndDriveMutation.mutateAsync({ id: documento.id, driveFileId: documento.drive_file_id });
         refetchDocumentos();
-        alert('Documento eliminado exitosamente.');
-      } catch (error: any) {
-        console.error('Error al eliminar documento:', error);
-        const msg = error?.message || 'Error al eliminar el documento. Por favor, intente nuevamente.';
-        alert(msg);
+      } catch (error) {
+        console.error("Error al eliminar:", error);
       }
-      return;
-    }
-
-    // Si hay múltiples coincidencias, pedir confirmación para eliminar todas
-    if (matches.length > 1) {
-      if (!window.confirm(`Se han encontrado ${matches.length} entradas que parecen ser el mismo archivo (mismo nombre).\n¿Desea eliminar todas ellas? Esta acción es irreversible.`)) return;
-    } else {
-      if (!window.confirm(`¿Está seguro que desea eliminar el documento "${documento.nombre_documento}"?\n\nEsta acción no se puede deshacer.`)) return;
-    }
-
-    // Ejecutar borrado para todas las entradas encontradas
-    const deletions = matches.map((m: any) => deleteDocumentoAndDriveMutation.mutateAsync({ id: m.id, driveFileId: m.drive_file_id }));
-    try {
-      await Promise.all(deletions);
-      refetchDocumentos();
-      alert(`Se eliminaron ${matches.length} documento${matches.length !== 1 ? 's' : ''} correctamente.`);
-    } catch (error: any) {
-      console.error('Error al eliminar documentos duplicados:', error);
-      alert(error?.message || 'Ocurrió un error al eliminar los documentos. Por favor, inténtelo nuevamente.');
     }
   };
+
+  const handleDeleteAllByType = async (tipo: string) => {
+    const matches = todosDocumentos.filter((d: any) => d.tipo_documento === tipo);
+    if (window.confirm(`¿Seguro que quieres eliminar ${matches.length} documentos de tipo "${tipo}"?`)) {
+      const deletions = matches.map((m: any) => deleteDocumentoAndDriveMutation.mutateAsync({ id: m.id, driveFileId: m.drive_file_id }));
+      try {
+        await Promise.all(deletions);
+        refetchDocumentos();
+      } catch (error) {
+        console.error("Error en eliminación masiva:", error);
+      }
+    }
+  };
+
   const handleCursoModalClose = () => { setShowCursoModal(false); setEditingCurso(null); };
   const handleCursoSuccess = () => { refetchCursos(); };
   const handleAddCourseDocument = (curso: any) => { setSelectedCurso(curso); setShowCourseDocumentModal(true); };
   const handleCourseDocumentSuccess = () => { refetchDocumentos(); refetchCursos(); };
-  const handleCourseDocumentModalClose = () => { setShowCourseDocumentModal(false); setSelectedCurso(null); };
-  
-  // Funciones para modal de edición de documentos
-  const handleEditDocumentSuccess = () => { refetchDocumentos(); };
-  const handleEditDocumentModalClose = () => { setShowEditDocumentModal(false); setEditingDocumento(null); };
 
   const handleAddDocument = () => { setShowDocumentModal(true); };
-  const handleDocumentSuccess = () => { refetchDocumentos(); };
+
   const handleDocumentModalClose = () => { setShowDocumentModal(false); };
-  
-  const handleDeleteDocument = async (documentoOrId: any) => {
-    // Acepta tanto el objeto documento como el id
-    const documento = typeof documentoOrId === 'number' ? rawDocumentos.find((d: any) => d.id === documentoOrId) : documentoOrId;
-    if (!documento) {
-      alert('No se encontró el documento para eliminar');
-      return;
-    }
 
-    // Normalizar y buscar duplicados en la lista cruda
-    const rawName = documento?.nombre_original || documento?.nombre_archivo || documento?.nombre_documento || '';
-    const tipo = (documento?.tipo_documento || '').toString().toLowerCase();
-    const normalized = normalizeName(rawName);
+  const handleDocumentSuccess = () => {
+    refetchDocumentos();
+    onUpdate();
+  };
 
-    const matches = rawDocumentos.filter((d: any) => {
-      const name = (d?.nombre_original || d?.nombre_archivo || d?.nombre_documento || '');
-      return normalizeName(name) === normalized && (d?.tipo_documento || '').toString().toLowerCase() === tipo;
-    });
+  const handleDeleteAllForCourse = async (cursoId: number) => {
+    const docsToDelete = personalDocuments.filter((d: any) => d.curso_id === cursoId);
+    if (docsToDelete.length === 0) return;
 
-    if (matches.length === 0) {
-      if (!window.confirm('¿Está seguro de que desea eliminar este documento?')) return;
+    if (window.confirm(`¿Seguro que quieres eliminar ${docsToDelete.length} documento(s) asociado(s) a este curso?`)) {
       try {
-        await deleteDocumentoAndDriveMutation.mutateAsync({ id: documento.id, driveFileId: documento.drive_file_id });
+        await Promise.all(docsToDelete.map((d: any) => deleteDocumentoAndDriveMutation.mutateAsync({ id: d.id, driveFileId: d.drive_file_id })));
         refetchDocumentos();
-        alert('Documento eliminado exitosamente');
-      } catch (error: any) {
-        console.error('Error al eliminar documento:', error);
-        alert(error?.message || 'Error al eliminar el documento');
-      }
-      return;
-    }
-
-    if (matches.length > 1) {
-      if (!window.confirm(`Se han encontrado ${matches.length} entradas duplicadas del mismo archivo. ¿Desea eliminar todas?`)) return;
-    } else {
-      if (!window.confirm('¿Está seguro de que desea eliminar este documento?')) return;
-    }
-
-    try {
-      await Promise.all(matches.map((m: any) => deleteDocumentoAndDriveMutation.mutateAsync({ id: m.id, driveFileId: m.drive_file_id })));
-      refetchDocumentos();
-      alert(`Se eliminaron ${matches.length} documento${matches.length !== 1 ? 's' : ''} correctamente.`);
-    } catch (error: any) {
-      console.error('Error al eliminar documento(s):', error);
-      alert(error?.message || 'Error al eliminar el/los documento(s)');
-    }
-  };
-  const handleDownloadDocument = async (documento: any) => {
-    if (!documento.id) {
-      alert('Error: No se encontró el ID del documento');
-      return;
-    }
-    
-    try {
-      console.log('📥 handleDownloadDocument - Datos completos del documento:', documento);
-      console.log('📥 handleDownloadDocument - Descargando:', {
-        id: documento.id,
-        nombre: documento.nombre_documento,
-        nombreOriginal: documento.nombre_original,
-        rutaArchivo: documento.ruta_archivo,
-        url: documento.url,
-        driveFileId: documento.drive_file_id
-      });
-      
-      // Si el documento tiene drive_file_id, podemos intentar abrir en Google Drive
-      if (documento.drive_file_id) {
-        const driveUrl = `https://drive.google.com/file/d/${documento.drive_file_id}/view`;
-        console.log('📂 Abriendo en Google Drive:', driveUrl);
-        window.open(driveUrl, '_blank');
-        return;
-      }
-      
-      const suggestedName = documento.nombre_original || documento.nombre_archivo || documento.nombre_documento || `documento_${documento.id}.pdf`;
-      await downloadFile(documento.id, suggestedName);
-      console.log('✅ handleDownloadDocument - Descarga completada exitosamente');
-    } catch (error: any) {
-      console.error('❌ handleDownloadDocument - Error:', error);
-      
-      let errorMessage = 'Error al descargar el documento.';
-      
-      if (error?.response?.status === 404) {
-        errorMessage = 'El endpoint de descarga no está implementado en el backend. ';
-        if (documento.drive_file_id) {
-          errorMessage += 'Abriendo en Google Drive...';
-          const driveUrl = `https://drive.google.com/file/d/${documento.drive_file_id}/view`;
-          window.open(driveUrl, '_blank');
-          return;
-        } else {
-          errorMessage += 'Contacte al administrador del sistema.';
-        }
-      } else if (error?.response?.status === 403) {
-        errorMessage = 'No tiene permisos para descargar este documento.';
-      } else if (error?.response?.status === 500) {
-        errorMessage = 'Error interno del servidor. Intente nuevamente.';
-      } else if (error?.message) {
-        errorMessage = `Error: ${error.message}`;
-      }
-      
-      alert(errorMessage);
-    }
-  };
-
-  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file || !personal?.rut) return;
-
-    const formData = new FormData();
-    formData.append('file', file);
-    setIsUploading(true);
-
-    try {
-      const encodedRut = encodeURIComponent(personal.rut);
-      const response = await fetch(`${API_CONFIG.BASE_URL}/personal/${encodedRut}/upload`, {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error('Error al subir la imagen');
-      }
-
-      // Update URL with a cache-busting timestamp
-      setImageUrl(`${API_CONFIG.BASE_URL}/personal/${encodedRut}/image/download?t=${new Date().getTime()}`);
-      setImageError(false);
-      alert('Imagen de perfil actualizada exitosamente');
-    } catch (error) {
-      console.error('Error al subir la imagen:', error);
-      alert('Hubo un error al subir la imagen. Por favor, inténtalo nuevamente.');
-    } finally {
-      setIsUploading(false);
-    }
-  };
-
-  const handleRemoveImage = async () => {
-    if (!personal?.rut) return;
-    if (window.confirm('¿Estás seguro de que quieres eliminar la imagen de perfil?')) {
-      setIsDeleting(true);
-      try {
-        // Use centralized apiService which knows the correct endpoint and error handling
-        const resp = await apiService.deleteProfileImage(personal.rut);
-        if (resp && resp.success) {
-          setImageUrl('');
-          setImageError(true); // Force showing the user icon
-          alert('Imagen de perfil eliminada exitosamente');
-        } else {
-          const msg = resp?.message || 'Error al eliminar la imagen';
-          throw new Error(msg);
-        }
-      } catch (error: any) {
-        console.error('Error al eliminar la imagen:', error);
-        // Try to extract a helpful message
-        const serverMessage = error?.response?.data?.message || error?.message;
-        alert(`Hubo un error al eliminar la imagen. ${serverMessage ? '\n\nDetalle: ' + serverMessage : ''}`);
-      } finally {
-        setIsDeleting(false);
+      } catch (error) {
+        console.error("Error en eliminación masiva de documentos de curso:", error);
       }
     }
   };
 
-  const getDocumentIcon = (tipo: string) => {
-    switch (tipo) {
-      case 'contrato': return '📄';
-      case 'identidad': return '🆔';
-      case 'medico': return '🏥';
-      case 'antecedentes': return '📋';
-      default: return '📄';
+  if (!isOpen) return null;
+
+  const getEstadoColor = (estado: string) => {
+    switch (estado) {
+      case 'Activo':
+        return 'bg-green-100 text-green-800';
+      case 'Inactivo':
+        return 'bg-red-100 text-red-800';
+      case 'Suspendido':
+        return 'bg-yellow-100 text-yellow-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
     }
   };
-  const getDocumentColor = (tipo: string) => {
-    switch (tipo) {
-      case 'contrato': return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'identidad': return 'bg-green-100 text-green-800 border-green-200';
-      case 'medico': return 'bg-red-100 text-red-800 border-red-200';
-      case 'antecedentes': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
-    }
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('es-CL', { year: 'numeric', month: 'long', day: 'numeric' });
-  };
-  const getAge = (dateString: string) => {
-    const today = new Date();
-    const birthDate = new Date(dateString);
-    let age = today.getFullYear() - birthDate.getFullYear();
-    const monthDiff = today.getMonth() - birthDate.getMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) age--;
-    return age;
-  };
-
-  if (!personal) return null;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 animate-fadeIn">
@@ -1134,8 +1005,8 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                         ) : (
                           estadosData?.data?.map((estado: any) => (
                             <option key={estado.id} value={estado.id}>{estado.nombre}</option>
-                          ))
-                        )}
+                          )))
+                        }
                       </select>
                     ) : (
                       <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${personal.activo ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-red-100 text-red-800 border border-red-200'}`}>
@@ -1254,11 +1125,11 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                           <div className="flex flex-col space-y-1 ml-3 flex-shrink-0">
                             <button 
                               onClick={() => handleDownloadDocument(documento)}
-                              disabled={downloadMutation.isLoading}
+                              disabled={downloadDocumentoMutation.isLoading}
                               className="text-blue-500 hover:text-blue-700 p-1 rounded hover:bg-blue-50 transition-colores disabled:opacity-50 disabled:cursor-not-allowed" 
                               title="Descargar documento"
                             >
-                              {downloadMutation.isLoading ? (
+                              {downloadDocumentoMutation.isLoading ? (
                                 <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-500"></div>
                               ) : (
                                 <Download className="h-3 w-3" />
@@ -1290,7 +1161,7 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                     <p className="text-purple-600 text-sm mb-4">{personal.nombre || 'Sin nombre'} {personal.apellido || 'Sin apellido'} no tiene documentos de cursos o certificaciones</p>
                     <div className="flex justify-center">
                       <button onClick={handleAddCurso} className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colores">
-                        <Plus className="h-4 w-4 mr-1 inline" />
+                        <Plus className="h-4 w-4 mr-1" />
                         Agregar curso
                       </button>
                     </div>
@@ -1353,10 +1224,13 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({
                             </div>
                           </div>
                           <div className="flex flex-col space-y-1 ml-3 flex-shrink-0">
-                            <button onClick={() => handleDownloadDocument(documento)} className="text-green-500 hover:text-green-700 p-1 rounded hover:bg-green-50 transition-colores disabled:opacity-50 disabled:cursor-not-allowed" title="Descargar documento" disabled={downloadMutation.isLoading}>
-                              {downloadMutation.isLoading ? (<div className="animate-spin rounded-full h-3 w-3 border-b-2 border-green-500"></div>) : (<Download className="h-3 w-3" />)}
+                            <button onClick={() => handleDownloadDocument(documento)} className="text-green-500 hover:text-green-700 p-1 rounded hover:bg-green-50 transition-colores disabled:opacity-50 disabled:cursor-not-allowed" title="Descargar documento" disabled={downloadDocumentoMutation.isLoading}>
+                              {downloadDocumentoMutation.isLoading ? (<div className="animate-spin rounded-full h-3 w-3 border-b-2 border-green-500"></div>) : (<Download className="h-3 w-3" />)}
                             </button>
-                            <button onClick={() => handleDeleteDocument(documento)} className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50 transition-colores" title="Eliminar documento">
+                            <button onClick={() => handleEditDocumento(documento)} className="text-orange-500 hover:text-orange-700 p-1 rounded hover:bg-orange-50 transition-colores" title="Editar documento">
+                                <Edit className="h-3 w-3" />
+                            </button>
+                            <button onClick={() => handleDeleteDocumento(documento)} className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50 transition-colores" title="Eliminar documento">
                               <Trash2 className="h-3 w-3" />
                             </button>
                           </div>

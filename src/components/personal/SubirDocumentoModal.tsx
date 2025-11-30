@@ -185,6 +185,12 @@ const SubirDocumentoModal: React.FC<SubirDocumentoModalProps> = ({ isOpen, onClo
         if (docErrors.length > 0) { setErrors(docErrors); return; }
         const payload = createDocumentoFormData(data);
         await uploadMutation.mutateAsync(payload);
+        // Después de subir, forzar refresco de documentos de la persona
+        try {
+          await refetchDocumentosPersona();
+        } catch (e) {
+          console.warn('No se pudo refetchear documentos tras upload:', e);
+        }
       }
       if (selectedPendiente) {
         await registerExistingMutation.mutateAsync({
