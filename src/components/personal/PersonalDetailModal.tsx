@@ -130,7 +130,7 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({ person
     // Normalize many possible shapes returned by the backend.
     // The hook may return: { success, data: [...] } OR { success, data: { documentos: [...] } }
     // or might already be the array. Add defensive logs to help debugging.
-    console.log('🔍 documentosData full:', documentosData);
+    if (isOpen) console.log('🔍 documentosData full:', documentosData);
     const d: any = documentosData?.data ?? documentosData;
     if (!d) return [];
 

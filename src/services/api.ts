@@ -1364,6 +1364,17 @@ class ApiService {
     return response.data;
   }
 
+  // GET /prerequisitos/clientes/:clienteId/cumplen
+  // Devuelve personas que cumplen todos los prerrequisitos para el cliente
+  async getClienteCumplen(clienteId: number, params?: { includeGlobal?: boolean; limit?: number; offset?: number }): Promise<ApiResponse<any>> {
+    const query: any = {};
+    if (typeof params?.includeGlobal !== 'undefined') query.includeGlobal = params.includeGlobal;
+    if (typeof params?.limit !== 'undefined') query.limit = params.limit;
+    if (typeof params?.offset !== 'undefined') query.offset = params.offset;
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.get(`/prerequisitos/clientes/${clienteId}/cumplen`, { params: query });
+    return response.data;
+  }
+
   // POST /prerequisitos/clientes/:clienteId { requisitos: [...] }
   async upsertClientePrerequisitos(clienteId: number, requisitos: Array<{ tipo_documento: string; obligatorio: boolean; dias_validez?: number }>): Promise<ApiResponse<any>> {
     const response: AxiosResponse<ApiResponse<any>> = await this.api.post(`/prerequisitos/clientes/${clienteId}`, { requisitos });

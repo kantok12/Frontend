@@ -17,7 +17,7 @@ import { PrerrequisitosCliente } from '../components/servicios/PrerrequisitosCli
 import { PrerrequisitosModal } from '../components/servicios/PrerrequisitosModal';
 import { PersonalDetailModal } from '../components/personal/PersonalDetailModal';
 import { GlobalPrerrequisitosModal } from '../components/servicios/GlobalPrerrequisitosModal';
-import { PrerrequisitosParcialesModal } from '../components/servicios/PrerrequisitosParcialesModal';
+// import { PrerrequisitosParcialesModal } from '../components/servicios/PrerrequisitosParcialesModal';
 
 // Helper: normalize RUT to a canonical form (no dots, no dash, uppercase)
 const normalizeRut = (r: any) => {
@@ -42,14 +42,24 @@ export const ServiciosPage: React.FC = () => {
   const { assignmentState, loadAssignedPersonal, handleAssign, handleUnassign, updateAssignmentState } = usePersonalAssignments();
   const { prereqState, loadPrerequisitosMatch, updatePrereqState } = usePrerequisitos();
 
+  // Stable filters object to prevent infinite re-renders
+  const personalListFilters = useMemo(() => ({}), []);
   // Listado de personal para seleccionar (hasta 100, sin búsqueda para evitar llamadas excesivas)
-  const { data: personListData, isLoading: personListLoading } = usePersonalList(1, 100, '', {});
+  const { data: personListData, isLoading: personListLoading } = usePersonalList(1, 100, '', personalListFilters);
   const personOptions = useMemo(() => personListData?.data?.items || [], [personListData]);
 
   // Estado local para resultados batch de prerrequisitos (por RUT)
   const [prereqBatch, setPrereqBatch] = useState<Record<string, any> | null>(null);
   const [prereqBatchLoading, setPrereqBatchLoading] = useState(false);
   const [prereqBatchError, setPrereqBatchError] = useState<string | null>(null);
+  // Lista de personas que cumplen todos los prerrequisitos (endpoint /cumplen)
+  const [cumplenList, setCumplenList] = useState<any[] | null>(null);
+  const [cumplenLoading, setCumplenLoading] = useState(false);
+  const [cumplenError, setCumplenError] = useState<string | null>(null);
+  const [rawCumplen, setRawCumplen] = useState<any | null>(null);
+  // parcialesList removed
+  const [cumplenFilterMode, setCumplenFilterMode] = useState<'only' | 'max1' | 'all'>('only');
+  const [showCumplenDebug, setShowCumplenDebug] = useState(false);
   
   // Constantes
   const limit = 10;
@@ -227,6 +237,125 @@ export const ServiciosPage: React.FC = () => {
 
   // Cargar asignaciones cuando cambia la selección
   useEffect(() => {
+    // Cargar lista de personas que cumplen todos los prerrequisitos del cliente
+    const cargarCumplen = async () => {
+      setCumplenError(null);
+      if (!navigationState.selectedCliente) {
+        setCumplenList(null);
+        return;
+      }
+      try {
+        setCumplenLoading(true);
+        // Construir params según modo seleccionado
+        const params: any = { includeGlobal: true, limit: 100 };
+        if (cumplenFilterMode === 'only') params.onlyCompletos = true;
+        if (cumplenFilterMode === 'max1') params.max_missing = 1;
+
+        const resp: any = await apiService.getClienteCumplen(navigationState.selectedCliente.id, params);
+
+        // Normalizar la forma de la respuesta esperada.
+        // El backend puede devolver varias envolturas: { success, message, data: { ... } },
+        // o directamente el objeto { completos, parciales } o incluso un array plano.
+        const rawResp = resp || null;
+        const maybeWrapper = rawResp?.data ?? rawResp;
+        const payload = (maybeWrapper && maybeWrapper.success && maybeWrapper.data) ? maybeWrapper.data : maybeWrapper;
+
+        // Debug: loguear formas para investigar discrepancias en tiempo de ejecución
+        console.debug('[cumplen] resp', { resp: rawResp, maybeWrapper, payload });
+
+        // Reusable validator: un documento es válido si no está marcado 'vencido' o su fecha de vencimiento está en el futuro
+        const now = Date.now();
+        const isValidDoc = (d: any) => {
+          if (!d) return false;
+          if (typeof d.vencido === 'boolean') return d.vencido === false;
+          if (d.fecha_vencimiento) {
+            try {
+              const t = new Date(d.fecha_vencimiento).getTime();
+              return !isNaN(t) && t > now;
+            } catch (e) {
+              return true;
+            }
+          }
+          return true;
+        };
+
+        // Si viene la forma nueva con completos/parciales
+        if (payload && (Array.isArray(payload.completos) || Array.isArray(payload.parciales))) {
+          setRawCumplen(payload);
+          // Aplicar filtro adicional: contar sólo documentos no vencidos para decidir cumplimiento
+
+          const completosRaw = Array.isArray(payload.completos) ? payload.completos : [];
+          const parcialesRaw = Array.isArray(payload.parciales) ? payload.parciales : [];
+
+          const completosFiltered = completosRaw.filter((item: any) => {
+            // Rechazar explícitamente si hay missing_count > 0
+            if (typeof item.missing_count === 'number' && item.missing_count > 0) return false;
+            if (item.matchesAll === false) return false;
+
+            const required = typeof item.required_count === 'number' ? item.required_count : (Array.isArray(item.requisitos) ? item.requisitos.length : undefined);
+            // Si no tenemos required, ser conservadores y excluirlo
+            if (typeof required !== 'number') return false;
+
+            const docs = Array.isArray(item.documentos) ? item.documentos : [];
+            const validCount = docs.filter(isValidDoc).length;
+
+            // Si backend aporta provided_count, también lo respetamos pero preferimos validCount
+            const provided = typeof item.provided_count === 'number' ? item.provided_count : undefined;
+
+            // Requerimos que el conteo de documentos válidos sea >= required
+            if (validCount >= required) return true;
+
+            // Como último recurso, si provided exists and is >= required, aceptar
+            if (typeof provided === 'number' && provided >= required) return true;
+
+            return false;
+          });
+
+          setCumplenList(completosFiltered);
+          // setParcialesList(parcialesRaw); // Removed
+        } else {
+          // Fallback: si el endpoint devolvió un array plano o formato antiguo
+          // Normalizar rawList con varias formas posibles
+          const rawList = Array.isArray(payload) ? payload : (Array.isArray(payload?.data) ? payload.data : (payload?.data?.matches || payload?.data?.items || []));
+          setRawCumplen(Array.isArray(rawList) ? rawList : [payload]);
+
+          // Procesar como antes (intentar inferir quienes cumplen), pero contando sólo documentos no vencidos
+          const processed = (Array.isArray(rawList) ? rawList : [rawList]).map((item: any) => {
+            const payload2 = item?.data || item?.match || item || {};
+            const persona = item.persona || payload2.persona || payload2;
+            const faltantes: any[] = payload2?.faltantes || payload2?.missing_docs || payload2?.missing || [];
+            const cumpleFlag = (payload2?.cumple === true) || (item?.cumple === true) || (payload2?.meets === true) || (payload2?.passes === true);
+            const docs = Array.isArray(payload2?.documentos) ? payload2.documentos : [];
+            const providedValid = docs.filter(isValidDoc).length;
+            const required = typeof payload2?.required_count === 'number' ? payload2.required_count : (Array.isArray(payload2?.requisitos) ? payload2.requisitos.length : undefined);
+            const inferred = (Array.isArray(faltantes) && faltantes.length === 0) || (typeof providedValid === 'number' && typeof required === 'number' ? providedValid >= required : false);
+            const cumple = (typeof payload2?.missing_count === 'number' ? payload2.missing_count === 0 : (payload2.matchesAll === true || cumpleFlag === true)) && (typeof required === 'number' ? providedValid >= required || (typeof payload2?.provided_count === 'number' && payload2.provided_count >= required) : false);
+            return { raw: item, persona, cumple, providedValid, required, faltantes };
+          });
+
+          const filtered = processed.filter((p: any) => p.cumple).map((p: any) => p.raw);
+          setCumplenList(filtered || []);
+          // setParcialesList(null); // Removed
+        }
+      } catch (e: any) {
+        console.warn('Error cargando lista cumplen:', e);
+        setCumplenError(e?.message || 'Error al obtener lista cumplen');
+        setCumplenList(null);
+        // setParcialesList(null); // Removed
+      } finally {
+        setCumplenLoading(false);
+      }
+    };
+
+    // Ejecutar cargarCumplen cuando hay cliente seleccionado
+    if (navigationState.selectedCliente) cargarCumplen();
+    else setCumplenList(null);
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navigationState.selectedCliente?.id, cumplenFilterMode]);
+
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
     loadAssignedPersonal(
       navigationState.selectedCartera,
       navigationState.selectedCliente,
@@ -298,7 +427,7 @@ export const ServiciosPage: React.FC = () => {
   // Estados para abrir modal de Personal dentro de la vista Servicios (sin navegar)
   const [selectedPersonalDetail, setSelectedPersonalDetail] = useState<any | null>(null);
   const [showPersonalDetailModalLocal, setShowPersonalDetailModalLocal] = useState(false);
-  const [parcialesClienteId, setParcialesClienteId] = useState<number | null>(null);
+  // parcialesClienteId removed
 
   // Paginación interna para cada sección
   const [pageWithout, setPageWithout] = useState(1);
@@ -351,7 +480,12 @@ export const ServiciosPage: React.FC = () => {
           return p;
         })
       );
-      updateAssignmentState({ assignedPersonal: updated });
+      
+      // Only update if there are actual changes to avoid infinite loops
+      const hasChanges = updated.some((p, i) => p !== assignmentState.assignedPersonal![i]);
+      if (hasChanges) {
+        updateAssignmentState({ assignedPersonal: updated });
+      }
     } catch (error) {
       console.warn('Error al hidratar nombres:', error);
     }
@@ -430,6 +564,121 @@ export const ServiciosPage: React.FC = () => {
 
   // Debug flag (disabled by default in production)
   const showDebugData = false;
+
+  // Compute strict groups from rawCumplen so UI can show 'completos' separately
+  const computedCumplenGroups = useMemo(() => {
+    const completos: any[] = [];
+    // Parciales removed to save memory/cpu as requested
+    const seenRuts = new Set<string>();
+
+    if (!rawCumplen) return { completos };
+
+    const isDocValid = (d: any) => {
+      if (!d) return false;
+      const isVencido = d.vencido === true || d.vencido === 'true';
+      if (isVencido) return false;
+      
+      if (d.fecha_vencimiento) {
+        const t = new Date(d.fecha_vencimiento).getTime();
+        if (!isNaN(t) && t < Date.now()) return false;
+      }
+      return true;
+    };
+
+    const processItem = (item: any) => {
+      const rut = item.rut || item.persona?.rut || item?.persona_rut || (item?.data && item.data.rut);
+      const normalized = normalizeRut(rut);
+      if (!normalized || seenRuts.has(normalized)) return;
+      seenRuts.add(normalized);
+
+      const docs = Array.isArray(item.documentos) ? item.documentos : [];
+      const validCount = docs.filter(isDocValid).length;
+      
+      const required = typeof item.required_count === 'number' ? item.required_count : (Array.isArray(item.requisitos) ? item.requisitos.length : 0);
+      const missing = typeof item.missing_count === 'number' ? item.missing_count : (Array.isArray(item.faltantes) ? item.faltantes.length : 0);
+      
+      // Strict criteria for "completos":
+      const isComplete = (required > 0) && (validCount >= required) && (missing === 0);
+
+      if (isComplete) {
+        completos.push(item);
+      }
+    };
+
+    if (Array.isArray(rawCumplen)) {
+      rawCumplen.forEach(processItem);
+    } else {
+      const rc = rawCumplen as any;
+      const completosRaw = Array.isArray(rc.completos) ? rc.completos : [];
+      completosRaw.forEach(processItem);
+    }
+
+    return { completos };
+  }, [rawCumplen]);
+
+  // Memoize the categorized personal list to avoid expensive re-calculations on every render
+  const categorizedPersonal = useMemo(() => {
+    if (!navigationState.selectedCliente || uiState.activeTab !== 'nodos') return null;
+
+    const search = (assignmentState.personSearch || '').toLowerCase().trim();
+    // Pool: combinar personOptions + assigned
+    const poolMap: Record<string, any> = {};
+    personOptions.forEach((p: any) => { if (p?.rut) poolMap[p.rut] = p; });
+    (assignmentState.assignedPersonal || []).forEach((p: any) => { if (p?.rut && !poolMap[p.rut]) poolMap[p.rut] = p; });
+    const pool = Object.values(poolMap);
+
+    const assignedRuts = new Set((assignmentState.assignedPersonal || []).map((p: any) => p.rut));
+
+    const filtered = pool.filter((p: any) => {
+      if (!search) return true;
+      const name = ((p.nombre || p.nombres) + ' ' + (p.apellido || p.apellidos || '')).toLowerCase();
+      const rut = (p.rut || '').toLowerCase();
+      return name.includes(search) || rut.includes(search);
+    });
+
+    const withoutPrereq: any[] = [];
+    const withGlobal: any[] = [];
+    const assignedList: any[] = [];
+
+    filtered.forEach((p: any) => {
+      let info: any = null;
+      if (prereqBatch) {
+        const rawKey = p?.rut || String(p?.rut || '');
+        const nKey = normalizeRut(rawKey);
+        info = prereqBatch[rawKey] || (nKey ? prereqBatch[nKey] : null) || null;
+      }
+
+      const match = info ? normalizeMatch(info) : null;
+      const faltantes: any[] = match?.faltantes || match?.missing_docs || [];
+      const meetsGlobal = match?.cumple === true;
+
+      const providedCount: number | undefined = typeof match?.provided_count === 'number'
+        ? match.provided_count
+        : (Array.isArray(match?.documentos) ? (
+          (() => {
+            const reqTypes: string[] = (Array.isArray(match?.requisitos) ? match.requisitos : (match?.required_types || [])).map((r: any) => String(r).toLowerCase());
+            if (reqTypes.length === 0) return undefined;
+            const present = (match.documentos || []).map((d: any) => String(d.tipo_documento || d.tipo || '').toLowerCase());
+            return present.filter((t: string) => reqTypes.includes(t)).length;
+          })()
+        ) : undefined);
+
+      const requiredCount: number | undefined = typeof match?.required_count === 'number'
+        ? match.required_count
+        : (Array.isArray(match?.requisitos) ? match.requisitos.length : undefined);
+
+      const hasNone = (typeof providedCount === 'number' && providedCount === 0)
+        || (Array.isArray(faltantes) && typeof requiredCount === 'number' && faltantes.length === requiredCount);
+
+      if (assignedRuts.has(p.rut)) assignedList.push(p);
+      else if (meetsGlobal) withGlobal.push(p);
+      else if (hasNone) {
+        withoutPrereq.push(p);
+      }
+    });
+
+    return { withoutPrereq, assignedList, withGlobal };
+  }, [assignmentState.personSearch, personOptions, assignmentState.assignedPersonal, prereqBatch, navigationState.selectedCliente, uiState.activeTab]);
 
   return (
     <>
@@ -650,6 +899,19 @@ export const ServiciosPage: React.FC = () => {
             {/* Formulario de asignación: seleccionar personal de una lista */}
             <div className="flex items-center gap-2 mb-4">
               <div className="flex-1 flex gap-2">
+                <div className="flex items-center space-x-2 mr-2">
+                  <label className="text-xs text-gray-600">Mostrar:</label>
+                  <select
+                    value={cumplenFilterMode}
+                    onChange={(e) => setCumplenFilterMode(e.target.value as any)}
+                    className="text-xs px-2 py-1 border border-gray-200 rounded-md bg-white"
+                  >
+                    <option value="only">Solo completos</option>
+                    <option value="max1">Completos + 1 faltante</option>
+                    <option value="all">Todos (fallback)</option>
+                  </select>
+                  {/* Parciales button removed */}
+                </div>
                 <input
                   type="text"
                   placeholder="Buscar personal por nombre o RUT..."
@@ -664,38 +926,60 @@ export const ServiciosPage: React.FC = () => {
                   disabled={personListLoading}
                 >
                   <option value="">{personListLoading ? 'Cargando personal...' : 'Seleccionar personal'}</option>
-                    {/* Mostrar primero personas provenientes del match (si están disponibles) */}
-                    {prereqBatch && Object.keys(prereqBatch).length > 0 && (
-                      <optgroup label="Personas (match)">
-                        {Object.keys(prereqBatch).map((rutKey) => {
-                          const entry: any = prereqBatch[rutKey] || {};
-                          const match = normalizeMatch(entry);
-                          // Mostrar solo personas que cumplen todos los prerrequisitos
-                          if (!match || match.cumple !== true) return null;
-                          const rutVal = rutKey;
-                          const nombre = match?.nombres || match?.nombre || match?.nombres_persona || '';
-                          const apellido = match?.apellidos || match?.apellido || '';
-                          const display = nombre ? `${nombre}${apellido ? ' ' + apellido : ''}` : rutVal;
-                          return (
-                            <option key={`match-${rutVal}`} value={rutVal}>
-                              {display} ({rutVal})
-                            </option>
-                          );
-                        })}
-                      </optgroup>
-                    )}
+                  {/* If we have the server response, show strict groups: completos then parciales */}
+                  {rawCumplen ? (
+                    <>
+                      {computedCumplenGroups.completos.length > 0 ? (
+                        <optgroup label={`Personas (cumplen) (${computedCumplenGroups.completos.length})`}>
+                          {computedCumplenGroups.completos.map((m: any) => {
+                            const rutVal = m.rut || m.persona?.rut || m?.persona_rut || (m?.data && m.data.rut) || '';
+                            const persona = m.persona || m.persona_data || m.data || m;
+                            const nombre = persona?.nombres || persona?.nombre || persona?.nombres_persona || persona?.first_name || '';
+                            const apellido = persona?.apellidos || persona?.apellido || persona?.last_name || '';
+                            const display = nombre ? `${nombre}${apellido ? ' ' + apellido : ''}` : (rutVal || JSON.stringify(m));
+                            if (!rutVal) return null;
+                            return (
+                              <option key={`cumplen-${rutVal}`} value={rutVal}>
+                                {display} ({rutVal})
+                              </option>
+                            );
+                          })}
+                        </optgroup>
+                      ) : (
+                        <option value="" disabled>No hay personas que cumplen todos los prerrequisitos</option>
+                      )}
 
-                    {/* Luego el listado general de personal */}
-                    {personOptions.map((p: any) => (
+                      {/* Parciales hidden as requested */}
+                    </>
+                  ) : (
+                    personOptions.map((p: any) => (
                       <option key={p.rut} value={p.rut}>
                         {p.nombre} {p.apellido} ({p.rut})
                       </option>
-                    ))}
+                    ))
+                  )}
                 </select>
+                <div className="flex items-center gap-2 ml-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowCumplenDebug(s => !s)}
+                    className="text-xs px-2 py-1 bg-gray-100 rounded border border-gray-200 hover:bg-gray-200"
+                  >
+                    {showCumplenDebug ? 'Ocultar debug' : 'Ver debug /cumplen'}
+                  </button>
+                </div>
+                {cumplenError && (
+                  <div className="text-sm text-red-600 mt-1">Error verificando quiénes cumplen: {String(cumplenError)}</div>
+                )}
               </div>
               <button
                 onClick={handleAssignWithUI}
-                disabled={assignmentState.assigning || !assignmentState.selectedRutToAssign.trim()}
+                disabled={
+                  assignmentState.assigning ||
+                  !assignmentState.selectedRutToAssign.trim() ||
+                  (Array.isArray(cumplenList) && cumplenList.length === 0) ||
+                  Boolean(cumplenError)
+                }
                 className="px-3 py-2 text-sm text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50"
               >
                 {assignmentState.assigning ? 'Asignando...' : 'Asignar'}
@@ -707,70 +991,8 @@ export const ServiciosPage: React.FC = () => {
                 <div className="text-sm text-gray-600 mb-2">Resultados prerrequisitos {prereqBatchLoading ? '(cargando...)' : prereqBatchError ? '(error)' : ''}</div>
                 {/* Filtrar pool de personas según búsqueda en assignmentState.personSearch */}
                 {(() => {
-                  const search = (assignmentState.personSearch || '').toLowerCase().trim();
-                  // Pool: combinar personOptions + assigned
-                  const poolMap: Record<string, any> = {};
-                  personOptions.forEach((p: any) => { if (p?.rut) poolMap[p.rut] = p; });
-                  (assignmentState.assignedPersonal || []).forEach((p: any) => { if (p?.rut && !poolMap[p.rut]) poolMap[p.rut] = p; });
-                  const pool = Object.values(poolMap);
-
-                  const assignedRuts = new Set((assignmentState.assignedPersonal || []).map((p: any) => p.rut));
-
-                  const filtered = pool.filter((p: any) => {
-                    if (!search) return true;
-                    const name = ((p.nombre || p.nombres) + ' ' + (p.apellido || p.apellidos || '')).toLowerCase();
-                    const rut = (p.rut || '').toLowerCase();
-                    return name.includes(search) || rut.includes(search);
-                  });
-
-                  const withoutPrereq: any[] = [];
-                  const withGlobal: any[] = [];
-                  const assignedList: any[] = [];
-
-                  filtered.forEach((p: any) => {
-                    let info: any = null;
-                    if (prereqBatch) {
-                      const rawKey = p?.rut || String(p?.rut || '');
-                      const nKey = normalizeRut(rawKey);
-                      info = prereqBatch[rawKey] || (nKey ? prereqBatch[nKey] : null) || null;
-                      // eslint-disable-next-line no-console
-                      try { console.debug && console.debug('prereq lookup', { personRut: rawKey, normalizedRut: nKey, found: !!info }); } catch (e) {}
-                    }
-
-                    const match = info ? normalizeMatch(info) : null;
-                    const faltantes: any[] = match?.faltantes || match?.missing_docs || [];
-                    const meetsGlobal = match?.cumple === true;
-
-                    // Determine if the person has provided any of the required documents
-                    const providedCount: number | undefined = typeof match?.provided_count === 'number'
-                      ? match.provided_count
-                      : (Array.isArray(match?.documentos) ? (
-                        // if the server returned documentos and requisitos, try to infer
-                        (() => {
-                          const reqTypes: string[] = (Array.isArray(match?.requisitos) ? match.requisitos : (match?.required_types || [])).map((r: any) => String(r).toLowerCase());
-                          if (reqTypes.length === 0) return undefined;
-                          const present = (match.documentos || []).map((d: any) => String(d.tipo_documento || d.tipo || '').toLowerCase());
-                          return present.filter((t: string) => reqTypes.includes(t)).length;
-                        })()
-                      ) : undefined);
-
-                    const requiredCount: number | undefined = typeof match?.required_count === 'number'
-                      ? match.required_count
-                      : (Array.isArray(match?.requisitos) ? match.requisitos.length : undefined);
-
-                    const hasNone = (typeof providedCount === 'number' && providedCount === 0)
-                      || (Array.isArray(faltantes) && typeof requiredCount === 'number' && faltantes.length === requiredCount);
-
-                    if (assignedRuts.has(p.rut)) assignedList.push(p);
-                    else if (meetsGlobal) withGlobal.push(p);
-                    else if (hasNone) {
-                      // Person does not have any document that matches client's prerequisites
-                      withoutPrereq.push(p);
-                    } else {
-                      // Partial matches (some but not all) are intentionally not shown in selectable pools
-                      // (keep them hidden to avoid partial-prereq flow)
-                    }
-                  });
+                  if (!categorizedPersonal) return null;
+                  const { withoutPrereq, assignedList } = categorizedPersonal;
 
                   const renderPersonItem = (p: any) => {
                     const display = p.nombre || p.nombres || p.rut;
@@ -796,19 +1018,15 @@ export const ServiciosPage: React.FC = () => {
                   const pageSize = PAGE_SIZE;
                   const withoutTotal = withoutPrereq.length;
                   const assignedTotal = assignedList.length;
-                  const globalTotal = withGlobal.length;
 
                   const withoutTotalPages = Math.max(1, Math.ceil(withoutTotal / pageSize));
                   const assignedTotalPages = Math.max(1, Math.ceil(assignedTotal / pageSize));
-                  const globalTotalPages = Math.max(1, Math.ceil(globalTotal / pageSize));
 
                   const currentWithoutPage = Math.min(pageWithout, withoutTotalPages);
                   const currentAssignedPage = Math.min(pageAssigned, assignedTotalPages);
-                  const currentGlobalPage = Math.min(pageGlobal, globalTotalPages);
 
                   const withoutStart = (currentWithoutPage - 1) * pageSize;
                   const assignedStart = (currentAssignedPage - 1) * pageSize;
-                  const globalStart = (currentGlobalPage - 1) * pageSize;
 
                   const withoutPageItems = withoutPrereq.slice(withoutStart, withoutStart + pageSize);
                   const assignedPageItems = assignedList.slice(assignedStart, assignedStart + pageSize);
@@ -1198,12 +1416,7 @@ export const ServiciosPage: React.FC = () => {
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-right">
                               <div className="flex items-center justify-end space-x-2">
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); const cid = (item as Nodo).cliente_id; setParcialesClienteId(cid); handleModalToggle('showPrerrequisitosParcialesModal', true); }}
-                                  className="px-2 py-1 text-xs bg-yellow-50 text-yellow-700 rounded hover:bg-yellow-100"
-                                >
-                                  Parciales
-                                </button>
+                                {/* Parciales button removed */}
                                 <button
                                   onClick={(e) => { e.stopPropagation(); /* open client prereqs for the node's client */ handleClienteClick({ id: (item as Nodo).cliente_id } as any); handleModalToggle('showPrerrequisitosModal', true); }}
                                   className="px-2 py-1 text-xs bg-blue-50 text-blue-600 rounded hover:bg-blue-100"
@@ -1305,11 +1518,7 @@ export const ServiciosPage: React.FC = () => {
         onClose={() => handleModalToggle('showGlobalPrerrequisitosModal', false)}
       />
 
-      <PrerrequisitosParcialesModal
-        isOpen={uiState.showPrerrequisitosParcialesModal}
-        onClose={() => { handleModalToggle('showPrerrequisitosParcialesModal', false); setParcialesClienteId(null); }}
-        clienteId={parcialesClienteId || navigationState.selectedCliente?.id || null}
-      />
+      {/* PrerrequisitosParcialesModal removed */}
 
       {/* Modal local para ver detalle de Personal sin navegar fuera de Servicios */}
       <PersonalDetailModal
@@ -1321,6 +1530,15 @@ export const ServiciosPage: React.FC = () => {
 
       {/* Debug Window */}
       {showDebugData && <DebugWindow data={prereqBatch} />}
+      {showCumplenDebug && (
+        <div className="fixed bottom-4 left-4 right-4 max-h-72 overflow-auto bg-white border p-3 rounded shadow-lg z-50">
+          <h4 className="font-semibold mb-2">Debug /prerrequisitos/clientes/:clienteId/cumplen</h4>
+          <div className="text-xs text-gray-600 mb-2">Raw response (rawCumplen)</div>
+          <pre className="text-xs bg-gray-50 p-2 rounded mb-2">{JSON.stringify(rawCumplen, null, 2)}</pre>
+          <div className="text-xs text-gray-600 mb-2">Filtrados (cumplenList)</div>
+          <pre className="text-xs bg-gray-50 p-2 rounded">{JSON.stringify(cumplenList, null, 2)}</pre>
+        </div>
+      )}
     </>
   );
 };

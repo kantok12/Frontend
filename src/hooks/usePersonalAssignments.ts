@@ -32,10 +32,14 @@ export const usePersonalAssignments = () => {
     selectedCliente: any,
     selectedNodo: any
   ) => {
-    setAssignmentState(prev => ({ ...prev, assignedError: null, assignedPersonal: null }));
-    if (!selectedCartera && !selectedCliente && !selectedNodo) return;
+    // Don't clear assignedPersonal immediately to avoid UI flicker
+    setAssignmentState(prev => ({ ...prev, assignedError: null, assignedLoading: true }));
     
-    setAssignmentState(prev => ({ ...prev, assignedLoading: true }));
+    if (!selectedCartera && !selectedCliente && !selectedNodo) {
+      setAssignmentState(prev => ({ ...prev, assignedPersonal: null, assignedLoading: false }));
+      return;
+    }
+    
     try {
       let res: any;
       if (selectedNodo) {
