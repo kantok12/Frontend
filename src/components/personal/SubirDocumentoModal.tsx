@@ -7,6 +7,8 @@ import { createDocumentoFormData, validateDocumentoData } from '../../hooks/useD
 import { CreateDocumentoData } from '../../types';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { useAllPrerrequisitos } from '../../hooks/useGestionPrerrequisitos';
+import { useClientes } from '../../hooks/useServicios';
+import useClientePrerequisitos from '../../hooks/useClientePrerequisitos';
 
 interface SubirDocumentoModalProps {
   isOpen: boolean;
@@ -31,8 +33,11 @@ const SubirDocumentoModal: React.FC<SubirDocumentoModalProps> = ({ isOpen, onClo
 
   const [formData, setFormData] = useState(initialFormState());
   const [errors, setErrors] = useState<string[]>([]);
-  const [selectedPrerrequisitos, setSelectedPrerrequisitos] = useState<string[]>([]);
-  const [uploadCategory, setUploadCategory] = useState<'personal' | 'prerrequisitos'>('personal');
+  // Only one prerrequisito may be selected per document (client-specific only)
+  const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
+  const [selectedClientPrereq, setSelectedClientPrereq] = useState<number | string | null>(null);
+  // Only prerrequisitos documents are supported now
+  const [uploadCategory, setUploadCategory] = useState<'personal' | 'prerrequisitos'>('prerrequisitos');
   const [showOptionsModal, setShowOptionsModal] = useState(false);
   const [showPendientesModal, setShowPendientesModal] = useState(false);
   const [selectedPendiente, setSelectedPendiente] = useState<{ file: any; displayName: string } | null>(null);
@@ -48,6 +53,42 @@ const SubirDocumentoModal: React.FC<SubirDocumentoModalProps> = ({ isOpen, onClo
   const existingDocs: any[] = documentosData.documentos || (Array.isArray(documentosData) ? documentosData : []);
 
   const { data: prerrequisitos } = useAllPrerrequisitos();
+
+  // Obtener lista de clientes para seleccionar y luego cargar sus prerrequisitos
+  const { data: clientesData } = useClientes({ limit: 1000 });
+  const clientes: any[] = (clientesData as any)?.data || (Array.isArray(clientesData) ? clientesData : []);
+
+  const clientePrereqQuery = useClientePrerequisitos(selectedClientId ?? undefined);
+  // Normalizar múltiples formas que puede devolver la API:
+  // - [] (array directo)
+  // - { success: true, data: [ ... ] }
+  // - { success: true, data: { requisitos: [ ... ] } }
+  // - { success: true, data: { data: [ ... ] } }
+  // Además añadir un log temporal para facilitar depuración en entorno local.
+  const clientePrereqs: any[] = (() => {
+    const raw = (clientePrereqQuery as any).data || clientePrereqQuery || null;
+    // Debug: mostrar la forma recibida (solo en desarrollo)
+    try {
+      // eslint-disable-next-line no-console
+      if (process.env.NODE_ENV !== 'production') console.debug('Prerrequisitos cliente - raw:', selectedClientId, raw);
+    } catch (e) {}
+
+    if (!raw) return [];
+    // Si es un array directo
+    if (Array.isArray(raw)) return raw;
+    // Si viene envuelto: { success, data }
+    const data = (raw as any).data ?? raw;
+    if (Array.isArray(data)) return data;
+    // Si viene como { requisitos: [...] }
+    if (Array.isArray((data as any).requisitos)) return (data as any).requisitos;
+    // Si viene como { data: [...] } dentro de data
+    if (Array.isArray((data as any).data)) return (data as any).data;
+    // Si viene en otras variantes, intentar recoger arrays dentro del objeto
+    for (const key of Object.keys(data || {})) {
+      if (Array.isArray((data as any)[key])) return (data as any)[key];
+    }
+    return [];
+  })();
 
   const isLoading = uploadMutation.isLoading || registerExistingMutation.isLoading;
 
@@ -123,29 +164,20 @@ const SubirDocumentoModal: React.FC<SubirDocumentoModalProps> = ({ isOpen, onClo
   };
   const handleClose = () => { resetModalState(); onClose(); };
 
-  const tiposDocumentoUnicos = useMemo(() => {
-    const tiposEstaticos = ["cv", "carnet_identidad", "examen_preocupacional", "licencia_conducir", "otro"];
-    const tiposDinamicos = prerrequisitos?.map(p => p.tipo_documento.toLowerCase()) || [];
-    if (uploadCategory === 'prerrequisitos') {
-      // show only prerrequisitos types
-      return Array.from(new Set(tiposDinamicos));
-    }
-    // personal documents category: show static personal types
-    return Array.from(new Set(tiposEstaticos));
-  }, [prerrequisitos, uploadCategory]);
+  // Note: general prerrequisitos picker removed — only client-specific prerrequisitos allowed
 
-  // Helper: unique prerrequisitos tipos (texto) available
-  const prerrequisitosTiposUnicos = useMemo(() => {
-    if (!prerrequisitos) return [] as string[];
-    return Array.from(new Set(prerrequisitos.map((p: any) => p.tipo_documento)));
-  }, [prerrequisitos]);
-
-  const shouldShowPrerrequisitosPicker = useMemo(() => {
-    // show the prerrequisitos checkbox picker only when category is prerrequisitos
-    if (uploadCategory !== 'prerrequisitos') return false;
-    // if there are no prerrequisitos defined, don't show
-    return prerrequisitosTiposUnicos.length > 0;
-  }, [uploadCategory, prerrequisitosTiposUnicos]);
+  // Helper: derive tipo_documento from selected client prerrequisito (if any)
+  const deriveTipoDocumentoFromSelectedPrereq = () => {
+    if (!selectedClientPrereq) return undefined;
+    const findMatch = (p: any) => {
+      const rawId = p.id ?? p.prerequisito_id ?? p.requisito_id ?? p._id ?? null;
+      const pid = rawId === null || typeof rawId === 'undefined' ? null : (Number.isNaN(Number(rawId)) ? String(rawId) : Number(rawId));
+      return pid === selectedClientPrereq;
+    };
+    const found = clientePrereqs.find(findMatch) || null;
+    if (!found) return undefined;
+    return found.tipo_documento || found.tipo || found.name || found.nombre || undefined;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -165,11 +197,11 @@ const SubirDocumentoModal: React.FC<SubirDocumentoModalProps> = ({ isOpen, onClo
     }
 
     try {
-      if (formData.archivo) {
+        if (formData.archivo) {
         const data: CreateDocumentoData = {
           personal_id: rutPersona, // backend espera rut_persona en formData helper
           nombre_documento: formData.nombre_documento,
-          tipo_documento: formData.tipo_documento || undefined,
+          tipo_documento: deriveTipoDocumentoFromSelectedPrereq() || formData.tipo_documento || undefined,
           archivo: formData.archivo,
           fecha_emision: formData.fecha_emision_documento || undefined,
           fecha_vencimiento: formData.fecha_vencimiento_documento || undefined,
@@ -177,9 +209,10 @@ const SubirDocumentoModal: React.FC<SubirDocumentoModalProps> = ({ isOpen, onClo
           estado_documento: formData.estado_documento || undefined,
           institucion_emisora: formData.institucion_emisora || undefined,
         };
-        // Añadir prerrequisitos seleccionados si los hay
-        if (selectedPrerrequisitos && selectedPrerrequisitos.length > 0) {
-          (data as any).prerrequisitos = selectedPrerrequisitos;
+        // Añadir prerrequisito de cliente si fue seleccionado
+        if (selectedClientPrereq !== null && typeof selectedClientPrereq !== 'undefined') {
+          (data as any).prerrequisitos = [selectedClientPrereq];
+          (data as any).cliente_id = selectedClientId || undefined;
         }
         const docErrors = validateDocumentoData(data);
         if (docErrors.length > 0) { setErrors(docErrors); return; }
@@ -197,13 +230,13 @@ const SubirDocumentoModal: React.FC<SubirDocumentoModalProps> = ({ isOpen, onClo
           rut_persona: rutPersona,
           file: selectedPendiente.file,
           nombre_documento: formData.nombre_documento,
-          tipo_documento: formData.tipo_documento || undefined,
+          tipo_documento: deriveTipoDocumentoFromSelectedPrereq() || formData.tipo_documento || undefined,
           fecha_emision: formData.fecha_emision_documento || undefined,
           fecha_vencimiento: formData.fecha_vencimiento_documento || undefined,
           dias_validez: formData.dias_validez_documento ? parseInt(formData.dias_validez_documento) : undefined,
           estado_documento: formData.estado_documento || undefined,
           institucion_emisora: formData.institucion_emisora || undefined,
-          prerrequisitos: selectedPrerrequisitos && selectedPrerrequisitos.length > 0 ? selectedPrerrequisitos : undefined,
+            prerrequisitos: selectedClientPrereq ? [selectedClientPrereq] : undefined,
         });
         await refetchDocumentosPersona();
       }
@@ -263,61 +296,74 @@ const SubirDocumentoModal: React.FC<SubirDocumentoModalProps> = ({ isOpen, onClo
               />
             </div>
 
-            {/* Tipo de documento (seleccionable) */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Tipo de Documento *</label>
-              <div className="mb-2 flex items-center space-x-4">
-                <label className="inline-flex items-center text-sm">
-                  <input type="radio" name="uploadCategory" value="personal" checked={uploadCategory === 'personal'} onChange={() => { setUploadCategory('personal'); setFormData(prev => ({ ...prev, tipo_documento: '', institucion_emisora: '' })); setSelectedPrerrequisitos([]); }} className="mr-2" />
-                  Documentación Personal
-                </label>
-                <label className="inline-flex items-center text-sm">
-                  <input type="radio" name="uploadCategory" value="prerrequisitos" checked={uploadCategory === 'prerrequisitos'} onChange={() => { setUploadCategory('prerrequisitos'); setFormData(prev => ({ ...prev, tipo_documento: '' })); setSelectedPrerrequisitos([]); }} className="mr-2" />
-                  Documentos Prerrequisitos
-                </label>
-              </div>
-              <select
-                value={formData.tipo_documento}
-                onChange={(e) => handleInputChange('tipo_documento', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                required
-                disabled={isLoading}
-              >
-                <option value="">Seleccione un tipo de documento</option>
-                {tiposDocumentoUnicos.map(tipo => (
-                  <option key={tipo} value={tipo}>
-                    {tipo.charAt(0).toUpperCase() + tipo.slice(1).replace(/_/g, ' ')}
-                  </option>
-                ))}
-              </select>
-              <p className="mt-1 text-xs text-gray-500">
-                Seleccione el tipo de documento que desea subir.
-              </p>
-            </div>
+            {/* Tipo de documento: derived from selected client prerrequisito (no selector shown) */}
 
-            {/* Prerrequisitos picker: aparece cuando el tipo seleccionado es prerrequisitos o coincide con un tipo definido en prerrequisitos */}
-            {shouldShowPrerrequisitosPicker && (
-              <div className="mt-3 p-3 border border-dashed rounded bg-gray-50">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Prerrequisitos asociados (marque los aplicables)</label>
-                {prerrequisitosTiposUnicos.length === 0 ? (
-                  <p className="text-sm text-gray-500">No hay prerrequisitos definidos.</p>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    {prerrequisitosTiposUnicos.map((tipo: string) => (
-                      <label key={tipo} className="flex items-center space-x-2 text-sm">
-                        <input
-                          type="checkbox"
-                          checked={selectedPrerrequisitos.includes(tipo)}
-                          onChange={() => {
-                            setSelectedPrerrequisitos(prev => prev.includes(tipo) ? prev.filter(p => p !== tipo) : [...prev, tipo]);
-                          }}
-                        />
-                        <span>{tipo}</span>
-                      </label>
-                    ))}
+            {/* Nota: El picker general de prerrequisitos fue eliminado. Solo se permiten prerrequisitos específicos por cliente. */}
+
+            {/* Selector de cliente y sus prerrequisitos (si la categoría es prerrequisitos) */}
+            {uploadCategory === 'prerrequisitos' && (
+              <div className="mt-3 p-3 border border-dashed rounded bg-white">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Asociar a Cliente (opcional)</label>
+                <select
+                  value={selectedClientId ?? ''}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    const id = val === '' ? null : parseInt(val, 10);
+                    setSelectedClientId(id);
+                    setSelectedClientPrereq(null);
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                >
+                  <option value="">No asociar a cliente</option>
+                  {clientes.map((c: any) => (
+                    <option key={c.id || c.cliente_id || c._id} value={c.id || c.cliente_id || c._id}>
+                      {c.nombre || c.razon_social || c.nombre_cliente || c.title || (`Cliente ${c.id || c.cliente_id || c._id}`)}
+                    </option>
+                  ))}
+                </select>
+
+                {selectedClientId && (
+                  <div className="mt-3">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Prerrequisitos del cliente (marque los aplicables)</label>
+                    {clientePrereqQuery.isLoading ? (
+                      <p className="text-sm text-gray-500">Cargando prerrequisitos...</p>
+                    ) : (clientePrereqs && clientePrereqs.length > 0) ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        {clientePrereqs.map((p: any) => {
+                          const rawId = p.id ?? p.prerequisito_id ?? p.requisito_id ?? p._id ?? null;
+                          const pid = rawId === null || typeof rawId === 'undefined' ? null : (Number.isNaN(Number(rawId)) ? String(rawId) : Number(rawId));
+                          const label = p.nombre || p.tipo_documento || p.tipo || p.descripcion || p.title || `#${rawId}`;
+                          const isChecked = pid !== null && selectedClientPrereq === pid;
+                          // possible fields for days of validity: dias_duracion, dias_validez, dias_validez_documento, dias
+                          const days = (p.dias_duracion ?? p.dias_validez ?? p.dias_validez_documento ?? p.dias) as number | undefined;
+                          return (
+                            <label key={String(rawId) || label} className="flex items-center justify-between space-x-2 text-sm">
+                              <div className="flex items-center space-x-2">
+                                <input
+                                  type="radio"
+                                  name={`client-prerrequisito-${selectedClientId}`}
+                                  value={String(pid)}
+                                  checked={isChecked}
+                                  onChange={() => {
+                                    if (pid === null) return;
+                                    setSelectedClientPrereq(pid as any);
+                                  }}
+                                />
+                                <span>{label}</span>
+                              </div>
+                              {typeof days === 'number' && !Number.isNaN(days) ? (
+                                <span className="text-xs text-gray-500">{days} días</span>
+                              ) : null}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500">Este cliente no tiene prerrequisitos definidos.</p>
+                    )}
+                    <p className="mt-2 text-xs text-gray-400">Los IDs de prerrequisitos seleccionados se enviarán al backend y se asociarán al documento.</p>
                   </div>
                 )}
-                <p className="mt-2 text-xs text-gray-400">Los prerrequisitos seleccionados se enviarán como parte del documento.</p>
               </div>
             )}
 
@@ -443,7 +489,7 @@ const SubirDocumentoModal: React.FC<SubirDocumentoModalProps> = ({ isOpen, onClo
                 rut_persona: rutPersona,
                 file: f,
                 nombre_documento: formData.nombre_documento || displayName || (f.nombre_original || f.nombre_archivo || f.name || f.title),
-                tipo_documento: formData.tipo_documento || 'otro',
+                tipo_documento: deriveTipoDocumentoFromSelectedPrereq() || formData.tipo_documento || 'otro',
                 fecha_emision: formData.fecha_emision_documento || undefined,
                 fecha_vencimiento: formData.fecha_vencimiento_documento || undefined,
                 dias_validez: formData.dias_validez_documento ? parseInt(formData.dias_validez_documento) : undefined,

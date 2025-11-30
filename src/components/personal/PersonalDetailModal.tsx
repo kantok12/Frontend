@@ -16,13 +16,9 @@ import { getAge, formatRUT, standardizeName, formatDate, truncateFilename, daysU
 import { API_CONFIG } from '../../config/api';
 import { useProfileImage } from '../../hooks/useProfileImage';
 import SubirDocumentoModal from './SubirDocumentoModal';
-
-// Mock components for missing imports
-const CreateCursoModal: React.FC<any> = ({ isOpen, onClose }) => isOpen ? <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center"><div className="bg-white p-4 rounded"><h2>Create Curso Modal</h2><button onClick={onClose}>Close</button></div></div> : null;
-const AddCourseDocumentModal: React.FC<any> = ({ isOpen, onClose }) => isOpen ? <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center"><div className="bg-white p-4 rounded"><h2>Add Course Document Modal</h2><button onClick={onClose}>Close</button></div></div> : null;
-const EditDocumentModal: React.FC<any> = ({ isOpen, onClose }) => isOpen ? <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center"><div className="bg-white p-4 rounded"><h2>Edit Document Modal</h2><button onClick={onClose}>Close</button></div></div> : null;
-const CursoModal: React.FC<any> = ({ isOpen, onClose }) => isOpen ? <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center"><div className="bg-white p-4 rounded"><h2>Curso Modal</h2><button onClick={onClose}>Close</button></div></div> : null;
-const CourseDocumentModal: React.FC<any> = ({ isOpen, onClose }) => isOpen ? <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center"><div className="bg-white p-4 rounded"><h2>Course Document Modal</h2><button onClick={onClose}>Close</button></div></div> : null;
+import { CursoModal } from './CursoModal';
+import CourseDocumentModal from './CourseDocumentModal';
+import EditDocumentModal from './EditDocumentModal';
 
 
 interface PersonalDetailModalProps {
@@ -163,7 +159,8 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({ person
     return [];
   })();
 
-  const { data: documentos, isLoading: documentosLoading, error: documentosError } = useDocumentosByPersona(personal?.rut ?? '');
+  // Reuse the query above (`documentosData`) instead of creating a second query instance.
+  // The first call to `useDocumentosByPersona` returns `isLoadingDocumentos` and `errorDocumentos`.
 
   // Dedupe: el backend a veces puede devolver entradas duplicadas (por ejemplo registro y copia local).
   // Usar el nombre de archivo normalizado como clave principal (elimina sufijos de timestamp, underscores, mayúsculas)
@@ -1081,7 +1078,7 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({ person
                 </div>
 
                 
-                {documentosLoading ? (
+                {isLoadingDocumentos ? (
                   <div className="flex justify-center py-4"><LoadingSpinner /></div>
                 ) : courseDocuments.length > 0 ? (
                   <div className="space-y-3">
@@ -1184,7 +1181,7 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({ person
                 </div>
 
                 
-                {documentosLoading ? (
+                {isLoadingDocumentos ? (
                   <div className="flex justify-center py-4"><LoadingSpinner /></div>
                 ) : personalDocuments.length > 0 ? (
                   <div className="space-y-3">

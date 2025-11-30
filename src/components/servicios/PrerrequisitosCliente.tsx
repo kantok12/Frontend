@@ -85,6 +85,16 @@ export const PrerrequisitosCliente: React.FC<PrerrequisitosClienteProps> = ({ cl
 
   const isLoading = isLoadingGlobales || (!isGlobalMode && isLoadingCliente);
 
+  // DEBUG: log de la respuesta del endpoint para depuración en entorno local
+  React.useEffect(() => {
+    try {
+      // eslint-disable-next-line no-console
+      console.debug('PrerrequisitosCliente - clienteId:', clienteId, 'prerrequisitosCliente:', prerrequisitosCliente, 'prerrequisitosGlobales:', prerrequisitosGlobales);
+    } catch (e) {
+      // ignore
+    }
+  }, [clienteId, prerrequisitosCliente, prerrequisitosGlobales]);
+
   const handleCreate = () => {
     if (!newPrerrequisito.tipo_documento) {
       toast.error('El tipo de documento es obligatorio.');
