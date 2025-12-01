@@ -1270,6 +1270,25 @@ class ApiService {
     return response.data;
   }
 
+  // Método de subida de documentos para cliente
+  async updateMetodoSubidaCliente(clienteId: number, data: {
+    metodo_subida_documentos: string;
+    config_subida_documentos?: any;
+  }): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.put(
+      `/servicios/clientes/${clienteId}/metodo-subida`,
+      data
+    );
+    return response.data;
+  }
+
+  async getHistorialMetodoSubidaCliente(clienteId: number): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.get(
+      `/servicios/clientes/${clienteId}/historial-metodo-subida`
+    );
+    return response.data;
+  }
+
   // Nodos
   async getNodos(params?: { limit?: number; offset?: number; search?: string; cliente_id?: number; cartera_id?: number }): Promise<ApiResponse<any>> {
     const response: AxiosResponse<ApiResponse<any>> = await this.api.get('/servicios/nodos', { params });
