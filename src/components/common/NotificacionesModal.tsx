@@ -30,14 +30,21 @@ export const NotificacionesModal: React.FC<NotificacionesModalProps> = ({
     isLoading,
     marcarComoLeida,
     marcarTodasComoLeidas,
+    marcarComoLeidaOptimistic,
+    marcarTodasComoLeidasOptimistic,
     getColorPrioridad,
     getIconoTipo,
     formatearFecha,
     limpiarNotificacionesLeidas,
     navegarADocumentos,
     isMarkingAsRead,
-    isMarkingAllAsRead
+    isMarkingAllAsRead,
+    notificacionesTodas,
+    notificacionesLeidas,
   } = useNotificaciones();
+  
+  // also available: all notifications and read notifications
+  // (useful to show history)
 
   const [filtroPrioridad, setFiltroPrioridad] = useState<'todas' | 'alta' | 'media' | 'baja'>('todas');
   const [filtroTipo, setFiltroTipo] = useState<'todas' | 'leidas' | 'no_leidas'>('no_leidas');
@@ -73,18 +80,34 @@ export const NotificacionesModal: React.FC<NotificacionesModalProps> = ({
   };
 
   // Filtrar notificaciones según los filtros seleccionados
-  const notificacionesFiltradas = notificaciones.filter(notif => {
-    const cumplePrioridad = filtroPrioridad === 'todas' || notif.prioridad === filtroPrioridad;
-    const cumpleTipo = filtroTipo === 'todas' || 
-      (filtroTipo === 'leidas' && notif.leida) || 
-      (filtroTipo === 'no_leidas' && !notif.leida);
-    const cumpleCategoria = filtroCategoria === 'todas' || getCategoriaNotificacion(notif.tipo) === filtroCategoria;
-    return cumplePrioridad && cumpleTipo && cumpleCategoria;
-  });
+  const notificacionesFiltradas = (() => {
+    // Base según filtro de tipo (historial)
+    let base: NotificacionDocumento[] = [];
+    if (filtroTipo === 'leidas') {
+      base = notificacionesLeidas || [];
+    } else if (filtroTipo === 'no_leidas') {
+      base = notificaciones;
+    } else {
+      // todas
+      base = notificacionesTodas || notificaciones;
+    }
+
+    // Apply remaining filters
+    return base.filter(notif => {
+      const cumplePrioridad = filtroPrioridad === 'todas' || notif.prioridad === filtroPrioridad;
+      const cumpleCategoria = filtroCategoria === 'todas' || getCategoriaNotificacion(notif.tipo) === filtroCategoria;
+      return cumplePrioridad && cumpleCategoria;
+    });
+  })();
 
   const handleMarcarComoLeida = async (notificacionId: string) => {
     try {
-      await marcarComoLeida.mutateAsync(notificacionId);
+      // Prefer optimistic helper which falls back to local state for synthetic notifications
+      if (typeof marcarComoLeidaOptimistic === 'function') {
+        await marcarComoLeidaOptimistic(notificacionId);
+      } else {
+        await marcarComoLeida.mutateAsync(notificacionId);
+      }
     } catch (error) {
       console.error('Error al marcar notificación como leída:', error);
     }
@@ -92,25 +115,38 @@ export const NotificacionesModal: React.FC<NotificacionesModalProps> = ({
 
   const handleMarcarTodasComoLeidas = async () => {
     try {
-      await marcarTodasComoLeidas.mutateAsync();
+      if (typeof marcarTodasComoLeidasOptimistic === 'function') {
+        await marcarTodasComoLeidasOptimistic();
+      } else {
+        await marcarTodasComoLeidas.mutateAsync();
+      }
     } catch (error) {
       console.error('Error al marcar todas las notificaciones como leídas:', error);
     }
   };
 
-  const handleAccion = (notificacion: NotificacionDocumento) => {
+  const handleAccion = async (notificacion: NotificacionDocumento) => {
     console.log('🔗 Ejecutando acción para notificación:', notificacion);
+    try {
+      if (notificacion.id) {
+        if (typeof marcarComoLeidaOptimistic === 'function') {
+          await marcarComoLeidaOptimistic(notificacion.id);
+        } else {
+          await marcarComoLeida.mutateAsync(notificacion.id);
+        }
+      }
+    } catch (err) {
+      console.warn('No se pudo marcar notificación como leída antes de la acción:', err);
+    }
 
     // Cerrar el modal de notificaciones primero
     onClose();
 
-    // Navegar según el tipo de notificación
+    // Navegar según el tipo de notificación (useNavegacionDocumentos despacha evento global)
     const categoria = getCategoriaNotificacion(notificacion.tipo);
-    
     switch (categoria) {
       case 'documentos':
       case 'personal':
-        // Navegar a los documentos de la persona
         if (notificacion.personal_id && notificacion.personal_id !== 'undefined') {
           navegarADocumentos(notificacion.personal_id, notificacion.personal_id);
         } else {
@@ -119,12 +155,9 @@ export const NotificacionesModal: React.FC<NotificacionesModalProps> = ({
         }
         break;
       case 'servicios':
-        // Navegar a la página de servicios
         window.location.href = '/servicios';
         break;
       case 'auditoria':
-        // Para auditoría, podríamos navegar a una página de auditoría o simplemente mantener el modal cerrado
-        // Por ahora, solo cerramos el modal ya que la información está en el mensaje
         console.log('📊 Notificación de auditoría:', notificacion.mensaje);
         break;
       default:
@@ -183,7 +216,7 @@ export const NotificacionesModal: React.FC<NotificacionesModalProps> = ({
                   disabled={isMarkingAllAsRead}
                   className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
                 >
-                  {isMarkingAllAsRead ? 'Eliminando...' : 'Eliminar todas'}
+                  {isMarkingAllAsRead ? 'Marcando...' : 'Marcar como leídas'}
                 </button>
               )}
               {/* Botón de debug para restaurar notificaciones eliminadas */}
@@ -355,13 +388,13 @@ export const NotificacionesModal: React.FC<NotificacionesModalProps> = ({
         <div className="px-6 py-4 bg-gray-50 border-t">
           <div className="flex items-center justify-between text-sm text-gray-600">
             <div className="flex items-center flex-wrap gap-4">
-              <span className="font-semibold">Total: {notificaciones.length}</span>
+              <span className="font-semibold">Total: {notificacionesTodas.length}</span>
               <span>No leídas: {notificacionesNoLeidas}</span>
               <span>Alta prioridad: {notificacionesPorPrioridad.alta.length}</span>
-              <span className="text-xs">📄 Documentos: {notificaciones.filter(n => getCategoriaNotificacion(n.tipo) === 'documentos').length}</span>
-              <span className="text-xs">👤 Personal: {notificaciones.filter(n => getCategoriaNotificacion(n.tipo) === 'personal').length}</span>
-              <span className="text-xs">🏢 Servicios: {notificaciones.filter(n => getCategoriaNotificacion(n.tipo) === 'servicios').length}</span>
-              <span className="text-xs">🔍 Auditoría: {notificaciones.filter(n => getCategoriaNotificacion(n.tipo) === 'auditoria').length}</span>
+              <span className="text-xs">📄 Documentos: {notificacionesTodas.filter((n:any) => getCategoriaNotificacion(n.tipo) === 'documentos').length}</span>
+              <span className="text-xs">👤 Personal: {notificacionesTodas.filter((n:any) => getCategoriaNotificacion(n.tipo) === 'personal').length}</span>
+              <span className="text-xs">🏢 Servicios: {notificacionesTodas.filter((n:any) => getCategoriaNotificacion(n.tipo) === 'servicios').length}</span>
+              <span className="text-xs">🔍 Auditoría: {notificacionesTodas.filter((n:any) => getCategoriaNotificacion(n.tipo) === 'auditoria').length}</span>
             </div>
             <div className="text-xs text-gray-500">
               Última actualización: {new Date().toLocaleTimeString('es-ES')}

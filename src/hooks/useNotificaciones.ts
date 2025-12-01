@@ -17,6 +17,49 @@ import {
 export const useNotificaciones = () => {
   const queryClient = useQueryClient();
   const { navegarADocumentos } = useNavegacionDocumentos();
+  const [localLeidas, setLocalLeidas] = useState<Set<string>>(new Set());
+  const [forceAllUnread, setForceAllUnread] = useState<boolean>(false);
+  const LOCAL_STORAGE_KEY = 'notificaciones_local_leidas_v1';
+
+  // Inicializar localLeidas desde localStorage una vez
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (raw) {
+        const arr = JSON.parse(raw || '[]');
+        if (Array.isArray(arr)) setLocalLeidas(new Set(arr));
+      }
+    } catch (err) {
+      console.warn('Error leyendo notificaciones locales desde localStorage', err);
+    }
+  }, []);
+
+  // Helper para persistir cambios en localLeidas
+  const persistLocalLeidas = (nextSet: Set<string>) => {
+    try {
+      const arr = Array.from(nextSet.values());
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(arr));
+    } catch (err) {
+      console.warn('Error guardando notificaciones locales en localStorage', err);
+    }
+  };
+
+  const addLocalLeida = (id: string) => {
+    setLocalLeidas(prev => {
+      const next = new Set(prev);
+      next.add(id);
+      persistLocalLeidas(next);
+      return next;
+    });
+  };
+
+  const clearLocalLeidas = () => {
+    setLocalLeidas(() => {
+      const next = new Set<string>();
+      persistLocalLeidas(next);
+      return next;
+    });
+  };
   
   
   // Estado local para notificaciones eliminadas (leídas)
@@ -63,25 +106,104 @@ export const useNotificaciones = () => {
   const generarNotificaciones = (): NotificacionDocumento[] => {
     const notificaciones: NotificacionDocumento[] = [];
 
+    // Helper: resolver nombre completo desde personalData si está disponible
+    const getNombreFromPersonal = (personalIdOrRut?: string | number | null) => {
+      try {
+        if (!personalIdOrRut || !personalData?.data?.items) return null;
+        const items = personalData.data.items || [];
+        const idStr = String(personalIdOrRut);
+        const found = items.find((p: any) => String(p.id) === idStr || p.rut === idStr || p.rut?.replace(/[.-]/g, '') === idStr.replace(/[.-]/g, ''));
+        if (!found) return null;
+        const first = ((found as any).nombre || (found as any).nombres || '').trim();
+        const last = ((found as any).apellido || (found as any).apellidos || '').trim();
+        return `${first} ${last}`.trim() || null;
+      } catch (e) {
+        return null;
+      }
+    };
+
     // Prefer server-provided notifications as authoritative
     const notifs = auditoriaNotificaciones?.data?.notificaciones || auditoriaNotificaciones?.data?.data || auditoriaNotificaciones?.data || [];
     if (Array.isArray(notifs)) {
       notifs.forEach((notif: any) => {
+        const tipoNotif = notif.tipo || notif.type || 'auditoria_sistema';
+        // Aplicar reglas de prioridad: vencido=alta, por_vencer=media, actualizaciones personales=baja
+        let prioridadNotif = (notif.prioridad || notif.priority || 'media') as 'alta' | 'media' | 'baja';
+        if (tipoNotif === 'documento_vencido') prioridadNotif = 'alta';
+        if (tipoNotif === 'documento_por_vencer') prioridadNotif = 'media';
+        if (tipoNotif.startsWith('personal_') || tipoNotif === 'personal_actualizacion') prioridadNotif = 'baja';
+
+        const personalIdFromNotif = notif.usuario_id || notif.usuarioId || notif.user_id || null;
+        const resolvedNombre = notif.usuario_nombre || notif.usuarioNombre || notif.user_name || getNombreFromPersonal(personalIdFromNotif) || null;
+
+        const id = String(notif.id || notif._id || Math.random());
         notificaciones.push({
-          id: String(notif.id || notif._id || Math.random()),
-          tipo: notif.tipo || notif.type || 'auditoria_sistema',
-          prioridad: (notif.prioridad || notif.priority || 'media') as 'alta' | 'media' | 'baja',
+          id,
+          tipo: tipoNotif,
+          prioridad: prioridadNotif,
           titulo: notif.titulo || notif.title || 'Notificación del Sistema',
           mensaje: notif.mensaje || notif.message || 'Sin mensaje',
-          personal_id: notif.usuario_id || notif.usuarioId || notif.user_id || null,
-          personal_nombre: notif.usuario_nombre || notif.usuarioNombre || notif.user_name || null,
+          personal_id: personalIdFromNotif || null,
+          personal_nombre: resolvedNombre,
           documento_id: notif.documento_id || null,
           documento_nombre: notif.documento_nombre || null,
           fecha_vencimiento: notif.fecha_vencimiento || null,
           dias_restantes: notif.dias_restantes || null,
-          leida: !!notif.leida || !!notif.read || false,
+          leida: forceAllUnread ? false : (!!notif.leida || !!notif.read || localLeidas.has(id) || false),
           fecha_creacion: notif.fecha_creacion || notif.fechaCreacion || notif.created_at || new Date().toISOString(),
           accion_requerida: notif.accion_requerida || notif.accionRequerida || notif.action_required || 'Revisar'
+        });
+      });
+    }
+
+    // Añadir notificaciones a partir de documentos vencidos
+    const vencidosList = documentosVencidos?.data || documentosVencidos || [];
+    if (Array.isArray(vencidosList)) {
+      vencidosList.forEach((doc: any) => {
+        const rut = doc.personal?.rut || doc.rut_persona || '';
+        const nombreResolved = doc.personal?.nombre || doc.personal?.nombres || getNombreFromPersonal(rut) || '';
+          const docVId = `doc_vencido_${doc.id}`;
+          notificaciones.push({
+            id: docVId,
+          tipo: 'documento_vencido',
+          prioridad: 'alta',
+          titulo: `${doc.nombre_documento} — ${nombreResolved || rut}`,
+          mensaje: doc.fecha_vencimiento ? `Venció el ${doc.fecha_vencimiento}` : 'Documento vencido',
+          personal_id: rut || String(doc.personal?.id || doc.rut_persona || '' ) || null,
+          personal_nombre: nombreResolved || null,
+          documento_id: String(doc.id),
+          documento_nombre: doc.nombre_documento,
+          fecha_vencimiento: doc.fecha_vencimiento || null,
+          dias_restantes: doc.dias_restantes ?? null,
+          leida: forceAllUnread ? false : (localLeidas.has(docVId) || false),
+          fecha_creacion: doc.fecha_subida || new Date().toISOString(),
+          accion_requerida: 'Ver documentos'
+        });
+      });
+    }
+
+    // Añadir notificaciones a partir de documentos por vencer
+    const porVencerList = documentosPorVencer?.data || documentosPorVencer || [];
+    if (Array.isArray(porVencerList)) {
+      porVencerList.forEach((doc: any) => {
+        const rut = doc.personal?.rut || doc.rut_persona || '';
+        const nombreResolved = doc.personal?.nombre || doc.personal?.nombres || getNombreFromPersonal(rut) || '';
+          const docPVId = `doc_por_vencer_${doc.id}`;
+          notificaciones.push({
+            id: docPVId,
+          tipo: 'documento_por_vencer',
+          prioridad: 'media',
+          titulo: `${doc.nombre_documento} — ${nombreResolved || rut}`,
+          mensaje: doc.dias_restantes !== undefined && doc.dias_restantes !== null ? `Vence en ${doc.dias_restantes} días` : 'Documento por vencer',
+          personal_id: rut || String(doc.personal?.id || doc.rut_persona || '' ) || null,
+          personal_nombre: nombreResolved || null,
+          documento_id: String(doc.id),
+          documento_nombre: doc.nombre_documento,
+          fecha_vencimiento: doc.fecha_vencimiento || null,
+          dias_restantes: doc.dias_restantes ?? null,
+          leida: forceAllUnread ? false : (localLeidas.has(docPVId) || false),
+          fecha_creacion: doc.fecha_subida || new Date().toISOString(),
+          accion_requerida: 'Ver documentos'
         });
       });
     }
@@ -90,10 +212,21 @@ export const useNotificaciones = () => {
   };
 
   // Obtener notificaciones generadas - recalcular cuando cambien las notificaciones del backend
-  const notificaciones = React.useMemo(() => generarNotificaciones(), [auditoriaNotificaciones?.data]);
-  
-  // Contar notificaciones no leídas (todas las activas son no leídas)
+  const notificacionesTodas = React.useMemo(() => generarNotificaciones(), [auditoriaNotificaciones?.data, documentosVencidos, documentosPorVencer, personalData, localLeidas, forceAllUnread]);
+
+  // Filtrar notificaciones visibles: si están marcadas como leídas (en servidor o local) las ocultamos
+  const notificaciones = React.useMemo(() => {
+    if (forceAllUnread) return notificacionesTodas;
+    return notificacionesTodas.filter(n => !n.leida && !localLeidas.has(n.id));
+  }, [notificacionesTodas, localLeidas, forceAllUnread]);
+
+  // Contar notificaciones no leídas (visibles)
   const notificacionesNoLeidas = notificaciones.length;
+
+  // Notificaciones leídas (server-marked OR localLeidas)
+  const notificacionesLeidas = React.useMemo(() => {
+    return notificacionesTodas.filter(n => (n.leida || localLeidas.has(n.id)) && !forceAllUnread);
+  }, [notificacionesTodas, localLeidas, forceAllUnread]);
   
   // Debug: Log para verificar el contador
   console.log('🔔 Notificaciones activas (server):', notificaciones.length);
@@ -121,6 +254,26 @@ export const useNotificaciones = () => {
     },
   });
 
+  // Helper optimista: intenta marcar en backend, si falla marca localmente
+  const marcarComoLeidaOptimistic = async (notificacionId: string) => {
+    // If id looks like a synthetic doc id, skip backend and mark local
+    if (notificacionId.startsWith('doc_vencido_') || notificacionId.startsWith('doc_por_vencer_')) {
+      addLocalLeida(notificacionId);
+      // trigger recompute
+      queryClient.invalidateQueries(['auditoria', 'notificaciones', false]);
+      console.log(`Notificación local ${notificacionId} marcada como leída (local)`);
+      return;
+    }
+
+    try {
+      await marcarComoLeida.mutateAsync(notificacionId);
+    } catch (err) {
+      console.warn('Fallo al marcar notificación en servidor, marcando localmente:', notificacionId, err);
+      addLocalLeida(notificacionId);
+      queryClient.invalidateQueries(['auditoria', 'notificaciones', false]);
+    }
+  };
+
   // Mutation para marcar todas las notificaciones como leídas (iterando en backend)
   const marcarTodasComoLeidas = useMutation({
     mutationFn: async () => {
@@ -137,6 +290,24 @@ export const useNotificaciones = () => {
       console.log('Todas las notificaciones marcadas como leídas en servidor');
     },
   });
+
+  const marcarTodasComoLeidasOptimistic = async () => {
+    // Mark synthetic ones locally and try server for others
+    const ids = notificaciones.map(n => n.id);
+    for (const id of ids) {
+      if (id.startsWith('doc_vencido_') || id.startsWith('doc_por_vencer_')) {
+        addLocalLeida(id);
+      } else {
+        try {
+          await marcarComoLeida.mutateAsync(id);
+        } catch (err) {
+          console.warn('Fallo marcando notificación al marcar todas, marcando localmente:', id, err);
+          addLocalLeida(id);
+        }
+      }
+    }
+    queryClient.invalidateQueries(['auditoria', 'notificaciones', false]);
+  };
 
   // Función para obtener el color de la prioridad
   const getColorPrioridad = (prioridad: 'alta' | 'media' | 'baja') => {
@@ -195,15 +366,26 @@ export const useNotificaciones = () => {
 
   // Función para restaurar todas las notificaciones eliminadas (útil para testing)
   const limpiarNotificacionesLeidas = () => {
-    // Al usar notificaciones del backend, simplemente invalidamos la cache
+    // Limpiar marcas locales y forzar que todas se muestren como no leídas temporalmente
+    clearLocalLeidas();
+    setForceAllUnread(true);
     queryClient.invalidateQueries(['auditoria', 'notificaciones']);
-    console.log('Solicitado refresco de notificaciones (backend).');
+    console.log('Solicitado restaurar notificaciones: limpiadas marcas locales y forzando no leídas.');
+
+    // Quitar el flag de force después de 10s para volver a respetar el estado del servidor
+    setTimeout(() => {
+      setForceAllUnread(false);
+      queryClient.invalidateQueries(['auditoria', 'notificaciones']);
+      console.log('Restauración temporal expirada: volviendo a estado del servidor');
+    }, 10000);
   };
 
 
   return {
     // Datos
     notificaciones,
+    notificacionesTodas,
+    notificacionesLeidas,
     notificacionesNoLeidas,
     notificacionesPorPrioridad,
     
@@ -213,6 +395,8 @@ export const useNotificaciones = () => {
     // Mutations
     marcarComoLeida,
     marcarTodasComoLeidas,
+    marcarComoLeidaOptimistic,
+    marcarTodasComoLeidasOptimistic,
     
     // Funciones de utilidad
     getColorPrioridad,

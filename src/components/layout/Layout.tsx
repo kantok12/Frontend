@@ -3,7 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { NotificacionesModal } from '../common/NotificacionesModal';
+import { PersonalDetailModal } from '../personal/PersonalDetailModal';
 import { usePersonalList } from '../../hooks/usePersonal';
+import apiService from '../../services/api';
+import { useNotificaciones } from '../../hooks/useNotificaciones';
+import { Personal } from '../../types';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -20,7 +24,21 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   // Hook para obtener datos de personal (necesario para la búsqueda)
   const { data: personalData, refetch: refetchPersonal } = usePersonalList(1, 1000, '');
 
+  const { notificaciones, marcarComoLeida, marcarComoLeidaOptimistic } = useNotificaciones();
+  const [selectedPersonalGlobal, setSelectedPersonalGlobal] = useState<Personal | null>(null);
+  const [showPersonalGlobalModal, setShowPersonalGlobalModal] = useState(false);
+
   // Listener global para navegación a documentos desde cualquier página
+  // Debug: log imported components to detect undefined elements at runtime
+  useEffect(() => {
+    console.log('DEBUG Layout imports ->', {
+      SidebarType: typeof Sidebar,
+      HeaderType: typeof Header,
+      NotificacionesModalType: typeof NotificacionesModal,
+      PersonalDetailModalType: typeof PersonalDetailModal,
+    });
+  }, []);
+
   useEffect(() => {
     console.log('🌐 [GLOBAL] Configurando listener global para navegación a documentos');
     
@@ -41,13 +59,76 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         return;
       }
       
-      // Si ya estamos en la página de personal, no hacer nada (dejamos que PersonalPage lo maneje)
-      if (window.location.pathname === '/personal') {
-        console.log('🌐 [GLOBAL] Ya estamos en /personal, dejando que PersonalPage maneje el evento');
+      // Intentar abrir modal directo si tenemos la persona en cache (sin navegar)
+      const rutToOpen = rutPersona || personalId;
+      const found = personalData?.data?.items?.find((p: any) => p.rut === rutToOpen || String(p.id) === String(personalId) || p.rut?.replace(/[.-]/g, '') === String(rutToOpen).replace(/[.-]/g, ''));
+      if (found) {
+        console.log('🌐 [GLOBAL] Personal encontrado en Layout, abriendo modal directo:', found.rut || found.id);
+        // Abrir modal de detalle directamente en Layout
+        setSelectedPersonalGlobal(found as Personal);
+        setShowPersonalGlobalModal(true);
+
+        // Marcar notificaciones relacionadas como leídas
+        (async () => {
+          try {
+            const related = (notificaciones || []).filter((n: any) => n.personal_id && (n.personal_id === found.rut || n.personal_id.replace(/[.-]/g, '') === String(found.rut).replace(/[.-]/g, '')));
+            for (const r of related) {
+              if (typeof marcarComoLeidaOptimistic === 'function') {
+                await marcarComoLeidaOptimistic(r.id);
+              } else {
+                await marcarComoLeida.mutateAsync(r.id);
+              }
+            }
+          } catch (err) {
+            console.warn('Error marcando notificaciones relacionadas desde Layout:', err);
+          }
+        })();
+
         return;
       }
-      
-      // Si estamos en otra página, crear transición moderna
+
+      // Si estamos en otra página y no encontramos la persona en cache, navegar como antes
+      console.log('🌐 [GLOBAL] No encontrada en cache, intentando obtener por RUT/ID antes de navegar');
+
+      // Intentar obtener la persona directamente desde API para abrir modal sin navegar
+      const rutCandidate = rutPersona || personalId;
+      try {
+        if (rutCandidate && String(rutCandidate).trim() !== '') {
+          const normalizedRut = String(rutCandidate).replace(/[.-]/g, '');
+          console.log('🌐 [GLOBAL] Intentando getPersonalByRut con:', normalizedRut);
+          const resp: any = await apiService.getPersonalByRut(normalizedRut);
+          // Resp puede tener varias formas: { data: { items: [...] } } o { data: {...} } o ser la persona directa
+          let fetched: any = null;
+          if (resp?.data?.items && Array.isArray(resp.data.items) && resp.data.items.length > 0) fetched = resp.data.items[0];
+          else if (resp?.data && (resp.data.id || resp.data.rut || resp.data.nombre)) fetched = resp.data;
+          else if (Array.isArray(resp) && resp.length > 0) fetched = resp[0];
+
+          if (fetched) {
+            console.log('🌐 [GLOBAL] Persona obtenida por API, abriendo modal directo:', fetched.rut || fetched.id);
+            setSelectedPersonalGlobal(fetched as Personal);
+            setShowPersonalGlobalModal(true);
+
+            // Marcar notificaciones relacionadas como leídas
+            try {
+              const related = (notificaciones || []).filter((n: any) => n.personal_id && (n.personal_id === fetched.rut || n.personal_id.replace(/[.-]/g, '') === String(fetched.rut).replace(/[.-]/g, '')));
+              for (const r of related) {
+                if (typeof marcarComoLeidaOptimistic === 'function') {
+                  await marcarComoLeidaOptimistic(r.id);
+                } else {
+                  await marcarComoLeida.mutateAsync(r.id);
+                }
+              }
+            } catch (err) {
+              console.warn('Error marcando notificaciones relacionadas después de fetch:', err);
+            }
+
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn('🌐 [GLOBAL] Error al obtener persona por API:', err);
+      }
+
       console.log('🌐 [GLOBAL] Navegando desde', window.location.pathname, 'a /personal');
       
       // Crear overlay de transición moderna
@@ -170,7 +251,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       console.log('🌐 [GLOBAL] Removiendo listener global');
       window.removeEventListener('openPersonalDetailModal', handleOpenPersonalDetailModal as unknown as EventListener);
     };
-  }, [navigate]);
+  }, [navigate, personalData, notificaciones, marcarComoLeida, refetchPersonal]);
 
   return (
     <div className="flex h-screen bg-gradient-to-br from-gray-50 to-gray-100">
@@ -202,6 +283,13 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       <NotificacionesModal
         isOpen={isNotificacionesOpen}
         onClose={() => setIsNotificacionesOpen(false)}
+      />
+      {/* PersonalDetailModal: render cuando Layout abre el detalle directamente */}
+      <PersonalDetailModal
+        personal={selectedPersonalGlobal}
+        isOpen={showPersonalGlobalModal}
+        onClose={() => { setShowPersonalGlobalModal(false); setSelectedPersonalGlobal(null); }}
+        onUpdate={() => { if (selectedPersonalGlobal) refetchPersonal(); }}
       />
     </div>
   );
