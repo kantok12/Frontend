@@ -34,7 +34,7 @@ export const PersonalForm: React.FC<PersonalFormProps> = ({
     email: '', // Campo de contacto
     telefono: '', // Campo de contacto
     talla_zapatos: '',
-    talla_pantalones: '',
+    talla_pantalon: '',
     talla_poleras: '',
     zona_geografica: '',
   });
@@ -158,7 +158,7 @@ export const PersonalForm: React.FC<PersonalFormProps> = ({
         email: personal.email || '',
         telefono: personal.contacto?.telefono || '',
         talla_zapatos: personal.talla_zapatos,
-        talla_pantalones: personal.talla_pantalones,
+        talla_pantalon: personal.talla_pantalon,
         talla_poleras: personal.talla_poleras,
         zona_geografica: personal.zona_geografica,
       });
@@ -177,7 +177,7 @@ export const PersonalForm: React.FC<PersonalFormProps> = ({
         email: '', // Campo de contacto
         telefono: '', // Campo de contacto
         talla_zapatos: '',
-        talla_pantalones: '',
+        talla_pantalon: '',
         talla_poleras: '',
         zona_geografica: '',
       });
@@ -241,7 +241,7 @@ export const PersonalForm: React.FC<PersonalFormProps> = ({
           cargo: formData.cargo,
           estado_id: formData.estado_id, // Usar el estado seleccionado
           talla_zapatos: formData.talla_zapatos,
-          talla_pantalones: formData.talla_pantalones,
+          talla_pantalon: formData.talla_pantalon,
           talla_poleras: formData.talla_poleras,
           zona_geografica: formData.zona_geografica,
           nombres: nombreCompleto, // Campo combinado que espera el backend
@@ -745,8 +745,8 @@ export const PersonalForm: React.FC<PersonalFormProps> = ({
                 </label>
                 <input
                   type="text"
-                  name="talla_pantalones"
-                  value={formData.talla_pantalones}
+                  name="talla_pantalon"
+                  value={formData.talla_pantalon}
                   onChange={handleInputChange}
                   className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 border-gray-300"
                   placeholder="Ej: M, 32, L, etc."

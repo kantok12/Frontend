@@ -173,7 +173,7 @@ class ApiService {
           cargo: userData.cargo,
           estado_id: userData.estado_id,
           talla_zapatos: userData.talla_zapatos,
-          talla_pantalones: userData.talla_pantalones,
+          talla_pantalon: userData.talla_pantalon,
           talla_poleras: userData.talla_poleras,
           zona_geografica: userData.zona_geografica,
           nombre: userData.nombre,
@@ -322,7 +322,11 @@ class ApiService {
       // eslint-disable-next-line no-console
       console.error('❌ Datos enviados:', JSON.stringify({ id, personalData }, null, 2));
       // eslint-disable-next-line no-console
-      console.error('❌ Error response:', (error as any).response?.data);
+      console.error('❌ Error response completo:', JSON.stringify((error as any).response?.data, null, 2));
+      // eslint-disable-next-line no-console
+      console.error('❌ Error status:', (error as any).response?.status);
+      // eslint-disable-next-line no-console
+      console.error('❌ Error message:', (error as any).response?.data?.message || (error as any).message);
       throw error;
     }
   }

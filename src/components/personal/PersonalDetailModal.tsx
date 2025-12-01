@@ -37,6 +37,8 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({ person
   const [selectedCurso, setSelectedCurso] = useState<any | null>(null);
   const [showEditDocumentModal, setShowEditDocumentModal] = useState(false);
   const [editingDocumento, setEditingDocumento] = useState<any | null>(null);
+  const [selectedDocs, setSelectedDocs] = useState<Set<number | string>>(new Set());
+  const [expandedDocs, setExpandedDocs] = useState<Set<number | string>>(new Set());
   const [showDocumentModal, setShowDocumentModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState<UpdatePersonalData>({});
@@ -293,7 +295,7 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({ person
         sexo: personal.sexo,
         licencia_conducir: personal.licencia_conducir,
         talla_zapatos: personal.talla_zapatos,
-        talla_pantalones: personal.talla_pantalones,
+        talla_pantalon: personal.talla_pantalon,
         talla_poleras: personal.talla_poleras,
         ubicacion: {
           region: personal.ubicacion?.region || '',
@@ -378,23 +380,22 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({ person
           `${editData.nombre || personal.nombre || 'Sin nombre'} ${editData.apellido || personal.apellido || 'Sin apellido'}`
         );
         const personalUpdateData = {
+          nombres: nombreCompleto,
           sexo: editData.sexo || personal.sexo,
           fecha_nacimiento: personal.fecha_nacimiento,
           licencia_conducir: editData.licencia_conducir || personal.licencia_conducir,
           cargo: editData.cargo || personal.cargo,
           estado_id: editData.estado_id !== undefined ? editData.estado_id : personal.estado_id,
-          talla_zapatos: editData.talla_zapatos || personal.talla_zapatos || '',
-          talla_pantalones: editData.talla_pantalones || personal.talla_pantalones || '',
-          talla_poleras: editData.talla_poleras || personal.talla_poleras || '',
-          // Enviar campos de ubicación (región/ciudad/comuna) en el payload
+          talla_zapato: editData.talla_zapatos || personal.talla_zapatos || '',
+          talla_pantalon: editData.talla_pantalon || personal.talla_pantalon || '',
+          talla_ropa: editData.talla_poleras || personal.talla_poleras || '',
+          // Campos de ubicación según el esquema real de la DB
           region: (editData as any).ubicacion?.region || personal.ubicacion?.region || undefined,
           ciudad: (editData as any).ubicacion?.ciudad || personal.ubicacion?.ciudad || undefined,
           comuna: (editData as any).ubicacion?.comuna || personal.ubicacion?.comuna || undefined,
           telefono: (editData as any).telefono || personal.telefono || undefined,
-          email: (editData as any).email || personal.email || undefined,
+          correo_electronico: (editData as any).email || personal.email || undefined,
           contacto_emergencia: (editData as any).contacto_emergencia || personal.contacto_emergencia || undefined,
-          comentario_estado: editData.comentario_estado !== undefined ? editData.comentario_estado : personal.comentario_estado || '',
-          nombre: nombreCompleto
         };
         promises.push(updatePersonalDataMutation.mutateAsync({ rut: personal.rut, data: personalUpdateData }));
         nombreActualizado = true;
@@ -409,16 +410,15 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({ person
         cargo: editData.cargo || personal.cargo,
         estado_id: editData.estado_id !== undefined ? editData.estado_id : personal.estado_id,
         fecha_nacimiento: editData.fecha_nacimiento || personal.fecha_nacimiento || '1990-01-01',
-        talla_zapatos: editData.talla_zapatos || personal.talla_zapatos || '',
-        talla_pantalones: editData.talla_pantalones || personal.talla_pantalones || '',
-        talla_poleras: editData.talla_poleras || personal.talla_poleras || '',
-        // Incluir datos de ubicación (región/ciudad/comuna)
+        talla_zapato: editData.talla_zapatos || personal.talla_zapatos || '',
+        talla_pantalon: editData.talla_pantalon || personal.talla_pantalon || '',
+        talla_ropa: editData.talla_poleras || personal.talla_poleras || '',
+        // Incluir datos de ubicación según esquema real de DB
         region: (editData as any).ubicacion?.region || personal.ubicacion?.region || undefined,
         ciudad: (editData as any).ubicacion?.ciudad || personal.ubicacion?.ciudad || undefined,
         comuna: (editData as any).ubicacion?.comuna || personal.ubicacion?.comuna || undefined,
-        comentario_estado: editData.comentario_estado !== undefined ? editData.comentario_estado : personal.comentario_estado || '',
         telefono: (editData as any).telefono || personal.telefono || undefined,
-        email: (editData as any).email || personal.email || undefined,
+        correo_electronico: (editData as any).email || personal.email || undefined,
         contacto_emergencia: (editData as any).contacto_emergencia || personal.contacto_emergencia || undefined,
       };
       // cast a any because api may accept extra keys for region/ciudad/comuna
@@ -450,7 +450,7 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({ person
       sexo: personal.sexo,
       licencia_conducir: personal.licencia_conducir,
       talla_zapatos: personal.talla_zapatos,
-      talla_pantalones: personal.talla_pantalones,
+      talla_pantalon: personal.talla_pantalon,
       talla_poleras: personal.talla_poleras,
       ubicacion: {
         region: personal.ubicacion?.region || '',
@@ -480,6 +480,24 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({ person
     setShowEditDocumentModal(true);
   };
 
+  const toggleSelectDocument = (docId: number | string) => {
+    setSelectedDocs(prev => {
+      const next = new Set(prev);
+      if (next.has(docId)) next.delete(docId); else next.add(docId);
+      return next;
+    });
+  };
+
+  const clearSelected = () => setSelectedDocs(new Set());
+
+  const toggleExpandDocument = (docId: number | string) => {
+    setExpandedDocs(prev => {
+      const next = new Set(prev);
+      if (next.has(docId)) next.delete(docId); else next.add(docId);
+      return next;
+    });
+  };
+
   
   const handleDeleteDocumento = async (documento: any) => {
     if (window.confirm(`¿Seguro que quieres eliminar "${documento.nombre_documento}"? Esta acción no se puede deshacer.`)) {
@@ -489,6 +507,22 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({ person
       } catch (error) {
         console.error("Error al eliminar:", error);
       }
+    }
+  };
+
+  const handleBulkDelete = async (ids: Array<number | string>) => {
+    if (!ids || ids.length === 0) return;
+    if (!window.confirm(`¿Seguro que quieres eliminar ${ids.length} documento(s)? Esta acción no se puede deshacer.`)) return;
+    try {
+      await Promise.all(ids.map((id) => {
+        const doc = todosDocumentos.find((d: any) => String(d.id) === String(id));
+        const payload = { id: doc?.id, driveFileId: doc?.drive_file_id };
+        return deleteDocumentoAndDriveMutation.mutateAsync(payload as any);
+      }));
+      clearSelected();
+      refetchDocumentos();
+    } catch (error) {
+      console.error('Error en eliminación masiva:', error);
     }
   };
 
@@ -550,13 +584,13 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({ person
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 animate-fadeIn">
-      <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto scrollbar-hide animate-slideInUp">
+      <div className="bg-white rounded-xl shadow-2xl max-w-7xl w-full max-h-[95vh] overflow-y-auto scrollbar-hide animate-slideInUp">
         {/* Header */}
         <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6 rounded-t-xl">
           <div className="flex justify-between items-start">
             <div className="flex items-center space-x-4">
-              <div className="relative group">
-                <div className="h-16 w-16 rounded-full bg-white bg-opacity-20 flex items-center justify-center overflow-hidden">
+                <div className="relative group">
+                <div className="h-24 w-24 rounded-full bg-white bg-opacity-20 flex items-center justify-center overflow-hidden">
                   {!imageError && imageUrl ? (
                     <img 
                       src={imageUrl}
@@ -565,7 +599,7 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({ person
                       onError={() => setImageError(true)}
                     />
                   ) : (
-                    <User className="h-8 w-8 text-white" />
+                    <User className="h-12 w-12 text-white" />
                   )}
                 </div>
                 {/* Botones de imagen en hover */}
@@ -606,10 +640,10 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({ person
                 )}
               </div>
               <div>
-                <h2 className="text-2xl font-bold">
+                <h2 className="text-3xl font-bold">
                   {standardizeName(`${personal.nombre || 'Sin nombre'} ${personal.apellido || 'Sin apellido'}`)}
                 </h2>
-                <p className="text-blue-100 text-lg">
+                <p className="text-blue-100 text-xl">
                   {personal.cargo || 'Sin cargo especificado'}
                 </p>
                 {(() => {
@@ -671,24 +705,24 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({ person
             </div>
           </div>
           
-          <div className="mt-4">
+            <div className="mt-6">
             <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${personal.activo ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-red-100 text-red-800 border border-red-200'}`}>
               <Activity className="h-4 w-4 mr-2" />
               {personal.estado_nombre}
             </span>
             {/* Profesión / Área / Supervisor / Tipo de asistencia */}
-            <div className="mt-3 grid grid-cols-1 gap-2">
+            <div className="mt-4 grid grid-cols-1 gap-3">
               <div className="flex justify-between items-center">
-                <span className="text-white text-sm opacity-90 font-medium">Profesión:</span>
-                <span className="text-white font-semibold text-base drop-shadow-sm">{displayValue(personal.profesion, personal.rut)}</span>
+                <span className="text-white text-base opacity-90 font-medium">Profesión:</span>
+                <span className="text-white font-semibold text-lg drop-shadow-sm">{displayValue(personal.profesion, personal.rut)}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-white text-sm opacity-90 font-medium">Área:</span>
-                <span className="text-white font-semibold text-base drop-shadow-sm text-right">{displayValue(personal.area, personal.rut)}</span>
+                <span className="text-white text-base opacity-90 font-medium">Área:</span>
+                <span className="text-white font-semibold text-lg drop-shadow-sm text-right">{displayValue(personal.area, personal.rut)}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-white text-sm opacity-90 font-medium">Supervisor:</span>
-                <span className="text-white font-semibold text-base drop-shadow-sm text-right">{displayValue(personal.supervisor, personal.rut)}</span>
+                <span className="text-white text-base opacity-90 font-medium">Supervisor:</span>
+                <span className="text-white font-semibold text-lg drop-shadow-sm text-right">{displayValue(personal.supervisor, personal.rut)}</span>
               </div>
               {/* Tipo de asistencia eliminado por petición del usuario */}
             </div>
@@ -704,7 +738,7 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({ person
               {errors.general}
             </div>
           )}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* Columna 1: Información Personal */}
             <div className="space-y-4">
               <div className="bg-gray-50 rounded-lg p-4">
@@ -955,13 +989,13 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({ person
                     {isEditing ? (
                       <input
                         type="text"
-                        value={editData.talla_pantalones || ''}
-                        onChange={(e) => handleInputChange('talla_pantalones', e.target.value)}
+                        value={editData.talla_pantalon || ''}
+                        onChange={(e) => handleInputChange('talla_pantalon', e.target.value)}
                         className="px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                         placeholder="Ej: M, 32, L"
                       />
                     ) : (
-                      <span className="text-gray-900 font-semibold">{displayValue(personal.talla_pantalones, personal.rut)}</span>
+                      <span className="text-gray-900 font-semibold">{displayValue(personal.talla_pantalon, personal.rut)}</span>
                     )}
                   </div>
                   <div className="flex justify-between items-center">
@@ -1082,74 +1116,76 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({ person
                   <div className="flex justify-center py-4"><LoadingSpinner /></div>
                 ) : courseDocuments.length > 0 ? (
                   <div className="space-y-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center space-x-3">
+                        <input
+                          type="checkbox"
+                          checked={courseDocuments.every((d: any) => selectedDocs.has(d.id)) && courseDocuments.length > 0}
+                          onChange={(e) => {
+                            if (e.target.checked) setSelectedDocs(prev => {
+                              const next = new Set(prev);
+                              courseDocuments.forEach((d: any) => next.add(d.id));
+                              return next;
+                            });
+                            else setSelectedDocs(prev => {
+                              const next = new Set(prev);
+                              courseDocuments.forEach((d: any) => next.delete(d.id));
+                              return next;
+                            });
+                          }}
+                        />
+                        <button
+                          onClick={() => handleBulkDelete(courseDocuments.map((d: any) => d.id))}
+                          disabled={!Array.from(selectedDocs).some(id => courseDocuments.find((d: any) => d.id === id))}
+                          className="px-3 py-1 bg-red-500 text-white rounded-md text-sm disabled:opacity-50"
+                        >
+                          Eliminar seleccionados
+                        </button>
+                        <button onClick={() => { courseDocuments.forEach((d: any) => toggleExpandDocument(d.id)); }} className="px-3 py-1 bg-gray-100 rounded-md text-sm">Alternar detalle</button>
+                      </div>
+                      <div className="text-sm text-purple-600">{courseDocuments.length} documento{courseDocuments.length !== 1 ? 's' : ''}</div>
+                    </div>
                     {courseDocuments.map((documento: any) => {
-                      console.log('✅ Renderizando documento:', documento.nombre_documento);
+                      const isSelected = selectedDocs.has(documento.id);
+                      const isExpanded = expandedDocs.has(documento.id);
                       return (
-                      <div key={documento.id} className="bg-white rounded-lg border border-purple-200 p-3 hover:shadow-md transition-shadow">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1 min-w-0 pr-3">
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center min-w-0">
-                                  <span className="text-lg mr-2 flex-shrink-0">{getDocumentIcon(documento.tipo_documento)}</span>
-                                  <h4 className="font-semibold text-purple-900 text-sm max-w-[20rem] truncate">{documento.nombre_documento}</h4>
-                                </div>
-                                <span className={`ml-2 text-xs px-2 py-1 rounded-full border flex-shrink-0 ${getDocumentColor(documento.tipo_documento)}`}>{documento.tipo_documento}</span>
-                              </div>
-                              <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-800">Activo</span>
-                            </div>
-                            <div className="space-y-1">
-                              <p className="text-xs text-purple-600"><span className="font-medium">Archivo:</span> <span className="inline-block max-w-[20rem] truncate">{truncateFilename(documento.nombre_original || documento.nombre_archivo || documento.nombre_documento, 60)}</span></p>
-                                {(() => {
-                                  const ubic = documento.ruta_archivo || (documento.ruta_local as any) || documento.url || (documento.drive_file_id ? `drive://${documento.drive_file_id}` : null);
-                                  if (!ubic) return null;
-                                  return (
-                                    <p className="text-xs text-gray-500"><span className="font-medium">Ubicación:</span> <span className="inline-block max-w-[20rem] truncate">{truncateFilename(ubic, 80)}</span></p>
-                                  );
-                                })()}
-                              <p className="text-xs text-gray-500"><span className="font-medium">Subido:</span> {new Date(documento.fecha_subida).toLocaleDateString('es-CL', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                              {documento.fecha_vencimiento && (
-                                (() => {
-                                  const days = daysUntilNumber(documento.fecha_vencimiento);
-                                  const text = daysUntilText(documento.fecha_vencimiento);
-                                  if (text == null || days == null) return null;
-                                  const cls = days < 0 ? 'text-xs text-red-600' : days <= 7 ? 'text-xs text-yellow-700' : 'text-xs text-gray-600';
-                                  return <p className={cls}><span className="font-medium">Vencimiento:</span> {text}</p>;
-                                })()
-                              )}
-                            </div>
+                        <div key={documento.id} className="bg-white rounded-lg border border-purple-200 p-4 hover:shadow-md transition-shadow flex items-start gap-4">
+                          <div className="flex-shrink-0 pt-1">
+                            <input type="checkbox" checked={isSelected} onChange={() => toggleSelectDocument(documento.id)} />
                           </div>
-                          <div className="flex flex-col space-y-1 ml-3 flex-shrink-0">
-                            <button 
-                              onClick={() => handleDownloadDocument(documento)}
-                              disabled={downloadDocumentoMutation.isLoading}
-                              className="text-blue-500 hover:text-blue-700 p-1 rounded hover:bg-blue-50 transition-colores disabled:opacity-50 disabled:cursor-not-allowed" 
-                              title="Descargar documento"
-                            >
-                              {downloadDocumentoMutation.isLoading ? (
-                                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-500"></div>
-                              ) : (
-                                <Download className="h-3 w-3" />
-                              )}
+                          <div className="flex-1">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <span className="text-2xl">{getDocumentIcon(documento.tipo_documento)}</span>
+                                <div>
+                                  <h4 className="font-semibold text-purple-900 text-lg leading-snug">{documento.nombre_documento}</h4>
+                                  <div className="text-sm text-gray-600 mt-1">{truncateFilename(documento.nombre_original || documento.nombre_archivo || documento.nombre_documento, isExpanded ? 400 : 80)}</div>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <span className={`ml-2 text-sm px-3 py-1 rounded-full border ${getDocumentColor(documento.tipo_documento)}`}>{documento.tipo_documento}</span>
+                                <div className="mt-2 text-xs text-gray-500">{new Date(documento.fecha_subida).toLocaleDateString('es-CL')}</div>
+                              </div>
+                            </div>
+                            {isExpanded && (
+                              <div className="mt-3 text-xs text-gray-700">
+                                <p><strong>Archivo:</strong> {documento.nombre_original || documento.nombre_archivo || '—'}</p>
+                                {documento.ruta_archivo && <p><strong>Ubicación:</strong> {documento.ruta_archivo}</p>}
+                                {documento.fecha_vencimiento && <p><strong>Vencimiento:</strong> {new Date(documento.fecha_vencimiento).toLocaleDateString('es-CL')}</p>}
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex flex-col items-center space-y-2">
+                            <button onClick={() => handleDownloadDocument(documento)} disabled={downloadDocumentoMutation.isLoading} className="text-blue-500 hover:text-blue-700 p-1 rounded hover:bg-blue-50 transition-colores disabled:opacity-50 disabled:cursor-not-allowed" title="Descargar documento">
+                              {downloadDocumentoMutation.isLoading ? (<div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>) : (<Download className="h-5 w-5" />)}
                             </button>
-                            <button 
-                              onClick={() => handleEditDocumento(documento)}
-                              className="text-green-500 hover:text-green-700 p-1 rounded hover:bg-green-50 transition-colores" 
-                              title="Editar documento"
-                            >
-                              <Edit className="h-3 w-3" />
-                            </button>
-                            <button 
-                              onClick={() => handleDeleteDocumento(documento)}
-                              className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50 transition-colores" 
-                              title="Eliminar documento"
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </button>
+                            <button onClick={() => handleEditDocumento(documento)} className="text-green-500 hover:text-green-700 p-1 rounded hover:bg-green-50 transition-colores" title="Editar documento"><Edit className="h-5 w-5" /></button>
+                            <button onClick={() => handleDeleteDocumento(documento)} className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50 transition-colores" title="Eliminar documento"><Trash2 className="h-5 w-5" /></button>
+                            <button onClick={() => toggleExpandDocument(documento.id)} className="text-gray-400 hover:text-gray-600 text-xs">{isExpanded ? 'Cerrar' : 'Ver más'}</button>
                           </div>
                         </div>
-                      </div>
-                    )})}
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="text-center py-8">
@@ -1185,55 +1221,76 @@ export const PersonalDetailModal: React.FC<PersonalDetailModalProps> = ({ person
                   <div className="flex justify-center py-4"><LoadingSpinner /></div>
                 ) : personalDocuments.length > 0 ? (
                   <div className="space-y-3">
-                    {personalDocuments.map((documento: any) => (
-                      <div key={documento.id} className="bg-white rounded-lg border border-orange-200 p-3 hover:shadow-md transition-shadow">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1 min-w-0 pr-3">
-                            <div className="flex items-center justify-between mb-2">
-                                <div className="flex items-center justify-between">
-                                <div className="flex items-center min-w-0">
-                                  <span className="text-lg mr-2 flex-shrink-0">{getDocumentIcon(documento.tipo_documento)}</span>
-                                  <h4 className="font-semibold text-orange-900 text-sm max-w-[20rem] truncate">{documento.nombre_documento}</h4>
-                                </div>
-                                <span className={`ml-2 text-xs px-2 py-1 rounded-full border flex-shrink-0 ${getDocumentColor(documento.tipo_documento)}`}>{documento.tipo_documento}</span>
-                              </div>
-                              <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-800">Activo</span>
-                            </div>
-                            <div className="space-y-1">
-                              <p className="text-xs text-orange-600"><span className="font-medium">Archivo:</span> <span className="inline-block max-w-[20rem] truncate">{truncateFilename(documento.nombre_original || documento.nombre_archivo || documento.nombre_documento, 60)}</span></p>
-                                {(() => {
-                                  const ubic = documento.ruta_archivo || (documento.ruta_local as any) || documento.url || (documento.drive_file_id ? `drive://${documento.drive_file_id}` : null);
-                                  if (!ubic) return null;
-                                  return (
-                                    <p className="text-xs text-gray-500"><span className="font-medium">Ubicación:</span> <span className="inline-block max-w-[20rem] truncate">{truncateFilename(ubic, 80)}</span></p>
-                                  );
-                                })()}
-                              <p className="text-xs text-gray-500"><span className="font-medium">Subido:</span> {new Date(documento.fecha_subida).toLocaleDateString('es-CL', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                              {documento.fecha_vencimiento && (
-                                (() => {
-                                  const days = daysUntilNumber(documento.fecha_vencimiento);
-                                  const text = daysUntilText(documento.fecha_vencimiento);
-                                  if (text == null || days == null) return null;
-                                  const cls = days < 0 ? 'text-xs text-red-600' : days <= 7 ? 'text-xs text-yellow-700' : 'text-xs text-gray-600';
-                                  return <p className={cls}><span className="font-medium">Vencimiento:</span> {text}</p>;
-                                })()
-                              )}
-                            </div>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center space-x-3">
+                        <input
+                          type="checkbox"
+                          checked={personalDocuments.every((d: any) => selectedDocs.has(d.id)) && personalDocuments.length > 0}
+                          onChange={(e) => {
+                            if (e.target.checked) setSelectedDocs(prev => {
+                              const next = new Set(prev);
+                              personalDocuments.forEach((d: any) => next.add(d.id));
+                              return next;
+                            });
+                            else setSelectedDocs(prev => {
+                              const next = new Set(prev);
+                              personalDocuments.forEach((d: any) => next.delete(d.id));
+                              return next;
+                            });
+                          }}
+                        />
+                        <button
+                          onClick={() => handleBulkDelete(personalDocuments.map((d: any) => d.id))}
+                          disabled={!Array.from(selectedDocs).some(id => personalDocuments.find((d: any) => d.id === id))}
+                          className="px-3 py-1 bg-red-500 text-white rounded-md text-sm disabled:opacity-50"
+                        >
+                          Eliminar seleccionados
+                        </button>
+                        <button onClick={() => { personalDocuments.forEach((d: any) => toggleExpandDocument(d.id)); }} className="px-3 py-1 bg-gray-100 rounded-md text-sm">Alternar detalle</button>
+                      </div>
+                      <div className="text-sm text-orange-600">{personalDocuments.length} documento{personalDocuments.length !== 1 ? 's' : ''}</div>
+                    </div>
+                    {personalDocuments.map((documento: any) => {
+                      const isSelected = selectedDocs.has(documento.id);
+                      const isExpanded = expandedDocs.has(documento.id);
+                      return (
+                        <div key={documento.id} className="bg-white rounded-lg border border-orange-200 p-4 hover:shadow-md transition-shadow flex items-start gap-4">
+                          <div className="flex-shrink-0 pt-1">
+                            <input type="checkbox" checked={isSelected} onChange={() => toggleSelectDocument(documento.id)} />
                           </div>
-                          <div className="flex flex-col space-y-1 ml-3 flex-shrink-0">
+                          <div className="flex-1">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <span className="text-2xl">{getDocumentIcon(documento.tipo_documento)}</span>
+                                <div>
+                                  <h4 className="font-semibold text-orange-900 text-lg leading-snug">{documento.nombre_documento}</h4>
+                                  <div className="text-sm text-gray-600 mt-1">{truncateFilename(documento.nombre_original || documento.nombre_archivo || documento.nombre_documento, isExpanded ? 400 : 80)}</div>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <span className={`ml-2 text-sm px-3 py-1 rounded-full border ${getDocumentColor(documento.tipo_documento)}`}>{documento.tipo_documento}</span>
+                                <div className="mt-2 text-xs text-gray-500">{new Date(documento.fecha_subida).toLocaleDateString('es-CL')}</div>
+                              </div>
+                            </div>
+                            {isExpanded && (
+                              <div className="mt-3 text-xs text-gray-700">
+                                <p><strong>Archivo:</strong> {documento.nombre_original || documento.nombre_archivo || '—'}</p>
+                                {documento.ruta_archivo && <p><strong>Ubicación:</strong> {documento.ruta_archivo}</p>}
+                                {documento.fecha_vencimiento && <p><strong>Vencimiento:</strong> {new Date(documento.fecha_vencimiento).toLocaleDateString('es-CL')}</p>}
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex flex-col items-center space-y-2">
                             <button onClick={() => handleDownloadDocument(documento)} className="text-green-500 hover:text-green-700 p-1 rounded hover:bg-green-50 transition-colores disabled:opacity-50 disabled:cursor-not-allowed" title="Descargar documento" disabled={downloadDocumentoMutation.isLoading}>
-                              {downloadDocumentoMutation.isLoading ? (<div className="animate-spin rounded-full h-3 w-3 border-b-2 border-green-500"></div>) : (<Download className="h-3 w-3" />)}
+                              {downloadDocumentoMutation.isLoading ? (<div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-500"></div>) : (<Download className="h-5 w-5" />)}
                             </button>
-                            <button onClick={() => handleEditDocumento(documento)} className="text-orange-500 hover:text-orange-700 p-1 rounded hover:bg-orange-50 transition-colores" title="Editar documento">
-                                <Edit className="h-3 w-3" />
-                            </button>
-                            <button onClick={() => handleDeleteDocumento(documento)} className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50 transition-colores" title="Eliminar documento">
-                              <Trash2 className="h-3 w-3" />
-                            </button>
+                            <button onClick={() => handleEditDocumento(documento)} className="text-orange-500 hover:text-orange-700 p-1 rounded hover:bg-orange-50 transition-colores" title="Editar documento"><Edit className="h-5 w-5" /></button>
+                            <button onClick={() => handleDeleteDocumento(documento)} className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50 transition-colores" title="Eliminar documento"><Trash2 className="h-5 w-5" /></button>
+                            <button onClick={() => toggleExpandDocument(documento.id)} className="text-gray-400 hover:text-gray-600 text-xs">{isExpanded ? 'Cerrar' : 'Ver más'}</button>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="text-center py-8">

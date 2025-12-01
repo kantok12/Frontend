@@ -29,6 +29,17 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       console.log('🌐 [GLOBAL] Evento recibido para abrir modal:', { personalId, rutPersona });
       console.log('🌐 [GLOBAL] Página actual:', window.location.pathname);
       console.log('🌐 [GLOBAL] Timestamp:', new Date().toISOString());
+      // Defensive guards: ignore malformed events or events fired from unrelated pages
+      if ((!personalId && !rutPersona) || String(personalId).trim() === '' && String(rutPersona).trim() === '') {
+        console.log('🌐 [GLOBAL] Evento ignorado: no contiene personalId ni rutPersona válidos');
+        return;
+      }
+      // Do not open personal modal when we're on calendar/programacion pages — these can emit events unintentionally
+      const path = window.location.pathname || '';
+      if (path.startsWith('/calendario') || path.startsWith('/programacion') || path.startsWith('/agenda')) {
+        console.log('🌐 [GLOBAL] Evento ignorado: actualmente en ruta de calendario/programación', path);
+        return;
+      }
       
       // Si ya estamos en la página de personal, no hacer nada (dejamos que PersonalPage lo maneje)
       if (window.location.pathname === '/personal') {

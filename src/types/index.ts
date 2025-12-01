@@ -26,7 +26,7 @@ export interface Personal {
   sexo: 'M' | 'F';
   licencia_conducir: string;
   talla_zapatos: string;
-  talla_pantalones: string;
+  talla_pantalon: string;
   talla_poleras: string;
   zona_geografica: string;
   estado_id: number;
@@ -264,7 +264,7 @@ export interface PersonalDisponible {
   cargo: string;
   estado_id: number;
   talla_zapatos?: string;
-  talla_pantalones?: string;
+  talla_pantalon?: string;
   talla_poleras?: string;
   zona_geografica?: string;
   nombre?: string;
@@ -285,7 +285,7 @@ export interface CreatePersonalDisponibleData {
   cargo: string;
   estado_id: number;
   talla_zapatos?: string;
-  talla_pantalones?: string;
+  talla_pantalon?: string;
   talla_poleras?: string;
   zona_geografica?: string;
   nombres?: string; // Campo combinado de nombre completo
@@ -304,7 +304,7 @@ export interface ExtendedRegisterForm extends RegisterForm {
   cargo: string;
   estado_id: number;
   talla_zapatos?: string;
-  talla_pantalones?: string;
+  talla_pantalon?: string;
   talla_poleras?: string;
   zona_geografica?: string;
   telefono?: string;
@@ -335,7 +335,7 @@ export interface CreatePersonalData {
   email?: string; // Campo de contacto
   telefono?: string; // Campo de contacto
   talla_zapatos: string;
-  talla_pantalones: string;
+  talla_pantalon: string;
   talla_poleras: string;
   zona_geografica: string;
 }
@@ -349,7 +349,7 @@ export interface UpdatePersonalData {
   fecha_nacimiento?: string; // Campo requerido por el backend
   edad?: string; // Campo de edad editable
   talla_zapatos?: string;
-  talla_pantalones?: string;
+  talla_pantalon?: string;
   talla_poleras?: string;
   zona_geografica?: string;
   ubicacion?: Partial<Ubicacion>;
@@ -514,7 +514,7 @@ export interface ValidationErrors {
   estado_id?: string;
   comentario_estado?: string;
   talla_zapatos?: string;
-  talla_pantalones?: string;
+  talla_pantalon?: string;
   talla_poleras?: string;
 }
 

@@ -213,7 +213,7 @@ const adaptPersonalData = (personalBackend: any): Personal => {
     zona_geografica: personalBackend.zona_geografica || personalBackend.zona || undefined,
     fecha_nacimiento: personalBackend.fecha_nacimiento || personalBackend.nacimiento || undefined,
     talla_zapatos: personalBackend.talla_zapatos || personalBackend.talla_zapato || personalBackend.talla_z || undefined,
-    talla_pantalones: personalBackend.talla_pantalones || personalBackend.talla_pantalon || personalBackend.talla_p || undefined,
+    talla_pantalon: personalBackend.talla_pantalon || personalBackend.talla_pantalones || personalBackend.talla_p || undefined,
     talla_poleras: personalBackend.talla_poleras || personalBackend.talla_polera || personalBackend.talla_camisa || undefined,
     // Información adicional del ejemplo de backend
     profesion: personalBackend.profesion || personalBackend.profesión || undefined,

@@ -31,7 +31,7 @@ const extendedRegisterSchema = z.object({
   telefono: z.string().optional(),
   zona_geografica: z.string().optional(),
   talla_zapatos: z.string().optional(),
-  talla_pantalones: z.string().optional(),
+  talla_pantalon: z.string().optional(),
   talla_poleras: z.string().optional(),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Las contraseñas no coinciden",
@@ -328,10 +328,10 @@ export const ExtendedRegisterPage: React.FC = () => {
                 />
 
                 <Input
-                  id="talla_pantalones"
+                  id="talla_pantalon"
                   label="Talla Pantalones"
-                  {...register('talla_pantalones')}
-                  error={errors.talla_pantalones?.message}
+                  {...register('talla_pantalon')}
+                  error={errors.talla_pantalon?.message}
                   placeholder="Ej: L, 32"
                 />
 

@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { X, Upload, FileText, Save, Edit } from 'lucide-react';
 import { useUpdateDocumento, useTiposDocumentos, validateDocumentoData, createDocumentoFormData, getTiposDocumentosCursos } from '../../hooks/useDocumentos';
+import { useClientes } from '../../hooks/useServicios';
+import useClientePrerequisitos from '../../hooks/useClientePrerequisitos';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 
 interface EditDocumentModalProps {
@@ -36,6 +38,13 @@ const EditDocumentModal: React.FC<EditDocumentModalProps> = ({
   // Filtrar solo tipos de documentos de cursos
   const tiposDocumentosCursos = getTiposDocumentosCursos();
 
+  // Clientes + cliente prereqs to allow selecting a client prerrequisito (same UX as upload modal)
+  const { data: clientesData } = useClientes({ limit: 1000 });
+  const clientes: any[] = (clientesData as any)?.data || (Array.isArray(clientesData) ? clientesData : []);
+  const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
+  const clientePrereqQuery = useClientePrerequisitos(selectedClientId ?? undefined);
+  const [selectedClientPrereq, setSelectedClientPrereq] = useState<number | string | null>(null);
+
   const isLoading = updateMutation.isLoading || loadingTipos;
 
   // Llenar formulario con datos del documento
@@ -51,9 +60,55 @@ const EditDocumentModal: React.FC<EditDocumentModalProps> = ({
         estado_documento: documento.estado_documento || '',
         institucion_emisora: documento.institucion_emisora || '',
       });
+      // if documento is associated to a client/prereq, try to pre-select
+      try {
+        const clienteId = documento.cliente_id || documento.cliente || null;
+        if (clienteId) setSelectedClientId(Number(clienteId));
+        const prereqId = documento.prerrequisito_id || documento.prerrequisito || documento.prerequisito_id || null;
+        if (prereqId) setSelectedClientPrereq(prereqId);
+      } catch (e) {
+        // ignore
+      }
     }
     setErrors([]);
   }, [documento, isOpen]);
+
+  // Normalize clientePrereqs similar to upload modal
+  const clientePrereqs: any[] = (() => {
+    const raw = (clientePrereqQuery as any).data || clientePrereqQuery || null;
+    if (!raw) return [];
+    if (Array.isArray(raw)) return raw;
+    const data = (raw as any).data ?? raw;
+    if (Array.isArray(data)) return data;
+    if (Array.isArray((data as any).requisitos)) return (data as any).requisitos;
+    if (Array.isArray((data as any).data)) return (data as any).data;
+    for (const key of Object.keys(data || {})) {
+      if (Array.isArray((data as any)[key])) return (data as any)[key];
+    }
+    return [];
+  })();
+
+  // Helper: derive tipo_documento from selected client prerrequisito
+  const deriveTipoDocumentoFromSelectedPrereq = () => {
+    if (!selectedClientPrereq) return undefined;
+    const findMatch = (p: any) => {
+      const rawId = p.id ?? p.prerequisito_id ?? p.requisito_id ?? p._id ?? null;
+      const pid = rawId === null || typeof rawId === 'undefined' ? null : (Number.isNaN(Number(rawId)) ? String(rawId) : Number(rawId));
+      return pid === selectedClientPrereq;
+    };
+    const found = clientePrereqs.find(findMatch) || null;
+    if (!found) return undefined;
+    return found.tipo_documento || found.tipo || found.name || found.nombre || undefined;
+  };
+
+  // When user selects a client prereq, prefill tipo_documento if derivable
+  useEffect(() => {
+    const derived = deriveTipoDocumentoFromSelectedPrereq();
+    if (derived) {
+      setFormData(prev => ({ ...prev, tipo_documento: derived }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedClientPrereq]);
 
   const handleInputChange = (field: string, value: any) => {
     setFormData(prev => ({
@@ -100,7 +155,7 @@ const EditDocumentModal: React.FC<EditDocumentModalProps> = ({
       // Preparar datos para actualización
       const updateData: any = {
         nombre_documento: formData.nombre_documento.trim(),
-        tipo_documento: formData.tipo_documento,
+        tipo_documento: deriveTipoDocumentoFromSelectedPrereq() || formData.tipo_documento,
         fecha_emision: formData.fecha_emision || undefined,
         fecha_vencimiento: formData.fecha_vencimiento || undefined,
         dias_validez: formData.dias_validez ? parseInt(formData.dias_validez) : undefined,
@@ -111,6 +166,12 @@ const EditDocumentModal: React.FC<EditDocumentModalProps> = ({
       // Si hay un nuevo archivo, incluirlo
       if (formData.archivo) {
         updateData.archivo = formData.archivo;
+      }
+
+      // Si seleccionó prerrequisito de cliente, incluirlo en payload
+      if (selectedClientPrereq !== null && typeof selectedClientPrereq !== 'undefined') {
+        updateData.prerrequisitos = [selectedClientPrereq];
+        updateData.cliente_id = selectedClientId || undefined;
       }
 
       // Actualizar documento
@@ -193,6 +254,68 @@ const EditDocumentModal: React.FC<EditDocumentModalProps> = ({
               />
             </div>
 
+            {/* Cliente y Prerrequisitos (opcional) */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Asociar a Cliente (opcional)</label>
+              <select
+                value={selectedClientId ?? ''}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const id = val === '' ? null : parseInt(val, 10);
+                  setSelectedClientId(id);
+                  setSelectedClientPrereq(null);
+                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                disabled={isLoading}
+              >
+                <option value="">No asociar a cliente</option>
+                {clientes.map((c: any) => (
+                  <option key={c.id || c.cliente_id || c._id} value={c.id || c.cliente_id || c._id}>
+                    {c.nombre || c.razon_social || c.nombre_cliente || c.title || (`Cliente ${c.id || c.cliente_id || c._id}`)}
+                  </option>
+                ))}
+              </select>
+
+              {selectedClientId && (
+                <div className="mt-3">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Prerrequisitos del cliente (marque uno)</label>
+                  {clientePrereqQuery.isLoading ? (
+                    <p className="text-sm text-gray-500">Cargando prerrequisitos...</p>
+                  ) : (clientePrereqs && clientePrereqs.length > 0) ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {clientePrereqs.map((p: any) => {
+                        const rawId = p.id ?? p.prerequisito_id ?? p.requisito_id ?? p._id ?? null;
+                        const pid = rawId === null || typeof rawId === 'undefined' ? null : (Number.isNaN(Number(rawId)) ? String(rawId) : Number(rawId));
+                        const label = p.nombre || p.tipo_documento || p.tipo || p.descripcion || p.title || `#${rawId}`;
+                        const days = (p.dias_duracion ?? p.dias_validez ?? p.dias_validez_documento ?? p.dias) as number | undefined;
+                        const isChecked = pid !== null && selectedClientPrereq === pid;
+                        return (
+                          <label key={String(rawId) || label} className="flex items-center justify-between space-x-2 text-sm">
+                            <div className="flex items-center space-x-2">
+                              <input
+                                type="radio"
+                                name={`edit-client-prerrequisito-${selectedClientId}`}
+                                value={String(pid)}
+                                checked={isChecked}
+                                onChange={() => { if (pid === null) return; setSelectedClientPrereq(pid as any); }}
+                              />
+                              <span>{label}</span>
+                            </div>
+                            {typeof days === 'number' && !Number.isNaN(days) ? (
+                              <span className="text-xs text-gray-500">{days} días</span>
+                            ) : null}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500">Este cliente no tiene prerrequisitos definidos.</p>
+                  )}
+                  <p className="mt-2 text-xs text-gray-400">Seleccionar un prerrequisito puede derivar automáticamente el tipo de documento.</p>
+                </div>
+              )}
+            </div>
+
             {/* Tipo de Documento */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -212,6 +335,9 @@ const EditDocumentModal: React.FC<EditDocumentModalProps> = ({
                   </option>
                 ))}
               </select>
+              {selectedClientPrereq && (
+                <p className="mt-1 text-xs text-gray-500">Tipo derivado del prerrequisito: <strong>{deriveTipoDocumentoFromSelectedPrereq() || 'N/A'}</strong></p>
+              )}
             </div>
 
             {/* Archivo Actual */}

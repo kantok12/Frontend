@@ -95,13 +95,11 @@ const CalendarioPage: React.FC = () => {
     cliente_id: '', // store cliente id (number as string)
     fecha_trabajo: '',
     dia_semana: '',
-    fix_dia_en_bd: false,
     horas_estimadas: '',
     estado: 'activo',
   });
 
   // Estado para colapsar/minimizar paneles de debug (inicialmente minimizados)
-  const [collapsedAllCarteras, setCollapsedAllCarteras] = useState(true);
   const [collapsedPayload, setCollapsedPayload] = useState(true);
 
 
@@ -331,11 +329,8 @@ const CalendarioPage: React.FC = () => {
   if (nuevo.cliente_id) payload.cliente_id = Number(nuevo.cliente_id);
       if (nuevo.cargo) payload.cargo = nuevo.cargo;
       if (nuevo.nombre_persona) payload.nombre_persona = nuevo.nombre_persona;
-      // Optionally include dia_semana calculated from fecha_trabajo to correct backend DB
-      if (nuevo.fix_dia_en_bd && nuevo.fecha_trabajo) {
-        const computed = fechaToDiaSemana(nuevo.fecha_trabajo);
-        if (computed) payload.dia_semana = computed;
-      }
+      // Note: we no longer send an explicit "fix_dia_en_bd" flag from the UI.
+      // The backend will compute/accept dia_semana as needed. Do not force dia_semana here.
   // (El debug visual ahora se muestra en un panel flotante, no alert)
   // --- Debug visual: JSON que se enviará al backend ---
   // (debe estar justo antes del return para estar en scope del JSX)
@@ -355,8 +350,8 @@ const CalendarioPage: React.FC = () => {
       queryClient.invalidateQueries(['programacion-optimizada']);
       setShowModal(false);
         setForm({
-          nombre_persona: '', rut: '', cargo: '', cartera_id: '', cliente_id: '', fecha_trabajo: '', dia_semana: '', fix_dia_en_bd: false, horas_estimadas: '', estado: 'activo',
-        });
+            nombre_persona: '', rut: '', cargo: '', cartera_id: '', cliente_id: '', fecha_trabajo: '', dia_semana: '', horas_estimadas: '', estado: 'activo',
+          });
       // Recargar la página para asegurarnos de que todas las visualizaciones (incluyendo las respuestas por cartera) se actualicen.
       // Esto evita inconsistencias si hay caches o fetches paralelos que no se invalidan automáticamente.
       try {
@@ -569,55 +564,7 @@ const CalendarioPage: React.FC = () => {
 
       {/* Modal de nueva programación */}
       {/* Panel flotante de debug de respuesta JSON de programación para todas las carteras (minimizable) */}
-      {allCarterasResults.length > 0 && (
-        <div style={{ position: 'fixed', bottom: 30, right: 30, zIndex: 100, pointerEvents: 'auto' }}>
-          {!collapsedAllCarteras ? (
-            <div style={{
-              background: 'rgba(30,30,30,0.97)',
-              color: '#fff',
-              borderRadius: '8px',
-              boxShadow: '0 2px 12px rgba(0,0,0,0.25)',
-              padding: '12px 14px',
-              minWidth: '340px',
-              maxWidth: '520px',
-              fontSize: '13px',
-              fontFamily: 'monospace',
-              wordBreak: 'break-all',
-              maxHeight: '80vh',
-              overflowY: 'auto',
-            }}>
-              <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8}}>
-                <div style={{fontWeight: 'bold', fontSize: 15, color: '#7dd3fc'}}>Respuestas JSON de todas las carteras</div>
-                <button onClick={() => setCollapsedAllCarteras(true)} style={{background: 'transparent', border: 'none', color: '#cbd5e1', cursor: 'pointer'}}>— minimizar</button>
-              </div>
-              {allCarterasResults.map((r, idx) => (
-                <div key={r.cartera_id} style={{marginBottom: 12}}>
-                  <div style={{color: '#bef264', fontWeight: 'bold', fontSize: 13}}>
-                    {r.nombre} (ID: {r.cartera_id})
-                  </div>
-                  <pre style={{margin: '6px 0 0 0', whiteSpace: 'pre-wrap', background: 'rgba(0,0,0,0.15)', borderRadius: 4, padding: 8}}>{JSON.stringify(r.response, null, 2)}</pre>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div style={{
-              background: 'rgba(30,30,30,0.9)',
-              color: '#fff',
-              borderRadius: '8px',
-              boxShadow: '0 2px 12px rgba(0,0,0,0.25)',
-              padding: '8px 10px',
-              minWidth: '160px',
-              textAlign: 'center',
-              fontFamily: 'monospace',
-            }}>
-              <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8}}>
-                <div style={{fontSize: 13, color: '#7dd3fc', fontWeight: 600}}>Respuestas JSON</div>
-                <button onClick={() => setCollapsedAllCarteras(false)} style={{background: 'transparent', border: 'none', color: '#cbd5e1', cursor: 'pointer'}}>▲</button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+      {/* 'Respuesta JSON' floating panel removed per request */}
       {showModal && (
         <>
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
@@ -691,10 +638,7 @@ const CalendarioPage: React.FC = () => {
                 <input className="border px-3 py-2 rounded-md w-full text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200" type="date" placeholder="Fecha" value={form.fecha_trabajo} onChange={e => setForm(f => ({ ...f, fecha_trabajo: e.target.value }))} required />
                 <div className="mt-2 text-sm text-gray-600">Día (calculado): <strong className="capitalize text-gray-800">{fechaToDiaSemana(form.fecha_trabajo) || '-'}</strong></div>
               </div>
-              <div className="flex items-center gap-2">
-                <input id="fix_dia" type="checkbox" checked={!!form.fix_dia_en_bd} onChange={e => setForm(f => ({ ...f, fix_dia_en_bd: e.target.checked }))} />
-                <label htmlFor="fix_dia" className="text-sm text-gray-700">Enviar día calculado para corregir DB</label>
-              </div>
+              {/* 'Enviar día calculado para corregir DB' removed per UX request */}
               <div className="grid grid-cols-2 gap-3">
                 <input className="border px-3 py-2 rounded-md w-full text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-200" placeholder="Horas estimadas" value={form.horas_estimadas} onChange={e => setForm(f => ({ ...f, horas_estimadas: e.target.value }))} required />
                 <select className="border px-3 py-2 rounded-md w-full text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-200" value={form.estado} onChange={e => setForm(f => ({ ...f, estado: e.target.value }))} required>
