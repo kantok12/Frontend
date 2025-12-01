@@ -1535,19 +1535,30 @@ export const ServiciosPage: React.FC = () => {
                   >
                     Anterior
                   </button>
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
-                    <button
-                      key={pageNum}
-                      onClick={() => handlePageChange(pageNum)}
-                      className={`px-3 py-2 text-sm font-medium rounded-md ${
-                        pageNum === uiState.page
-                          ? 'text-blue-600 bg-blue-50 border border-blue-300'
-                          : 'text-gray-500 bg-white border border-gray-300 hover:bg-gray-50'
-                      }`}
-                    >
-                      {pageNum}
-                    </button>
-                  ))}
+                  {(() => {
+                    const maxVisiblePages = 10;
+                    const halfVisible = Math.floor(maxVisiblePages / 2);
+                    let startPage = Math.max(1, uiState.page - halfVisible);
+                    const endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+                    
+                    if (endPage - startPage + 1 < maxVisiblePages) {
+                      startPage = Math.max(1, endPage - maxVisiblePages + 1);
+                    }
+                    
+                    return Array.from({ length: endPage - startPage + 1 }, (_, i) => startPage + i).map((pageNum) => (
+                      <button
+                        key={pageNum}
+                        onClick={() => handlePageChange(pageNum)}
+                        className={`px-3 py-2 text-sm font-medium rounded-md ${
+                          pageNum === uiState.page
+                            ? 'text-blue-600 bg-blue-50 border border-blue-300'
+                            : 'text-gray-500 bg-white border border-gray-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    ));
+                  })()}
                   <button
                     onClick={() => handlePageChange(uiState.page + 1)}
                     disabled={uiState.page === totalPages}

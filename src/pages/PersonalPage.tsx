@@ -950,19 +950,30 @@ export const PersonalPage: React.FC = () => {
                       >
                         Anterior
                       </button>
-                      {Array.from({ length: effectiveTotalPages }, (_, i) => i + 1).map((pageNum) => (
-                        <button
-                          key={pageNum}
-                          onClick={() => handlePageChange(pageNum)}
-                          className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
-                            pageNum === page
-                              ? 'z-10 bg-primary-50 border-primary-500 text-primary-600'
-                              : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
-                          }`}
-                        >
-                          {pageNum}
-                        </button>
-                      ))}
+                      {(() => {
+                        const maxVisiblePages = 10;
+                        const halfVisible = Math.floor(maxVisiblePages / 2);
+                        let startPage = Math.max(1, page - halfVisible);
+                        const endPage = Math.min(effectiveTotalPages, startPage + maxVisiblePages - 1);
+                        
+                        if (endPage - startPage + 1 < maxVisiblePages) {
+                          startPage = Math.max(1, endPage - maxVisiblePages + 1);
+                        }
+                        
+                        return Array.from({ length: endPage - startPage + 1 }, (_, i) => startPage + i).map((pageNum) => (
+                          <button
+                            key={pageNum}
+                            onClick={() => handlePageChange(pageNum)}
+                            className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
+                              pageNum === page
+                                ? 'z-10 bg-primary-50 border-primary-500 text-primary-600'
+                                : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
+                            }`}
+                          >
+                            {pageNum}
+                          </button>
+                        ));
+                      })()}
                       <button
                         onClick={() => handlePageChange(page + 1)}
                         disabled={page === effectiveTotalPages}
