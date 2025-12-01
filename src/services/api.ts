@@ -2155,15 +2155,72 @@ class ApiService {
 
   // ==================== MÉTODOS PARA BELRAY ====================
   
-  // GET /api/belray
+  // GET /api/belray - Listar todas las empresas Belray
   async getBelray(): Promise<ApiResponse<any>> {
     const response: AxiosResponse<ApiResponse<any>> = await this.api.get('/belray');
     return response.data;
   }
 
-  // POST /api/belray
+  // GET /api/belray/:id - Obtener una empresa Belray por ID
+  async getBelrayById(id: number): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.get(`/belray/${id}`);
+    return response.data;
+  }
+
+  // POST /api/belray - Crear nueva empresa Belray
   async crearBelray(data: any): Promise<ApiResponse<any>> {
     const response: AxiosResponse<ApiResponse<any>> = await this.api.post('/belray', data);
+    return response.data;
+  }
+
+  // PUT /api/belray/:id - Actualizar empresa Belray
+  async updateBelray(id: number, data: any): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.put(`/belray/${id}`, data);
+    return response.data;
+  }
+
+  // DELETE /api/belray/:id - Eliminar empresa Belray
+  async deleteBelray(id: number): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.delete(`/belray/${id}`);
+    return response.data;
+  }
+
+  // POST /api/belray/:id/documentos - Subir documento para empresa Belray
+  async uploadBelrayDocument(id: number, formData: FormData): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.post(
+      `/belray/${id}/documentos`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    );
+    return response.data;
+  }
+
+  // GET /api/belray/:id/documentos - Listar documentos de una empresa Belray
+  async getBelrayDocuments(id: number): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.get(`/belray/${id}/documentos`);
+    return response.data;
+  }
+
+  // DELETE /api/belray/:id/documentos/:filename - Eliminar documento de empresa Belray
+  async deleteBelrayDocument(id: number, filename: string): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.delete(
+      `/belray/${id}/documentos/${encodeURIComponent(filename)}`
+    );
+    return response.data;
+  }
+
+  // GET /api/belray/:id/documentos/:filename - Descargar documento de empresa Belray
+  async downloadBelrayDocument(id: number, filename: string): Promise<Blob> {
+    const response: AxiosResponse<Blob> = await this.api.get(
+      `/belray/${id}/documentos/${encodeURIComponent(filename)}`,
+      {
+        responseType: 'blob',
+      }
+    );
     return response.data;
   }
 

@@ -152,7 +152,7 @@ export const useServiciosDashboard = () => {
 };
 
 // Hook específico para la página de servicios
-export const useServiciosPage = (searchTerm: string = '', activeTab: 'carteras' | 'clientes' | 'nodos' | 'prerrequisitos' = 'carteras') => {
+export const useServiciosPage = (searchTerm: string = '', activeTab: 'carteras' | 'clientes' | 'nodos' | 'belray' | 'prerrequisitos' = 'carteras') => {
   const { data: estadisticas, isLoading: estadisticasLoading, error: estadisticasError } = useEstadisticasServicios();
   const { data: estructura, isLoading: estructuraLoading, error: estructuraError } = useEstructura();
   

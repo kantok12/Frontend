@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 
-type Tab = 'carteras' | 'clientes' | 'nodos' | 'prerrequisitos';
+type Tab = 'carteras' | 'clientes' | 'nodos' | 'belray' | 'prerrequisitos';
 
 interface UIState {
   activeTab: Tab;

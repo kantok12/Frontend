@@ -17,6 +17,8 @@ import { PrerrequisitosCliente } from '../components/servicios/PrerrequisitosCli
 import { PrerrequisitosModal } from '../components/servicios/PrerrequisitosModal';
 import { PersonalDetailModal } from '../components/personal/PersonalDetailModal';
 import { GlobalPrerrequisitosModal } from '../components/servicios/GlobalPrerrequisitosModal';
+import { BelrayList } from '../components/servicios/BelrayList';
+import { BelrayModal } from '../components/servicios/BelrayModal';
 // import { PrerrequisitosParcialesModal } from '../components/servicios/PrerrequisitosParcialesModal';
 
 // Helper: normalize RUT to a canonical form (no dots, no dash, uppercase)
@@ -429,6 +431,10 @@ export const ServiciosPage: React.FC = () => {
   const [showPersonalDetailModalLocal, setShowPersonalDetailModalLocal] = useState(false);
   // parcialesClienteId removed
 
+  // Estados para Belray
+  const [showBelrayModal, setShowBelrayModal] = useState(false);
+  const [selectedBelrayEmpresa, setSelectedBelrayEmpresa] = useState<any | null>(null);
+
   // Paginación interna para cada sección
   const [pageWithout, setPageWithout] = useState(1);
   const [pageAssigned, setPageAssigned] = useState(1);
@@ -725,6 +731,19 @@ export const ServiciosPage: React.FC = () => {
               <div className="flex items-center">
                 <MapPin className="h-4 w-4 mr-2" />
                 Nodos
+              </div>
+            </button>
+            <button
+              onClick={() => handleTabChange('belray')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                uiState.activeTab === 'belray'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <div className="flex items-center">
+                <Building2 className="h-4 w-4 mr-2" />
+                Belray
               </div>
             </button>
           </nav>
@@ -1142,10 +1161,26 @@ export const ServiciosPage: React.FC = () => {
           <h2 className="text-lg font-semibold text-gray-900">
             {uiState.activeTab === 'carteras' ? 'Carteras' : 
              uiState.activeTab === 'clientes' ? 'Clientes' : 
-             uiState.activeTab === 'nodos' ? 'Nodos' : 'Prerrequisitos'} ({total} registros)
+             uiState.activeTab === 'nodos' ? 'Nodos' : 
+             uiState.activeTab === 'belray' ? 'Empresas Belray' : 'Prerrequisitos'} ({uiState.activeTab === 'belray' ? '' : `${total} registros`})
           </h2>
         </div>
 
+        {/* Render Belray content */}
+        {uiState.activeTab === 'belray' ? (
+          <BelrayList
+            onAddClick={() => {
+              setSelectedBelrayEmpresa(null);
+              setShowBelrayModal(true);
+            }}
+            onEditClick={(empresa) => {
+              setSelectedBelrayEmpresa(empresa);
+              setShowBelrayModal(true);
+            }}
+          />
+        ) : (
+          <>
+        {/* Original table content for carteras/clientes/nodos */}
         {!!error ? (
           <div className="text-center py-8">
             <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md mx-auto">
@@ -1473,6 +1508,8 @@ export const ServiciosPage: React.FC = () => {
             )}
           </>
         )}
+        </>
+        )}
       </div>
 
       {/* Modales */}
@@ -1516,6 +1553,16 @@ export const ServiciosPage: React.FC = () => {
       <GlobalPrerrequisitosModal
         isOpen={uiState.showGlobalPrerrequisitosModal}
         onClose={() => handleModalToggle('showGlobalPrerrequisitosModal', false)}
+      />
+
+      {/* Modal para agregar/editar empresas Belray */}
+      <BelrayModal
+        isOpen={showBelrayModal}
+        onClose={() => {
+          setShowBelrayModal(false);
+          setSelectedBelrayEmpresa(null);
+        }}
+        empresa={selectedBelrayEmpresa}
       />
 
       {/* PrerrequisitosParcialesModal removed */}
