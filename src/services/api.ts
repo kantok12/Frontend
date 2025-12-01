@@ -2156,8 +2156,13 @@ class ApiService {
   // ==================== MÉTODOS PARA BELRAY ====================
   
   // GET /api/belray - Listar todas las empresas Belray
-  async getBelray(): Promise<ApiResponse<any>> {
-    const response: AxiosResponse<ApiResponse<any>> = await this.api.get('/belray');
+  async getBelray(params?: { page?: number; limit?: number; search?: string }): Promise<ApiResponse<any>> {
+    const query: string[] = [];
+    if (params?.page !== undefined) query.push(`page=${encodeURIComponent(String(params.page))}`);
+    if (params?.limit !== undefined) query.push(`limit=${encodeURIComponent(String(params.limit))}`);
+    if (params?.search) query.push(`search=${encodeURIComponent(params.search)}`);
+    const url = `/belray${query.length ? `?${query.join('&')}` : ''}`;
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.get(url);
     return response.data;
   }
 

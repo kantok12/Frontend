@@ -1162,7 +1162,7 @@ export const ServiciosPage: React.FC = () => {
             {uiState.activeTab === 'carteras' ? 'Carteras' : 
              uiState.activeTab === 'clientes' ? 'Clientes' : 
              uiState.activeTab === 'nodos' ? 'Nodos' : 
-             uiState.activeTab === 'belray' ? 'Empresas Belray' : 'Prerrequisitos'} ({uiState.activeTab === 'belray' ? '' : `${total} registros`})
+             uiState.activeTab === 'belray' ? 'Documentaciones' : 'Prerrequisitos'}{uiState.activeTab !== 'belray' && ` (${total} registros)`}
           </h2>
         </div>
 

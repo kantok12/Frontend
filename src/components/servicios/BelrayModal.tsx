@@ -10,6 +10,7 @@ interface BelrayModalProps {
 
 export const BelrayModal: React.FC<BelrayModalProps> = ({ isOpen, onClose, empresa }) => {
   const [formData, setFormData] = useState({
+    empresa: '',
     nombre: '',
     descripcion: '',
     observaciones: '',
@@ -22,11 +23,7 @@ export const BelrayModal: React.FC<BelrayModalProps> = ({ isOpen, onClose, empre
     correo_electronico: '',
     representante_legal: '',
     gerente_general: '',
-    numero_trabajadores_obra: '',
-    organismo_admin_ley_16744: '',
-    numero_adherentes: '',
-    tasa_siniestralidad_generica: '',
-    tasa_siniestralidad_adicional: '',
+    // removed laboral y seguridad fields
     experto_prevencion_riesgos: '',
     supervisor_coordinador_obra: '',
   });
@@ -39,6 +36,7 @@ export const BelrayModal: React.FC<BelrayModalProps> = ({ isOpen, onClose, empre
   useEffect(() => {
     if (empresa) {
       setFormData({
+        empresa: empresa.empresa || '',
         nombre: empresa.nombre || '',
         descripcion: empresa.descripcion || '',
         observaciones: empresa.observaciones || '',
@@ -51,16 +49,13 @@ export const BelrayModal: React.FC<BelrayModalProps> = ({ isOpen, onClose, empre
         correo_electronico: empresa.correo_electronico || '',
         representante_legal: empresa.representante_legal || '',
         gerente_general: empresa.gerente_general || '',
-        numero_trabajadores_obra: empresa.numero_trabajadores_obra || '',
-        organismo_admin_ley_16744: empresa.organismo_admin_ley_16744 || '',
-        numero_adherentes: empresa.numero_adherentes || '',
-        tasa_siniestralidad_generica: empresa.tasa_siniestralidad_generica || '',
-        tasa_siniestralidad_adicional: empresa.tasa_siniestralidad_adicional || '',
+        // removed laboral y seguridad fields
         experto_prevencion_riesgos: empresa.experto_prevencion_riesgos || '',
         supervisor_coordinador_obra: empresa.supervisor_coordinador_obra || '',
       });
     } else {
       setFormData({
+        empresa: '',
         nombre: '',
         descripcion: '',
         observaciones: '',
@@ -73,11 +68,7 @@ export const BelrayModal: React.FC<BelrayModalProps> = ({ isOpen, onClose, empre
         correo_electronico: '',
         representante_legal: '',
         gerente_general: '',
-        numero_trabajadores_obra: '',
-        organismo_admin_ley_16744: '',
-        numero_adherentes: '',
-        tasa_siniestralidad_generica: '',
-        tasa_siniestralidad_adicional: '',
+        // removed laboral y seguridad fields
         experto_prevencion_riesgos: '',
         supervisor_coordinador_obra: '',
       });
@@ -146,6 +137,18 @@ export const BelrayModal: React.FC<BelrayModalProps> = ({ isOpen, onClose, empre
                     required
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="Ej: Empresa Belray S.A."
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Empresa (alias / código)</label>
+                  <input
+                    type="text"
+                    name="empresa"
+                    value={formData.empresa}
+                    onChange={handleChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Nombre o código de la empresa"
                   />
                 </div>
 
@@ -312,72 +315,7 @@ export const BelrayModal: React.FC<BelrayModalProps> = ({ isOpen, onClose, empre
               </div>
             </div>
 
-            {/* Datos Laborales y Seguridad */}
-            <div>
-              <h3 className="text-md font-semibold text-gray-900 mb-3 pb-2 border-b border-gray-200">Datos Laborales y Seguridad</h3>
-              <div className="space-y-4">
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">N° Trabajadores Obra</label>
-                    <input
-                      type="number"
-                      name="numero_trabajadores_obra"
-                      value={formData.numero_trabajadores_obra}
-                      onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="0"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">N° Adherentes</label>
-                    <input
-                      type="number"
-                      name="numero_adherentes"
-                      value={formData.numero_adherentes}
-                      onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="0"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Organismo Ley 16.744</label>
-                    <input
-                      type="text"
-                      name="organismo_admin_ley_16744"
-                      value={formData.organismo_admin_ley_16744}
-                      onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Mutual / ISL"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Tasa Siniestralidad Genérica (%)</label>
-                    <input
-                      type="text"
-                      name="tasa_siniestralidad_generica"
-                      value={formData.tasa_siniestralidad_generica}
-                      onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="0.00"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Tasa Siniestralidad Adicional (%)</label>
-                    <input
-                      type="text"
-                      name="tasa_siniestralidad_adicional"
-                      value={formData.tasa_siniestralidad_adicional}
-                      onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="0.00"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
+            {/* Datos Laborales y Seguridad eliminado por petición */}
 
             {/* Observaciones */}
             <div>
