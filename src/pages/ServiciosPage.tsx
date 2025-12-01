@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useCallback, useState } from 'react';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
-import { Search, Plus, Settings, Users, Building2, MapPin, AlertCircle, ChevronRight, Globe } from 'lucide-react';
+import { Search, Plus, Settings, Users, Building2, MapPin, AlertCircle, ChevronRight, Globe, Upload } from 'lucide-react';
 import { useServiciosPage } from '../hooks/useServicios';
 import { Tooltip } from '../components/common/Tooltip';
 import { Cartera, Cliente, Nodo } from '../types';
@@ -19,6 +19,7 @@ import { PersonalDetailModal } from '../components/personal/PersonalDetailModal'
 import { GlobalPrerrequisitosModal } from '../components/servicios/GlobalPrerrequisitosModal';
 import { BelrayList } from '../components/servicios/BelrayList';
 import { BelrayModal } from '../components/servicios/BelrayModal';
+import { MetodoSubidaDocumentos } from '../components/servicios/MetodoSubidaDocumentos';
 // import { PrerrequisitosParcialesModal } from '../components/servicios/PrerrequisitosParcialesModal';
 
 // Helper: normalize RUT to a canonical form (no dots, no dash, uppercase)
@@ -313,6 +314,17 @@ export const ServiciosPage: React.FC = () => {
             return false;
           });
 
+          console.log('📋 [CUMPLEN] Lista filtrada de personas que cumplen:', {
+            total: completosFiltered.length,
+            personas: completosFiltered.map((p: any) => ({
+              rut: p.rut || p.persona?.rut,
+              nombre: p.persona?.nombres || p.nombres,
+              required: p.required_count,
+              provided: p.provided_count,
+              missing: p.missing_count
+            }))
+          });
+
           setCumplenList(completosFiltered);
           // setParcialesList(parcialesRaw); // Removed
         } else {
@@ -435,6 +447,10 @@ export const ServiciosPage: React.FC = () => {
   const [showBelrayModal, setShowBelrayModal] = useState(false);
   const [selectedBelrayEmpresa, setSelectedBelrayEmpresa] = useState<any | null>(null);
 
+  // Estados para método de subida de documentos
+  const [showMetodoSubidaModal, setShowMetodoSubidaModal] = useState(false);
+  const [clienteMetodoSubida, setClienteMetodoSubida] = useState<any | null>(null);
+
   // Paginación interna para cada sección
   const [pageWithout, setPageWithout] = useState(1);
   const [pageAssigned, setPageAssigned] = useState(1);
@@ -504,6 +520,13 @@ export const ServiciosPage: React.FC = () => {
   }, [assignmentState.assignedPersonal, hydrateNames]);
 
   const handleAssignWithUI = useCallback(async () => {
+    console.log('🎯 [UI] Iniciando asignación desde UI:', {
+      rutSeleccionado: assignmentState.selectedRutToAssign,
+      cartera: navigationState.selectedCartera?.nombre,
+      cliente: navigationState.selectedCliente?.nombre,
+      nodo: navigationState.selectedNodo?.nombre
+    });
+    
     try {
       const result = await handleAssign(
         navigationState.selectedCartera,
@@ -517,13 +540,17 @@ export const ServiciosPage: React.FC = () => {
       );
       
       if (result?.hasPrereqIssues) {
+        console.warn('⚠️ [UI] Persona tiene problemas con prerrequisitos');
         handleModalToggle('showPrereqPanel', true);
         updatePrereqState({
           selectedRutForMatch: assignmentState.selectedRutToAssign,
           prereqData: result.prereqData
         });
+      } else {
+        console.log('✅ [UI] Asignación completada exitosamente');
       }
     } catch (e: any) {
+      console.error('❌ [UI] Error en asignación:', e);
       alert(e?.message || 'Error al asignar');
     }
   }, [handleAssign, navigationState.selectedCartera, navigationState.selectedCliente, navigationState.selectedNodo, loadAssignedPersonal, handleModalToggle, updatePrereqState, assignmentState.selectedRutToAssign]);
@@ -887,15 +914,19 @@ export const ServiciosPage: React.FC = () => {
                   {isLoading ? '...' : `${uiState.page} de ${totalPages}`}
                 </span>
               </div>
-              {/* Botón para abrir gestión de prerrequisitos globales (solo en vista Clientes) */}
-              {uiState.activeTab === 'clientes' && (
+              {/* Botón para abrir método de subida de documentos (solo en vista Clientes) */}
+              {uiState.activeTab === 'clientes' && navigationState.selectedCliente && (
                 <div className="ml-4">
                   <button
-                    onClick={() => handleModalToggle('showGlobalPrerrequisitosModal', true)}
-                    className="px-3 py-2 text-sm bg-gray-100 rounded-md hover:bg-gray-200"
-                    title="Gestionar Prerrequisitos Globales"
+                    onClick={() => {
+                      setClienteMetodoSubida(navigationState.selectedCliente);
+                      setShowMetodoSubidaModal(true);
+                    }}
+                    className="px-3 py-2 text-sm bg-blue-100 text-blue-600 rounded-md hover:bg-blue-200"
+                    title="Método de Subida de Documentos"
                   >
-                    <Globe className="inline-block mr-2" />Global
+                    <Upload className="inline-block mr-2 h-4 w-4" />
+                    Método de Subida
                   </button>
                 </div>
               )}
@@ -907,6 +938,22 @@ export const ServiciosPage: React.FC = () => {
 
       {/* Tabla dinámica según pestaña activa */}
       <div className="slide-up animate-delay-300">
+        {/* Método de subida de documentos - Solo para clientes */}
+        {(uiState.activeTab === 'clientes' && navigationState.selectedCliente) && (
+          <div className="mb-6">
+            <MetodoSubidaDocumentos
+              clienteId={navigationState.selectedCliente.id}
+              clienteNombre={navigationState.selectedCliente.nombre}
+              metodoActual={navigationState.selectedCliente.metodo_subida_documentos}
+              configActual={navigationState.selectedCliente.config_subida_documentos}
+              onUpdate={() => {
+                // Recargar datos del cliente
+                queryClient.invalidateQueries({ queryKey: ['clientes'] });
+              }}
+            />
+          </div>
+        )}
+
         {/* Panel de personal asignado según la selección */}
         {((uiState.activeTab === 'nodos' || uiState.activeTab === 'clientes') && (navigationState.selectedCliente || navigationState.selectedNodo)) && (
           <div className="mb-6 bg-white rounded-lg border border-gray-200 p-6">
@@ -1408,11 +1455,16 @@ export const ServiciosPage: React.FC = () => {
                                   Prerrequisitos
                                 </button>
                                 <button
-                                  onClick={(e) => { e.stopPropagation(); handleModalToggle('showGlobalPrerrequisitosModal', true); }}
-                                  className="px-2 py-1 text-xs bg-gray-50 text-gray-700 rounded hover:bg-gray-100"
-                                  title="Prerrequisitos globales"
+                                  onClick={(e) => { 
+                                    e.stopPropagation(); 
+                                    setClienteMetodoSubida(item as Cliente);
+                                    setShowMetodoSubidaModal(true);
+                                  }}
+                                  className="px-2 py-1 text-xs bg-green-50 text-green-700 rounded hover:bg-green-100"
+                                  title="Método de Subida de Documentos"
                                 >
-                                  Global
+                                  <Upload className="inline-block h-3 w-3 mr-1" />
+                                  Subida
                                 </button>
                               </div>
                             </td>
@@ -1564,6 +1616,36 @@ export const ServiciosPage: React.FC = () => {
         }}
         empresa={selectedBelrayEmpresa}
       />
+
+      {/* Modal para método de subida de documentos */}
+      {showMetodoSubidaModal && clienteMetodoSubida && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+            <MetodoSubidaDocumentos
+              clienteId={clienteMetodoSubida.id}
+              clienteNombre={clienteMetodoSubida.nombre}
+              metodoActual={clienteMetodoSubida.metodo_subida_documentos}
+              configActual={clienteMetodoSubida.config_subida_documentos}
+              onUpdate={() => {
+                queryClient.invalidateQueries({ queryKey: ['clientes'] });
+                setShowMetodoSubidaModal(false);
+                setClienteMetodoSubida(null);
+              }}
+            />
+            <div className="p-6 border-t border-gray-200">
+              <button
+                onClick={() => {
+                  setShowMetodoSubidaModal(false);
+                  setClienteMetodoSubida(null);
+                }}
+                className="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* PrerrequisitosParcialesModal removed */}
 

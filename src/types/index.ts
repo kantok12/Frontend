@@ -545,6 +545,8 @@ export interface Cliente {
   total_nodos: number;
   minimo_personal?: number;
   nodos?: Nodo[];
+  metodo_subida_documentos?: string;
+  config_subida_documentos?: any;
 }
 
 export interface Nodo {
