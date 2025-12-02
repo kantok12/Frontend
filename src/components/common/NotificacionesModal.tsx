@@ -23,6 +23,8 @@ export const NotificacionesModal: React.FC<NotificacionesModalProps> = ({
   isOpen, 
   onClose 
 }) => {
+  // Call hook once and cast to `any` to avoid type mismatches from incremental types
+  const _notificacionesHook = useNotificaciones() as any;
   const {
     notificaciones,
     notificacionesNoLeidas,
@@ -41,8 +43,8 @@ export const NotificacionesModal: React.FC<NotificacionesModalProps> = ({
     isMarkingAllAsRead,
     notificacionesTodas,
     notificacionesLeidas,
-    localLeidas,
-  } = useNotificaciones();
+  } = _notificacionesHook;
+  const localLeidas: Set<string> | undefined = _notificacionesHook.localLeidas;
   const isLeida = (n: NotificacionDocumento) => {
     try {
       return !!n.leida || (!!localLeidas && (localLeidas as Set<string>).has(n.id));

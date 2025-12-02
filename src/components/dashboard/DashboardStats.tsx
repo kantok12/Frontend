@@ -146,11 +146,13 @@ export const DashboardStats: React.FC = () => {
   );
 
   // Obtener datos reales del backend
-  const { data: personalData, isLoading: personalLoading } = usePersonalList(1, 100, '');
+  // Increase limit to show full sample (remove small sample limitation)
+  const { data: personalData, isLoading: personalLoading } = usePersonalList(1, 1000, '');
   const { data: estadisticasServicios, isLoading: serviciosLoading } = useEstadisticasServicios();
   
   // Obtener datos de estados
-  const { data: estadosData } = useEstados({ limit: 100 });
+  // Request more states to avoid truncated sample lists in the dashboard
+  const { data: estadosData } = useEstados({ limit: 1000 });
   const estadosList = estadosData?.data || [];
   
   // Log para ver todos los estados disponibles
