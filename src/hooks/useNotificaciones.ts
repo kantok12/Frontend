@@ -1,3 +1,4 @@
+/* eslint-disable no-console, @typescript-eslint/no-unused-vars */
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useDocumentosVencidos, useDocumentosPorVencer } from './useDocumentosVencidos';
@@ -60,6 +61,65 @@ export const useNotificaciones = () => {
       return next;
     });
   };
+
+  // Local generated notifications from client-side events (e.g., personal updates)
+  const [localGeneradas, setLocalGeneradas] = useState<NotificacionDocumento[]>([]);
+  const LOCAL_GENERADAS_KEY = 'notificaciones_local_generadas_v1';
+
+  // Escuchar eventos globales de actualizaciones de personal para generar notificaciones prioridad 'baja'
+  useEffect(() => {
+    const handler = (ev: Event) => {
+      try {
+        const detail = (ev as CustomEvent).detail || {};
+        const rut = detail.rut || detail.id || String(detail.id || '').trim();
+        const nombre = detail.nombre || null;
+        const id = `personal_update_${rut}_${Date.now()}`;
+        const notif = {
+          id,
+          tipo: 'personal_actualizacion',
+          prioridad: 'baja',
+          titulo: nombre ? `Actualización: ${nombre}` : 'Actualización de personal',
+          mensaje: `Se actualizó información de la persona ${nombre || rut}`,
+          personal_id: rut || null,
+          personal_nombre: nombre || null,
+          documento_id: null,
+          documento_nombre: null,
+          fecha_vencimiento: null,
+          dias_restantes: null,
+          leida: false,
+          fecha_creacion: new Date().toISOString(),
+          accion_requerida: 'Ver detalles'
+        } as NotificacionDocumento;
+        setLocalGeneradas(prev => {
+          const next = [notif, ...prev.filter(p => p.id !== notif.id)];
+          try {
+            localStorage.setItem(LOCAL_GENERADAS_KEY, JSON.stringify(next));
+          } catch (e) {
+            // ignore
+          }
+          return next;
+        });
+      } catch (err) {
+        console.warn('Error creando notificación local por evento personalUpdated', err);
+      }
+    };
+
+    window.addEventListener('personalUpdated', handler as EventListener);
+    return () => window.removeEventListener('personalUpdated', handler as EventListener);
+  }, []);
+
+  // Cargar notificaciones locales generadas desde localStorage al iniciar
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(LOCAL_GENERADAS_KEY);
+      if (raw) {
+        const arr = JSON.parse(raw || '[]');
+        if (Array.isArray(arr)) setLocalGeneradas(arr);
+      }
+    } catch (err) {
+      // ignore
+    }
+  }, []);
   
   
   // Estado local para notificaciones eliminadas (leídas)
@@ -162,19 +222,32 @@ export const useNotificaciones = () => {
       vencidosList.forEach((doc: any) => {
         const rut = doc.personal?.rut || doc.rut_persona || '';
         const nombreResolved = doc.personal?.nombre || doc.personal?.nombres || getNombreFromPersonal(rut) || '';
-          const docVId = `doc_vencido_${doc.id}`;
-          notificaciones.push({
-            id: docVId,
+        const docVId = `doc_vencido_${doc.id}`;
+        // calcular días restantes en cliente (puede venir distinto del backend)
+        const fechaV = doc.fecha_vencimiento || doc.fecha_venc || null;
+        let diasRestantes: number | null = null;
+        if (fechaV) {
+          const diffMs = new Date(fechaV).getTime() - Date.now();
+          diasRestantes = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+        }
+        // si por alguna razón diasRestantes es >=0, pero proviene de la lista de vencidos,
+        // forzamos que sea tratado como vencido (prioridad alta)
+        const mensaje = (diasRestantes !== null && diasRestantes < 0)
+          ? `Venció hace ${Math.abs(diasRestantes)} días`
+          : (doc.fecha_vencimiento ? `Venció el ${doc.fecha_vencimiento}` : 'Documento vencido');
+
+        notificaciones.push({
+          id: docVId,
           tipo: 'documento_vencido',
           prioridad: 'alta',
           titulo: `${doc.nombre_documento} — ${nombreResolved || rut}`,
-          mensaje: doc.fecha_vencimiento ? `Venció el ${doc.fecha_vencimiento}` : 'Documento vencido',
+          mensaje,
           personal_id: rut || String(doc.personal?.id || doc.rut_persona || '' ) || null,
           personal_nombre: nombreResolved || null,
           documento_id: String(doc.id),
           documento_nombre: doc.nombre_documento,
-          fecha_vencimiento: doc.fecha_vencimiento || null,
-          dias_restantes: doc.dias_restantes ?? null,
+          fecha_vencimiento: fechaV || null,
+          dias_restantes: diasRestantes ?? null,
           leida: forceAllUnread ? false : (localLeidas.has(docVId) || false),
           fecha_creacion: doc.fecha_subida || new Date().toISOString(),
           accion_requerida: 'Ver documentos'
@@ -188,23 +261,62 @@ export const useNotificaciones = () => {
       porVencerList.forEach((doc: any) => {
         const rut = doc.personal?.rut || doc.rut_persona || '';
         const nombreResolved = doc.personal?.nombre || doc.personal?.nombres || getNombreFromPersonal(rut) || '';
-          const docPVId = `doc_por_vencer_${doc.id}`;
+        const docPVId = `doc_por_vencer_${doc.id}`;
+        const fechaV = doc.fecha_vencimiento || doc.fecha_venc || null;
+        let diasRestantes: number | null = null;
+        if (fechaV) {
+          const diffMs = new Date(fechaV).getTime() - Date.now();
+          diasRestantes = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+        }
+
+        // Si la fecha ya pasó, tratarlo como vencido (alta)
+        if (diasRestantes !== null && diasRestantes < 0) {
+          const mensaje = `Venció hace ${Math.abs(diasRestantes)} días`;
+          notificaciones.push({
+            id: `doc_vencido_${doc.id}`,
+            tipo: 'documento_vencido',
+            prioridad: 'alta',
+            titulo: `${doc.nombre_documento} — ${nombreResolved || rut}`,
+            mensaje,
+            personal_id: rut || String(doc.personal?.id || doc.rut_persona || '' ) || null,
+            personal_nombre: nombreResolved || null,
+            documento_id: String(doc.id),
+            documento_nombre: doc.nombre_documento,
+            fecha_vencimiento: fechaV || null,
+            dias_restantes: diasRestantes,
+            leida: forceAllUnread ? false : (localLeidas.has(docPVId) || false),
+            fecha_creacion: doc.fecha_subida || new Date().toISOString(),
+            accion_requerida: 'Ver documentos'
+          });
+        } else {
+          const mensaje = diasRestantes !== null ? `Vence en ${diasRestantes} días` : 'Documento por vencer';
           notificaciones.push({
             id: docPVId,
-          tipo: 'documento_por_vencer',
-          prioridad: 'media',
-          titulo: `${doc.nombre_documento} — ${nombreResolved || rut}`,
-          mensaje: doc.dias_restantes !== undefined && doc.dias_restantes !== null ? `Vence en ${doc.dias_restantes} días` : 'Documento por vencer',
-          personal_id: rut || String(doc.personal?.id || doc.rut_persona || '' ) || null,
-          personal_nombre: nombreResolved || null,
-          documento_id: String(doc.id),
-          documento_nombre: doc.nombre_documento,
-          fecha_vencimiento: doc.fecha_vencimiento || null,
-          dias_restantes: doc.dias_restantes ?? null,
-          leida: forceAllUnread ? false : (localLeidas.has(docPVId) || false),
-          fecha_creacion: doc.fecha_subida || new Date().toISOString(),
-          accion_requerida: 'Ver documentos'
-        });
+            tipo: 'documento_por_vencer',
+            prioridad: 'media',
+            titulo: `${doc.nombre_documento} — ${nombreResolved || rut}`,
+            mensaje,
+            personal_id: rut || String(doc.personal?.id || doc.rut_persona || '' ) || null,
+            personal_nombre: nombreResolved || null,
+            documento_id: String(doc.id),
+            documento_nombre: doc.nombre_documento,
+            fecha_vencimiento: fechaV || null,
+            dias_restantes: diasRestantes ?? null,
+            leida: forceAllUnread ? false : (localLeidas.has(docPVId) || false),
+            fecha_creacion: doc.fecha_subida || new Date().toISOString(),
+            accion_requerida: 'Ver documentos'
+          });
+        }
+      });
+    }
+
+    // Añadir notificaciones locales generadas desde eventos (ej. actualizaciones personales)
+    if (Array.isArray(localGeneradas) && localGeneradas.length > 0) {
+      localGeneradas.forEach((ln) => {
+        // Avoid duplicates by id
+        if (!notificaciones.find(n => n.id === ln.id)) {
+          notificaciones.push({ ...ln });
+        }
       });
     }
 
@@ -212,7 +324,7 @@ export const useNotificaciones = () => {
   };
 
   // Obtener notificaciones generadas - recalcular cuando cambien las notificaciones del backend
-  const notificacionesTodas = React.useMemo(() => generarNotificaciones(), [auditoriaNotificaciones?.data, documentosVencidos, documentosPorVencer, personalData, localLeidas, forceAllUnread]);
+  const notificacionesTodas = React.useMemo(() => generarNotificaciones(), [generarNotificaciones, auditoriaNotificaciones?.data, documentosVencidos, documentosPorVencer, personalData, localLeidas, forceAllUnread, localGeneradas]);
 
   // Filtrar notificaciones visibles: si están marcadas como leídas (en servidor o local) las ocultamos
   const notificaciones = React.useMemo(() => {
@@ -254,22 +366,31 @@ export const useNotificaciones = () => {
     },
   });
 
-  // Helper optimista: intenta marcar en backend, si falla marca localmente
+  // Helper optimista: marca localmente primero para que la UI cambie inmediatamente,
+  // luego intenta marcar en backend cuando aplique. Para notificaciones locales
+  // (synthetic) solo se marca localmente.
   const marcarComoLeidaOptimistic = async (notificacionId: string) => {
-    // If id looks like a synthetic doc id, skip backend and mark local
-    if (notificacionId.startsWith('doc_vencido_') || notificacionId.startsWith('doc_por_vencer_')) {
+    try {
       addLocalLeida(notificacionId);
-      // trigger recompute
       queryClient.invalidateQueries(['auditoria', 'notificaciones', false]);
-      console.log(`Notificación local ${notificacionId} marcada como leída (local)`);
+    } catch (e) {
+      // ignore
+    }
+
+    // Client-only notifications: skip server call
+    if (
+      notificacionId.startsWith('doc_vencido_') ||
+      notificacionId.startsWith('doc_por_vencer_') ||
+      notificacionId.startsWith('personal_update_')
+    ) {
       return;
     }
 
     try {
       await marcarComoLeida.mutateAsync(notificacionId);
     } catch (err) {
-      console.warn('Fallo al marcar notificación en servidor, marcando localmente:', notificacionId, err);
-      addLocalLeida(notificacionId);
+      // If server call fails, keep the local mark (best-effort)
+      try { addLocalLeida(notificacionId); } catch (_) {}
       queryClient.invalidateQueries(['auditoria', 'notificaciones', false]);
     }
   };
@@ -292,21 +413,28 @@ export const useNotificaciones = () => {
   });
 
   const marcarTodasComoLeidasOptimistic = async () => {
-    // Mark synthetic ones locally and try server for others
+    // Optimistic: marcar localmente todas primero para respuesta inmediata
     const ids = notificaciones.map(n => n.id);
     for (const id of ids) {
-      if (id.startsWith('doc_vencido_') || id.startsWith('doc_por_vencer_')) {
-        addLocalLeida(id);
-      } else {
-        try {
-          await marcarComoLeida.mutateAsync(id);
-        } catch (err) {
-          console.warn('Fallo marcando notificación al marcar todas, marcando localmente:', id, err);
-          addLocalLeida(id);
-        }
-      }
+      try { addLocalLeida(id); } catch (e) { /* ignore */ }
     }
     queryClient.invalidateQueries(['auditoria', 'notificaciones', false]);
+
+    // Luego intentar marcar en servidor para las que no sean client-only
+    for (const id of ids) {
+      if (
+        id.startsWith('doc_vencido_') ||
+        id.startsWith('doc_por_vencer_') ||
+        id.startsWith('personal_update_')
+      ) {
+        continue;
+      }
+      try {
+        await marcarComoLeida.mutateAsync(id);
+      } catch (err) {
+        try { addLocalLeida(id); } catch (_) {}
+      }
+    }
   };
 
   // Función para obtener el color de la prioridad
@@ -397,6 +525,8 @@ export const useNotificaciones = () => {
     marcarTodasComoLeidas,
     marcarComoLeidaOptimistic,
     marcarTodasComoLeidasOptimistic,
+    // Local read set (used by UI to reflect optimistic reads immediately)
+    localLeidas,
     
     // Funciones de utilidad
     getColorPrioridad,

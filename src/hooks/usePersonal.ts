@@ -304,9 +304,19 @@ export const useUpdatePersonal = () => {
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: UpdatePersonalData }) => 
       apiService.updatePersonal(id, data),
-    onSuccess: (_, { id }) => {
+    onSuccess: (response, { id }) => {
       queryClient.invalidateQueries({ queryKey: ['personal', 'list'] });
       queryClient.invalidateQueries({ queryKey: ['personal', 'detail', id] });
+      try {
+        const updated = (response && (response.data || response)) || null;
+        const rut = updated?.rut || id;
+        const nombre = (updated as any)?.nombre || (updated as any)?.nombres || `${(updated as any)?.nombre || ''} ${(updated as any)?.apellido || ''}`.trim();
+        // Dispatch a global event so notifications system can create a low-priority notification
+        const ev = new CustomEvent('personalUpdated', { detail: { id: rut, rut, nombre, updated } });
+        window.dispatchEvent(ev);
+      } catch (err) {
+        console.warn('Error dispatching personalUpdated event', err);
+      }
     },
   });
 };

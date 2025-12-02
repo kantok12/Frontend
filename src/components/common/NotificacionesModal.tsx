@@ -41,7 +41,15 @@ export const NotificacionesModal: React.FC<NotificacionesModalProps> = ({
     isMarkingAllAsRead,
     notificacionesTodas,
     notificacionesLeidas,
+    localLeidas,
   } = useNotificaciones();
+  const isLeida = (n: NotificacionDocumento) => {
+    try {
+      return !!n.leida || (!!localLeidas && (localLeidas as Set<string>).has(n.id));
+    } catch (e) {
+      return !!n.leida;
+    }
+  };
   
   // also available: all notifications and read notifications
   // (useful to show history)
@@ -307,8 +315,8 @@ export const NotificacionesModal: React.FC<NotificacionesModalProps> = ({
                 <div
                   key={notificacion.id}
                   className={`p-4 hover:bg-gray-50 transition-colors ${
-                    !notificacion.leida ? 'bg-blue-50/50' : ''
-                  }`}
+                      !isLeida(notificacion) ? 'bg-blue-50/50' : ''
+                    }`}
                 >
                   <div className="flex items-start space-x-3">
                     {/* Icono del tipo de notificación */}
@@ -359,7 +367,7 @@ export const NotificacionesModal: React.FC<NotificacionesModalProps> = ({
                               <span>{notificacion.accion_requerida}</span>
                             </button>
                           )}
-                          {!notificacion.leida && (
+                            {!isLeida(notificacion) && (
                             <button
                               onClick={() => handleMarcarComoLeida(notificacion.id)}
                               disabled={isMarkingAsRead}
@@ -368,8 +376,8 @@ export const NotificacionesModal: React.FC<NotificacionesModalProps> = ({
                             >
                               <Eye className="w-4 h-4" />
                             </button>
-                          )}
-                          {notificacion.leida && (
+                            )}
+                          {isLeida(notificacion) && (
                             <div className="p-1 text-green-500" title="Leída">
                               <CheckCircle className="w-4 h-4" />
                             </div>

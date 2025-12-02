@@ -71,6 +71,12 @@ export const useProfileImage = (rut: string) => {
       }
       // Invalidar la query para refrescar datos
       queryClient.invalidateQueries({ queryKey: ['profile-image', rut] });
+      try {
+        const ev = new CustomEvent('personalUpdated', { detail: { id: rut, rut, nombre: null, updated: result } });
+        window.dispatchEvent(ev);
+      } catch (err) {
+        // ignore
+      }
     },
     onError: (error: any) => {
       console.error('❌ Error al subir imagen:', error);
@@ -90,6 +96,12 @@ export const useProfileImage = (rut: string) => {
     onSuccess: () => {
       setProfileImage(null);
       queryClient.invalidateQueries({ queryKey: ['profile-image', rut] });
+      try {
+        const ev = new CustomEvent('personalUpdated', { detail: { id: rut, rut, nombre: null, updated: null } });
+        window.dispatchEvent(ev);
+      } catch (err) {
+        // ignore
+      }
     },
     onError: (error: any) => {
       console.error('❌ Error al eliminar imagen:', error);

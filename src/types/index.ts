@@ -907,7 +907,7 @@ export interface AcuerdoVencer {
 // Tipos para notificaciones
 export interface NotificacionDocumento {
   id: string;
-  tipo: 'documento_vencido' | 'documento_por_vencer' | 'documento_faltante' | 'documento_renovado' | 'personal_sin_asignacion' | 'servicios_sin_personal' | 'programacion_pendiente' | 'mantenimiento_proximo' | 'auditoria_critica' | 'auditoria_sistema' | 'auditoria_estadisticas';
+  tipo: 'documento_vencido' | 'documento_por_vencer' | 'documento_faltante' | 'documento_renovado' | 'personal_sin_asignacion' | 'personal_actualizacion' | 'servicios_sin_personal' | 'programacion_pendiente' | 'mantenimiento_proximo' | 'auditoria_critica' | 'auditoria_sistema' | 'auditoria_estadisticas';
   prioridad: 'alta' | 'media' | 'baja';
   titulo: string;
   mensaje: string;

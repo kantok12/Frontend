@@ -96,6 +96,14 @@ export const useCreatePersonal = () => {
       queryClient.invalidateQueries({ queryKey: ['personal', variables.rut] });
       queryClient.invalidateQueries({ queryKey: ['personal', 'stats'] });
       queryClient.invalidateQueries({ queryKey: ['personal', 'search'] });
+      try {
+        const rut = variables.rut;
+        const nombre = (response && (response.data?.nombre || response.data?.nombres)) || null;
+        const ev = new CustomEvent('personalUpdated', { detail: { id: rut, rut, nombre, updated: response } });
+        window.dispatchEvent(ev);
+      } catch (err) {
+        // swallow
+      }
     },
   });
 };
