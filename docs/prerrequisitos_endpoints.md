@@ -9,7 +9,7 @@ Este documento describe los endpoints disponibles para gestionar y consultar los
 ## Listado agrupado por cliente
 
 - Ruta: `GET /api/prerrequisitos/clientes`
-- Descripción: Devuelve *todos* los prerrequisitos de la tabla `mantenimiento.cliente_prerrequisitos` agrupados por `cliente_id`. Las entradas que tienen `cliente_id = null` aparecen bajo la clave `"global"`.
+- Descripción: Devuelve _todos_ los prerrequisitos de la tabla `mantenimiento.cliente_prerrequisitos` agrupados por `cliente_id`. Las entradas que tienen `cliente_id = null` aparecen bajo la clave `"global"`.
 - Uso típico: construir panel administrativo o exportar por cliente.
 
 Respuesta (ejemplo):
@@ -18,9 +18,9 @@ Respuesta (ejemplo):
 {
   "success": true,
   "data": {
-    "global": [ { "id": 16, "tipo_documento": "Carnet de Identidad" } ],
-    "24": [ { "id": 60, "tipo_documento": "Charla IRL PVSA" } ],
-    "28": [ { "id": 20, "tipo_documento": "Anexo asociado" } ]
+    "global": [{ "id": 16, "tipo_documento": "Carnet de Identidad" }],
+    "24": [{ "id": 60, "tipo_documento": "Charla IRL PVSA" }],
+    "28": [{ "id": 20, "tipo_documento": "Anexo asociado" }]
   }
 }
 ```
@@ -30,7 +30,7 @@ Respuesta (ejemplo):
 ## Prerrequisitos de un cliente (incluye globales)
 
 - Ruta: `GET /api/prerrequisitos/cliente/:cliente_id`
-- Descripción: Devuelve los prerrequisitos que aplican al cliente `:cliente_id` *y* los prerrequisitos globales (`cliente_id IS NULL`).
+- Descripción: Devuelve los prerrequisitos que aplican al cliente `:cliente_id` _y_ los prerrequisitos globales (`cliente_id IS NULL`).
 - Parámetros URL: `:cliente_id` (entero)
 
 Respuesta (ejemplo):
@@ -60,7 +60,7 @@ Respuesta (ejemplo):
 {
   "success": true,
   "message": "Prerrequisitos específicos del cliente 28 obtenidos exitosamente",
-  "data": [ { "id": 20, "cliente_id": 28, "tipo_documento": "Anexo asociado" } ]
+  "data": [{ "id": 20, "cliente_id": 28, "tipo_documento": "Anexo asociado" }]
 }
 ```
 
@@ -78,10 +78,12 @@ Respuesta: array simple de prerrequisitos globales.
 ## Endpoints de matching / cumplimiento (útiles para comprobar personas frente a un cliente)
 
 - `GET /api/prerrequisitos/clientes/:clienteId/cumplen`
-  - Devuelve personas (con `rut`, `nombres`, `cargo`, etc.) que cumplen *todos* los prerrequisitos del cliente.
+
+  - Devuelve personas (con `rut`, `nombres`, `cargo`, etc.) que cumplen _todos_ los prerrequisitos del cliente.
   - Query params: `includeGlobal` (por omisión `true`), `limit`, `offset`.
 
 - `GET /api/prerrequisitos/clientes/:clienteId/parciales`
+
   - Devuelve personas que cumplen algunos (parciales) prerrequisitos. Implementado en el servicio `prerrequisitosService`.
 
 - `POST /api/prerrequisitos/clientes/:clienteId/match` (o GET alias con query `?rut=`)
@@ -108,6 +110,7 @@ Respuesta típica de match (resumen por RUT):
 - `DELETE /api/prerrequisitos/:id` — borrar.
 
 Notas de validación y errores:
+
 - `POST` y `PUT` validan `tipo_documento` obligatorio; `cliente_id` si viene debe ser entero.
 - Si existe una violación de unicidad se devuelve `409` con mensaje claro.
 

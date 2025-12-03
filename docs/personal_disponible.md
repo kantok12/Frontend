@@ -11,6 +11,7 @@ Endpoints:
 - `GET /api/personal-disponible/:rut` — Obtener detalle por RUT.
 
 - `POST /api/personal-disponible` — Crear nuevo registro de personal.
+
   - Body: campos como `rut`, `nombres`, `apellido`, `cargo`, `zona_geografica`, `email`, `telefono`.
 
 - `PUT /api/personal-disponible/:rut` — Actualizar fields del personal.
@@ -18,12 +19,14 @@ Endpoints:
 - `DELETE /api/personal-disponible/:rut` — Marcar como inactivo o eliminar según política.
 
 Notas:
+
 - `documentos` relacionados están en `mantenimiento.documentos` y se pueden consultar por `rut_persona`.
 - Validar unicidad de `rut` al crear.
 
 ## Request / Response
 
 ### GET /api/personal-disponible
+
 - Query params: `zona`, `cargo`, `activo`, `limit`, `offset`.
 - Response (200):
 
@@ -86,12 +89,15 @@ Notas:
 ```
 
 ### GET /api/personal-disponible/:rut
+
 - Response (200): objeto con campos del personal.
 
 ### POST /api/personal-disponible
+
 - Request body (JSON):
 
 ### POST /api/personal-disponible
+
 - Request body (JSON): el endpoint acepta los campos del registro `mantenimiento.personal_disponible`. Muchos son opcionales; `rut` y `cargo` suelen ser requeridos por validación de negocio. No envíes `id` ni `created_at` (los gestiona la BD).
 
 Ejemplo completo (sintético):
@@ -148,6 +154,7 @@ Ejemplo completo (sintético):
 ```
 
 Notas de validación y seguridad:
+
 - `rut` debe ser único; validar formato antes de insertar.
 - Campos como `estado_id` deben referenciar `mantenimiento.estados`.
 - `documentacion_id` referencia a `mantenimiento.documentos` cuando aplique.
@@ -155,10 +162,12 @@ Notas de validación y seguridad:
 - Antes de aceptar la carga masiva de datos, validar y sanitizar los strings para evitar inyección.
 
 ### PUT /api/personal-disponible/:rut
+
 - Request body: campos a actualizar.
 - Response (200): objeto actualizado.
 
 ### DELETE /api/personal-disponible/:rut
+
 - Response (204) o (200) con `activo: false` si se marca como inactivo.
 
 Errors: 400/409/404/500 según caso.

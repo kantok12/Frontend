@@ -22,49 +22,64 @@ Documentos (carpeta en disco: `G:/Unidades compartidas/Unidad de Apoyo/Belray/Do
 - `POST /api/belray/documentos/crear-carpetas-todas` — Script: crear carpetas para todas las empresas (batch).
 
 Notas operativas:
+
 - Asegurar que el proceso que escribe a disco tenga permisos en la unidad de red.
 - Mantener sincronía entre base de datos y estructura de carpetas.
 
 ## Request / Response
 
 ### GET /api/belray
+
 - Query params: `q` (search), `limit`, `offset`.
 - Response (200):
 
 ```json
 {
-	"count": 2,
-	"rows": [
-		{ "id": 1, "nombre": "Empresa X", "giro": "Servicios", "telefono": "+56 2 2345 6789" }
-	]
+  "count": 2,
+  "rows": [
+    {
+      "id": 1,
+      "nombre": "Empresa X",
+      "giro": "Servicios",
+      "telefono": "+56 2 2345 6789"
+    }
+  ]
 }
 ```
 
 ### POST /api/belray
+
 - Request body (JSON):
 
 ```json
 {
-	"nombre": "Empresa X",
-	"descripcion": "Descripción",
-	"giro": "Servicios",
-	"numero_telefono": "+56 2 2345 6789",
-	"direccion": "Dirección 123"
+  "nombre": "Empresa X",
+  "descripcion": "Descripción",
+  "giro": "Servicios",
+  "numero_telefono": "+56 2 2345 6789",
+  "direccion": "Dirección 123"
 }
 ```
 
 - Response (201): objeto creado con `id`.
 
 ### Documentos — GET /api/belray/:id/documentos
+
 - Response (200):
 
 ```json
 [
-	{ "archivo": "contrato.pdf", "ruta": "Belray_1/contrato.pdf", "size": 123456, "uploaded_at": "2025-11-01T09:00:00Z" }
+  {
+    "archivo": "contrato.pdf",
+    "ruta": "Belray_1/contrato.pdf",
+    "size": 123456,
+    "uploaded_at": "2025-11-01T09:00:00Z"
+  }
 ]
 ```
 
 ### POST /api/belray/:id/documentos/subir
+
 - Request: `multipart/form-data` con campo `file`.
 - Response (201): `{ "archivo": "contrato.pdf", "status": "uploaded" }`.
 

@@ -5,6 +5,7 @@ Este documento es una recomendación técnica para implementar, mejorar o reempl
 ---
 
 ## Objetivo
+
 Proveer una API backend que, dada una lista de personas (o un solo rut) y un cliente, devuelva si cada persona cumple los prerrequisitos requeridos por ese cliente (incluyendo prerrequisitos globales), cuáles faltan, y un resumen de los documentos vigentes que posee cada persona.
 
 Esto evita hacer N llamadas desde el frontend, centraliza la lógica (normalización, vencimientos, mapeos) y mejora rendimiento y trazabilidad.
@@ -12,6 +13,7 @@ Esto evita hacer N llamadas desde el frontend, centraliza la lógica (normalizac
 ---
 
 ## Recomendación general (alto nivel)
+
 1. Implementar la normalización y mapeo de tipos de documento en el backend (funciones reutilizables y testeables).
 2. Crear un endpoint que acepte uno o más ruts y devuelva el resultado del matching en batch.
 3. Asegurar que la lógica tenga en cuenta vigencias (fecha_vencimiento, `dias_duracion` del prerrequisito o `created_at` del documento).
@@ -20,16 +22,20 @@ Esto evita hacer N llamadas desde el frontend, centraliza la lógica (normalizac
 ---
 
 ## Propuesta de contrato API (sugerencia)
+
 - Endpoint: POST /api/prerequisitos/clientes/:clienteId/match
 - Body (ejemplo):
+
 ```json
 {
   "ruts": ["20011078-1", "11111111-1"],
-  "requireAll": true,            // opcional, default true
-  "includeGlobal": true          // opcional, default true
+  "requireAll": true, // opcional, default true
+  "includeGlobal": true // opcional, default true
 }
 ```
+
 - Response (ejemplo):
+
 ```json
 {
   "success": true,
@@ -39,7 +45,13 @@ Esto evita hacer N llamadas desde el frontend, centraliza la lógica (normalizac
       "matchesAll": false,
       "faltantes": ["certificado_seguridad"],
       "documentos": [
-        { "id": 123, "tipo_original": "EPP", "tipo_normalizado": "certificado_seguridad", "vencido": false, "fecha_vencimiento": "2026-02-01" }
+        {
+          "id": 123,
+          "tipo_original": "EPP",
+          "tipo_normalizado": "certificado_seguridad",
+          "vencido": false,
+          "fecha_vencimiento": "2026-02-01"
+        }
       ]
     }
   ]
@@ -49,15 +61,18 @@ Esto evita hacer N llamadas desde el frontend, centraliza la lógica (normalizac
 ---
 
 ## Normalización y mapeo (implementación sugerida)
+
 Implementar helpers reutilizables para normalizar y mapear strings:
 
 - normalizeKey(input: string): string
+
   - transforma a minúsculas
   - quita diacríticos (acentos)
   - elimina caracteres no alfanuméricos (reemplazarlos por espacios)
   - colapsa espacios repetidos
 
 - mapTipo(key: string): string
+
   - mapea alias comunes a un tipo canonical
   - ejemplo de mapeos:
     - `epp`, `eps`, `implementos de proteccion personal` → `certificado_seguridad`
@@ -74,6 +89,7 @@ Sugerencia: mantener la tabla de mapeos en un único sitio (archivo/shared modul
 ---
 
 ## Lógica de vigencia (relevante para "cumple")
+
 - Preferir `fecha_vencimiento` si está en el documento y verificar que sea futura.
 - Si el documento no tiene `fecha_vencimiento`, usar `created_at` + `dias_duracion` del prerrequisito (si el prerrequisito define `dias_duracion`).
 - Si no hay datos, asumir que el documento es válido (o según la política de la empresa). Esto debe quedar documentado.
@@ -99,6 +115,7 @@ Sugerencia: mantener la tabla de mapeos en un único sitio (archivo/shared modul
 ---
 
 ## Consideraciones de rendimiento y escalabilidad
+
 - Soportar batches grandes (ej. hasta 200-500 ruts por petición) y paginar si es necesario.
 - Indexar la tabla de documentos por `rut`, `tipo_documento` y `fecha_vencimiento`.
 - Si el matching se utiliza mucho, considerar materializar/normalizar un resumen por persona (tabla `person_document_summary`) y actualizarla en triggers o jobs asíncronos.
@@ -106,6 +123,7 @@ Sugerencia: mantener la tabla de mapeos en un único sitio (archivo/shared modul
 ---
 
 ## Tests recomendados
+
 - Unit tests para `normalizeKey` y `normalizeTipo` con ejemplos reales (acentos, puntuación, mayúsculas, alias como "EPP", "E.P.P.").
 - Unit test para la función que decide vigencia (fecha_vencimiento vs dias_duracion).
 - Integration test para POST /prerequisitos/clientes/:clienteId/match con mocks de documentos y prerrequisitos.
@@ -113,25 +131,47 @@ Sugerencia: mantener la tabla de mapeos en un único sitio (archivo/shared modul
 ---
 
 ## Ejemplo de implementación rápida (Node + Express, pseudo)
+
 ```ts
 // handlers/prerequisitos.ts
 import express from 'express';
-import { normalizeTipo, loadClientePrerequisitos, loadDocumentosByRut } from './services';
+import {
+  normalizeTipo,
+  loadClientePrerequisitos,
+  loadDocumentosByRut,
+} from './services';
 const router = express.Router();
 
 router.post('/clientes/:clienteId/match', async (req, res) => {
   const clienteId = Number(req.params.clienteId);
   const { ruts = [], requireAll = true, includeGlobal = true } = req.body;
-  const requisitosCliente = await loadClientePrerequisitos(clienteId, includeGlobal);
-  const requiredSet = new Set(requisitosCliente.map(r => normalizeTipo(r.nombre || r.tipo_documento)));
+  const requisitosCliente = await loadClientePrerequisitos(
+    clienteId,
+    includeGlobal
+  );
+  const requiredSet = new Set(
+    requisitosCliente.map(r => normalizeTipo(r.nombre || r.tipo_documento))
+  );
 
   const results = [];
   for (const rut of ruts) {
     const docs = await loadDocumentosByRut(rut);
-    const personDocs = docs.map(d => ({ ...d, tipo_normalizado: normalizeTipo(d.tipo_documento || d.tipo || d.nombre) }));
-    const personSet = new Set(personDocs.filter(d => !isVencido(d, requisitosCliente)).map(d => d.tipo_normalizado));
+    const personDocs = docs.map(d => ({
+      ...d,
+      tipo_normalizado: normalizeTipo(d.tipo_documento || d.tipo || d.nombre),
+    }));
+    const personSet = new Set(
+      personDocs
+        .filter(d => !isVencido(d, requisitosCliente))
+        .map(d => d.tipo_normalizado)
+    );
     const faltantes = Array.from(requiredSet).filter(r => !personSet.has(r));
-    results.push({ rut, matchesAll: faltantes.length === 0, faltantes, documentos: personDocs });
+    results.push({
+      rut,
+      matchesAll: faltantes.length === 0,
+      faltantes,
+      documentos: personDocs,
+    });
   }
 
   res.json({ success: true, data: results });
@@ -162,6 +202,7 @@ Implementa un endpoint backend `POST /api/prerequisitos/clientes/:clienteId/matc
 - Performance: permitir batches (ej. 100-300 ruts por petición). Indexar por `rut` en la tabla de documentos. Considerar precomputar resumen por persona si la carga crece.
 
 Entrega esperada:
+
 - Código del endpoint adaptado al estilo del repo (controllers/services/routers).
 - Tests unitarios para normalización y para la función `isVencido`.
 - Un ejemplo de request/response en la documentación.
@@ -172,6 +213,7 @@ Por favor adapta los nombres de funciones y las rutas a la estructura y convenci
 ---
 
 ## Siguientes pasos sugeridos
+
 - Implementar el endpoint en backend y exponerlo al frontend.
 - Cambiar `CalendarioPage` para llamar a este endpoint en vez de iterar `getDocumentosByPersona` por cada persona.
 - Añadir tests de integración y un job que valide la coherencia de datos si se hace precomputación.
