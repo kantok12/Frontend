@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, AlertTriangle, Clock, CheckCircle, Calendar, FileText, GraduationCap, Users, RefreshCw, Search, Filter, Download } from 'lucide-react';
 import { useAllDocumentos } from '../hooks/useAllDocumentos';
@@ -20,6 +20,37 @@ export const EstadoDocumentacionPage: React.FC = () => {
     // remove trailing long numeric timestamps (e.g. _1762802225018)
     s = s.replace(/[_\s-]{1,}(\d{9,})$/g, '').trim();
     return s;
+  };
+  // Helper to dedupe ignoring diacritics (tildes) and capitalize labels
+  const removeDiacriticsSafe = (str: string) => {
+    if (!str) return str;
+    return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  };
+
+  const normalizeAndUniq = (items: string[]) => {
+    const map = new Map<string, string>();
+    for (const raw of items) {
+      if (!raw) continue;
+      const v = raw.toString().trim();
+      if (!v) continue;
+      const key = removeDiacriticsSafe(v).toLowerCase();
+      if (!map.has(key)) {
+        map.set(key, v);
+      } else {
+        const existing = map.get(key) || '';
+        const hasExistingDiacritics = existing !== removeDiacriticsSafe(existing);
+        const hasNewDiacritics = v !== removeDiacriticsSafe(v);
+        if (!hasExistingDiacritics && hasNewDiacritics) {
+          map.set(key, v);
+        }
+      }
+    }
+    return Array.from(map.values());
+  };
+
+  const capitalizeFirst = (s: string) => {
+    if (!s) return s;
+    return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
   };
   
   // Estados para filtros y búsqueda
@@ -212,6 +243,22 @@ export const EstadoDocumentacionPage: React.FC = () => {
     return filtered;
   }, [documentosUnicos, searchTerm, filterEstado, filterTipo, sortBy]);
 
+  // Paginación: mostrar hasta `pageSize` filas por página
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
+
+  // Resetear la página cuando cambian los resultados filtrados
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [documentosFiltrados]);
+
+  const totalPages = Math.max(1, Math.ceil(documentosFiltrados.length / pageSize));
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [totalPages, currentPage]);
+
+  const displayedDocs = documentosFiltrados.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
   // Función para obtener el color del estado
   const getEstadoColor = (estado: string) => {
     switch (estado) {
@@ -306,10 +353,15 @@ export const EstadoDocumentacionPage: React.FC = () => {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="todos">Todos los Cargos</option>
-              {/* Opciones generadas dinámicamente */}
-              {Array.from(new Set(documentos.map(d => (d.personal?.cargo || '').trim()).filter(Boolean))).map((c: any) => (
-                <option key={c} value={c.toLowerCase()}>{c}</option>
-              ))}
+              {/* Opciones generadas dinámicamente a partir de documentos únicos, ordenadas */}
+              {(() => {
+                const detected = documentosUnicos.map(d => (d.personal?.cargo || '').trim()).filter(Boolean);
+                const list = normalizeAndUniq([...detected]);
+                list.sort((a,b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+                return list.map((c: any) => (
+                  <option key={c.toLowerCase()} value={c.toLowerCase()}>{capitalizeFirst(c)}</option>
+                ));
+              })()}
             </select>
           </div>
 
@@ -323,9 +375,9 @@ export const EstadoDocumentacionPage: React.FC = () => {
             >
               <option value="todos">Todas las licencias</option>
               {(() => {
-                // Recolectar licencias desde el campo legacy `licencia_conducir` y desde el array `licencias`
+                // Recolectar licencias desde documentos únicos para mayor consistencia
                 const values: string[] = [];
-                documentos.forEach(d => {
+                documentosUnicos.forEach(d => {
                   const lc = d.personal?.licencia_conducir;
                   if (lc && typeof lc === 'string' && lc.trim()) values.push(lc.trim());
                   const licArr = d.personal?.licencias;
@@ -336,14 +388,11 @@ export const EstadoDocumentacionPage: React.FC = () => {
                     });
                   }
                 });
-                // Normalizar y deduplicar, manteniendo la forma original para mostrar
-                const map = new Map<string, string>();
-                values.forEach(v => {
-                  const key = v.toLowerCase();
-                  if (!map.has(key)) map.set(key, v);
-                });
-                return Array.from(map.values()).map((l: any) => (
-                  <option key={l} value={l.toLowerCase()}>{l}</option>
+                // Normalizar, deduplicar y ordenar
+                const unique = normalizeAndUniq(values);
+                unique.sort((a,b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+                return unique.map((l: any) => (
+                  <option key={l.toLowerCase()} value={l.toLowerCase()}>{capitalizeFirst(l)}</option>
                 ));
               })()}
             </select>
@@ -390,7 +439,7 @@ export const EstadoDocumentacionPage: React.FC = () => {
           <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-gray-900">
-                Documentos ({documentosFiltrados.length} de {documentos.length})
+                Documentos ({documentosFiltrados.length} de {documentosUnicos.length})
               </h3>
               <div className="flex items-center space-x-2">
                 <button 
@@ -454,7 +503,7 @@ export const EstadoDocumentacionPage: React.FC = () => {
                     </td>
                   </tr>
                 ) : (
-                  documentosFiltrados.map((documento) => (
+                  displayedDocs.map((documento) => (
                     <tr key={documento.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div>
@@ -521,6 +570,63 @@ export const EstadoDocumentacionPage: React.FC = () => {
               </tbody>
             </table>
           </div>
+              {/* Paginación */}
+              <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
+                <div className="text-sm text-gray-600">
+                  Mostrando {documentosFiltrados.length === 0 ? 0 : (currentPage - 1) * pageSize + 1} - {Math.min(currentPage * pageSize, documentosFiltrados.length)} de {documentosFiltrados.length}
+                </div>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="px-3 py-1 rounded-md border bg-white text-sm disabled:opacity-50"
+                  >
+                    Anterior
+                  </button>
+
+                  <div className="flex items-center space-x-1">
+                    {(() => {
+                      const pages: number[] = [];
+                      if (totalPages <= 10) {
+                        for (let i = 1; i <= totalPages; i++) pages.push(i);
+                      } else {
+                        let start = Math.max(1, currentPage - 3);
+                        let end = Math.min(totalPages, currentPage + 3);
+                        if (start === 1) end = Math.min(totalPages, 7);
+                        if (end === totalPages) start = Math.max(1, totalPages - 6);
+                        for (let i = start; i <= end; i++) pages.push(i);
+                      }
+                      return (
+                        <>
+                          {pages.map(p => (
+                            <button
+                              key={p}
+                              onClick={() => setCurrentPage(p)}
+                              className={`px-2 py-1 rounded ${p === currentPage ? 'bg-blue-600 text-white' : 'bg-white border'}`}
+                            >
+                              {p}
+                            </button>
+                          ))}
+                          {totalPages > 10 && currentPage + 3 < totalPages && <span className="px-2">...</span>}
+                          {totalPages > 10 && currentPage + 3 < totalPages && (
+                            <button onClick={() => setCurrentPage(totalPages)} className="px-2 py-1 rounded bg-white border">
+                              {totalPages}
+                            </button>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </div>
+
+                  <button
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="px-3 py-1 rounded-md border bg-white text-sm disabled:opacity-50"
+                  >
+                    Siguiente
+                  </button>
+                </div>
+              </div>
         </div>
       )}
     </div>

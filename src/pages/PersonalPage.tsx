@@ -9,6 +9,7 @@ import { Search, Plus, Trash2, Eye, User, Mail, CheckCircle, XCircle, Activity, 
 import { Personal } from '../types';
 import { formatRUT } from '../utils/formatters';
 import { displayValue } from '../utils/display';
+import { CARGOS, ZONAS, EMPRESAS, PROFESIONES, LICENCIAS, ESTADOS_PERSONAL } from '../config/listados';
 
 // Estados de actividad (para UI, no relacionados con backend)
 const estadosActividad = [
@@ -151,7 +152,11 @@ export const PersonalPage: React.FC = () => {
 
       if (filterCargo !== 'todos' && cargoNorm !== filterCargo) return false;
       if (filterProfesion !== 'todos' && profesionNorm !== filterProfesion) return false;
-      if (filterEstadoPersonal !== 'todos' && estadoNorm !== filterEstadoPersonal) return false;
+      if (filterEstadoPersonal !== 'todos') {
+        const left = removeDiacriticsSafeTop(estadoNorm).toLowerCase();
+        const right = removeDiacriticsSafeTop((filterEstadoPersonal || '').toString()).toLowerCase();
+        if (left !== right) return false;
+      }
 
       if (filterLicencia !== 'todos') {
         if (licenciaLegacy === licenciaTarget) {
@@ -415,6 +420,82 @@ export const PersonalPage: React.FC = () => {
     if (page > effectiveTotalPages) setPage(1);
   }, [page, effectiveTotalPages]);
 
+  // Construir listas de opciones para los selects combinando catálogos maestros
+  // con valores detectados en los datos (para no perder opciones existentes).
+  const sourceForOptions = personalForOptions.length > 0 ? personalForOptions : personalListOriginal;
+
+  // Helpers: deduplicar ignorando diacríticos (tildes) y capitalizar
+  const removeDiacritics = (str: string) => {
+    if (!str) return str;
+    // Normalize to NFD and strip combining marks
+    return str.normalize('NFD').replace(/[ -]|/g, (c: string) => c).normalize('NFC').replace(/\p{Diacritic}/gu, '');
+  };
+
+  // Fallback safe remover if RegExp with \p{Diacritic} unsupported in some environments
+  const removeDiacriticsSafe = (str: string) => {
+    if (!str) return str;
+    return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  };
+
+  const normalizeAndUniq = (items: string[]) => {
+    const map = new Map<string, string>();
+    for (const raw of items) {
+      if (!raw) continue;
+      const v = raw.toString().trim();
+      if (!v) continue;
+      // Key without diacritics, lowercase — so 'capacitación' and 'capacitacion' map to same key
+      const key = removeDiacriticsSafe(v).toLowerCase();
+      if (!map.has(key)) {
+        map.set(key, v);
+      } else {
+        // If existing value has no diacritics but new one has, prefer new (keep accented form)
+        const existing = map.get(key) || '';
+        const hasExistingDiacritics = existing !== removeDiacriticsSafe(existing);
+        const hasNewDiacritics = v !== removeDiacriticsSafe(v);
+        if (!hasExistingDiacritics && hasNewDiacritics) {
+          map.set(key, v);
+        }
+      }
+    }
+    return Array.from(map.values());
+  };
+
+  const capitalizeFirst = (s: string) => {
+    if (!s) return s;
+    return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+  };
+
+  const detectedCargos = sourceForOptions.map((p: any) => (p.cargo || '').trim()).filter(Boolean);
+  const cargoOptions = normalizeAndUniq([...CARGOS.filter(Boolean), ...detectedCargos]).sort((a: string, b: string) => a.toLowerCase().localeCompare(b.toLowerCase()));
+
+  const detectedZonas = sourceForOptions.map((p: any) => (p.ubicacion?.region || p.zona_geografica || '').trim()).filter(Boolean);
+  const zonaOptions = normalizeAndUniq([...ZONAS.filter(Boolean), ...detectedZonas]).sort((a: string, b: string) => a.toLowerCase().localeCompare(b.toLowerCase()));
+
+  const detectedProfesiones = sourceForOptions.map((p: any) => (p.profesion || '').trim()).filter(Boolean);
+  const profesionOptions = normalizeAndUniq([...PROFESIONES.filter(Boolean), ...detectedProfesiones]).sort((a: string, b: string) => a.toLowerCase().localeCompare(b.toLowerCase()));
+
+  const detectedLicencias: string[] = [];
+  sourceForOptions.forEach((p: any) => {
+    const lc = p.licencia_conducir;
+    if (lc && typeof lc === 'string' && lc.trim()) detectedLicencias.push(lc.trim());
+    const licArr = (p as any).licencias;
+    if (Array.isArray(licArr)) {
+      licArr.forEach((lic: any) => {
+        const t = lic?.tipo || lic?.clase || lic?.numero || '';
+        if (t && typeof t === 'string' && t.trim()) detectedLicencias.push(t.trim());
+      });
+    }
+  });
+  const licenciaOptions = normalizeAndUniq([...LICENCIAS.filter(Boolean), ...detectedLicencias]).sort((a: string, b: string) => a.toLowerCase().localeCompare(b.toLowerCase()));
+
+  const detectedEmpresas = sourceForOptions.map((p: any) => (p.empresa?.nombre || '').trim()).filter(Boolean);
+  const empresasFromCatalog = EMPRESAS.map(e => e.nombre).filter(Boolean);
+  const empresaOptions = normalizeAndUniq([...empresasFromCatalog, ...detectedEmpresas]).sort((a: string, b: string) => a.toLowerCase().localeCompare(b.toLowerCase()));
+
+  // Estados: combinar catálogo maestro con estados detectados en los datos
+  const detectedEstados = sourceForOptions.map((p: any) => (p.estado_nombre || '').trim()).filter(Boolean);
+  const estadoOptions = normalizeAndUniq([...ESTADOS_PERSONAL.filter(Boolean), ...detectedEstados]).sort((a: string, b: string) => a.toLowerCase().localeCompare(b.toLowerCase()));
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setPage(1); // Reset to first page when searching
@@ -582,8 +663,8 @@ export const PersonalPage: React.FC = () => {
               className="px-3 py-1 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
             >
               <option value="todos">Todos los cargos</option>
-              {(Array.from(new Set((personalForOptions.length > 0 ? personalForOptions : personalListOriginal).map((p: any) => (p.cargo || '').trim()).filter(Boolean)))).map((c: any) => (
-                <option key={c} value={c.toLowerCase()}>{c}</option>
+              {cargoOptions.map((c: any) => (
+                <option key={c.toLowerCase()} value={c.toLowerCase()}>{capitalizeFirst(c)}</option>
               ))}
             </select>
           </div>
@@ -597,8 +678,8 @@ export const PersonalPage: React.FC = () => {
               className="px-3 py-1 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
             >
               <option value="todos">Todas</option>
-              {Array.from(new Set(personalListOriginal.map(p => (p.ubicacion?.region || p.zona_geografica || '').trim()).filter(Boolean))).map((z: any) => (
-                <option key={z} value={z.toLowerCase()}>{z}</option>
+              {zonaOptions.map((z: any) => (
+                <option key={z.toLowerCase()} value={z.toLowerCase()}>{capitalizeFirst(z)}</option>
               ))}
             </select>
           </div>
@@ -612,8 +693,8 @@ export const PersonalPage: React.FC = () => {
               className="px-3 py-1 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
             >
               <option value="todos">Todas</option>
-              {Array.from(new Set(personalListOriginal.map(p => (p.profesion || '').trim()).filter(Boolean))).map((pr: any) => (
-                <option key={pr} value={pr.toLowerCase()}>{pr}</option>
+              {profesionOptions.map((pr: any) => (
+                <option key={pr.toLowerCase()} value={pr.toLowerCase()}>{capitalizeFirst(pr)}</option>
               ))}
             </select>
           </div>
@@ -627,8 +708,8 @@ export const PersonalPage: React.FC = () => {
               className="px-3 py-1 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
             >
               <option value="todos">Todos los estados</option>
-              {Array.from(new Set(personalListOriginal.map(p => (p.estado_nombre || '').trim()).filter(Boolean))).map((s: any) => (
-                <option key={s} value={s.toLowerCase()}>{s}</option>
+              {estadoOptions.map((s: any) => (
+                <option key={s.toLowerCase()} value={s.toLowerCase()}>{capitalizeFirst(s)}</option>
               ))}
             </select>
           </div>
@@ -657,22 +738,9 @@ export const PersonalPage: React.FC = () => {
                         });
                       }
                     });
-                    // Lista canónica de clases de licencia que siempre deben mostrarse
-                    const canonical = ['A1','A2','A3','A4','A5','B','C','D','E','F'];
-                    const map = new Map<string, string>();
-                    // Añadir canónicos primero (mantener orden)
-                    canonical.forEach(c => map.set(c.toLowerCase(), c));
-
-                    // Añadir valores detectados dinámicamente
-                    values.forEach(v => {
-                      const key = v.toLowerCase();
-                      if (!map.has(key)) map.set(key, v);
-                    });
-
-                    // Renderizar en el orden: canónicos primero, luego el resto detectado
-                    return Array.from(map.values()).map((l: any) => (
-                      <option key={l} value={l.toLowerCase()}>{l}</option>
-                    ));
+                      return licenciaOptions.map((l: any) => (
+                        <option key={l.toLowerCase()} value={l.toLowerCase()}>{capitalizeFirst(l)}</option>
+                      ));
                   })()}
             </select>
           </div>
@@ -686,8 +754,8 @@ export const PersonalPage: React.FC = () => {
               className="px-3 py-1 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
             >
               <option value="todos">Todas</option>
-              {Array.from(new Set(personalListOriginal.map(p => (p.empresa?.nombre || '').trim()).filter(Boolean))).map((emp: any) => (
-                <option key={emp} value={emp.toLowerCase()}>{emp}</option>
+              {empresaOptions.map((emp: any) => (
+                <option key={emp.toLowerCase()} value={emp.toLowerCase()}>{capitalizeFirst(emp)}</option>
               ))}
             </select>
           </div>
@@ -1108,4 +1176,10 @@ export const PersonalPage: React.FC = () => {
 
     </div>
   );
+};
+
+// Helper pequeño para comparar ignorando diacríticos (tildes)
+const removeDiacriticsSafeTop = (str: string) => {
+  if (!str) return str;
+  return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 };
